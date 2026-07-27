@@ -1,0 +1,1291 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useOwnerRateLimit } from '@/hooks/useOwnerRateLimit';
+import { getSupabase } from '@/lib/supabase';
+import QRCodeModal from './components/QRCodeModal';
+import EditListingModal from './components/EditListingModal';
+import RentalAgreementModal from './components/RentalAgreementModal';
+import { useRentalAgreements } from '@/hooks/useRentalAgreements';
+import NotificationBell from './components/NotificationBell';
+import RequestsTab from './components/RequestsTab';
+import InquiriesTab from './components/InquiriesTab';
+import ChatTab from './components/ChatTab';
+import { useOwnerListings, type ListingFromDB } from '@/hooks/useListings';
+import ChannelPreferences from '@/pages/notifications/components/ChannelPreferences';
+import { useToast } from '@/hooks/useToast';
+import {
+  isValidName,
+  isValidEmail,
+  isValidIndianPhone,
+  formatIndianPhoneInput,
+  OCCUPATION_OPTIONS,
+  MONTH_OPTIONS,
+  daysInMonth,
+  yearOptions,
+  parseIsoDate,
+  composeIsoDate,
+} from '@/lib/validation';
+
+type ProfileTab = 'overview' | 'listings' | 'tenants' | 'inquiries' | 'messages' | 'requests' | 'documents' | 'billing' | 'settings';
+
+function formatINR(num: number): string {
+  return `\u20b9${num.toLocaleString('en-IN')}`;
+}
+
+function NotificationToggle({ label, desc, defaultOn = false, activeColor = 'bg-amber-500' }: { label: string; desc: string; defaultOn?: boolean; activeColor?: string }) {
+  const [on, setOn] = useState(defaultOn);
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-semibold text-charcoal">{label}</p>
+        <p className="text-xs text-charcoal/40 mt-0.5">{desc}</p>
+      </div>
+      <button
+        onClick={() => setOn(!on)}
+        className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ${on ? activeColor : 'bg-gray-200'}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${on ? 'translate-x-5' : 'translate-x-0'}`} />
+      </button>
+    </div>
+  );
+}
+
+export default function OwnerProfile() {
+  const { user, updateProfile } = useAuth();
+  const { isPro, plan, status, nextBillingDate, isInGracePeriod, isInTrial, trialDaysLeft, totalSpent, billingHistory, cancelSubscription, toggleAutoRenew } = useSubscription();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(null);
+
+  // Real data hooks for new users (empty initially)
+  const { listings: myListingsFromDB, loading: listingsLoading, refresh: refreshListings } = useOwnerListings(user?.id);
+
+  const [qrModalListing, setQrModalListing] = useState<ListingFromDB | null>(null);
+  const [editModalListing, setEditModalListing] = useState<ListingFromDB | null>(null);
+  const [deleteListing, setDeleteListing] = useState<ListingFromDB | null>(null);
+  const [deletingListingId, setDeletingListingId] = useState<string | null>(null);
+  const [togglingListingId, setTogglingListingId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const { addToast } = useToast();
+  const { inquiry, chat, community } = useOwnerRateLimit(user?.id);
+
+  const [formName, setFormName] = useState(user?.name ?? '');
+  const [formPhone, setFormPhone] = useState(user?.phone ?? '');
+  const [formEmail, setFormEmail] = useState(user?.email ?? '');
+  const [formDobDay, setFormDobDay] = useState('');
+  const [formDobMonth, setFormDobMonth] = useState('');
+  const [formDobYear, setFormDobYear] = useState('');
+  const [formOccupation, setFormOccupation] = useState('');
+  const [formOccupationOther, setFormOccupationOther] = useState('');
+  const [formEmergency, setFormEmergency] = useState(user?.emergencyContact ?? '');
+  const [nameError, setNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+
+  const [viewAgreementId, setViewAgreementId] = useState<string | null>(null);
+  const { agreements: rentalAgreements, markShared } = useRentalAgreements(user?.id);
+
+  const initEditForm = () => {
+    if (!user) return;
+    setFormName(user.name);
+    setFormPhone(user.phone ?? '');
+    setFormEmail(user.email);
+    const dob = parseIsoDate(user.dateOfBirth);
+    setFormDobDay(dob.day);
+    setFormDobMonth(dob.month);
+    setFormDobYear(dob.year);
+    if (user.occupation && !OCCUPATION_OPTIONS.includes(user.occupation as typeof OCCUPATION_OPTIONS[number])) {
+      setFormOccupation('Other');
+      setFormOccupationOther(user.occupation);
+    } else {
+      setFormOccupation(user.occupation ?? '');
+      setFormOccupationOther('');
+    }
+    setFormEmergency(user.emergencyContact ?? '');
+    setNameError('');
+    setEmailError('');
+    setPhoneError('');
+  };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+        <div className="text-center">
+          <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
+            <i className="ri-user-line text-2xl text-charcoal/40" />
+          </div>
+          <h2 className="text-xl font-bold text-charcoal mb-2">Not signed in</h2>
+          <p className="text-charcoal/60 text-sm mb-6">Please sign in to view your profile.</p>
+          <Link to="/login" className="bg-brand text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-brand-dark transition-colors whitespace-nowrap">
+            Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const initials = user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+
+  const pendingInquiries = 0; // No inquiries for new users
+
+  const handleSave = async () => {
+    let hasError = false;
+    if (!isValidName(formName)) {
+      setNameError('Name can only contain letters and spaces.');
+      hasError = true;
+    } else {
+      setNameError('');
+    }
+    if (!isValidEmail(formEmail)) {
+      setEmailError('Enter a valid email address.');
+      hasError = true;
+    } else {
+      setEmailError('');
+    }
+    if (formPhone && !isValidIndianPhone(formPhone)) {
+      setPhoneError('Enter a valid 10-digit Indian mobile number.');
+      hasError = true;
+    } else {
+      setPhoneError('');
+    }
+    if (hasError) return;
+
+    const dateOfBirth = composeIsoDate(formDobDay, formDobMonth, formDobYear);
+    const occupation = formOccupation === 'Other' ? formOccupationOther.trim() : formOccupation;
+
+    const { error, emailVerificationSent } = await updateProfile({
+      name: formName.trim(),
+      phone: formPhone,
+      email: formEmail.trim(),
+      dateOfBirth,
+      occupation,
+      emergencyContact: formEmergency,
+    });
+
+    if (error) {
+      addToast(error, 'error');
+      return;
+    }
+
+    setEditMode(false);
+    if (emailVerificationSent) {
+      addToast(`Profile updated. Confirm the link sent to ${formEmail.trim()} to finish changing your email.`, 'success');
+    } else {
+      addToast('Profile updated successfully', 'success');
+    }
+  };
+
+  const tenantRows: any[] = []; // Empty for new users
+  const totalIncome = `\u20b9${0}`; // No income for new users
+  const urgentRequests = 0; // No requests for new users
+  const pendingRequests = 0; // No pending requests for new users
+
+  const tabs: { id: ProfileTab; label: string; icon: string; badge?: number }[] = [
+    { id: 'overview', label: 'Overview', icon: 'ri-home-4-line' },
+    { id: 'listings', label: 'My Listings', icon: 'ri-list-check-3' },
+    { id: 'tenants', label: 'Tenants', icon: 'ri-group-line', badge: tenantRows.length },
+    { id: 'inquiries', label: 'Inquiries', icon: 'ri-message-3-line', badge: pendingInquiries },
+    { id: 'messages', label: 'Messages', icon: 'ri-chat-3-line' },
+    { id: 'requests', label: 'Requests', icon: 'ri-tools-line', badge: pendingRequests },
+    { id: 'documents', label: 'Documents', icon: 'ri-folder-line' },
+    { id: 'billing', label: 'Billing', icon: 'ri-bill-line' },
+    { id: 'settings', label: 'Settings', icon: 'ri-settings-3-line' },
+  ];
+
+  const myListings = myListingsFromDB;
+  const totalProperties = new Set(myListingsFromDB.map((l) => l.property_id).filter(Boolean)).size;
+
+  const handleToggleActive = async (listing: ListingFromDB) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const nextStatus = listing.status === 'active' ? 'inactive' : 'active';
+    setTogglingListingId(listing.id);
+    const { error } = await supabase.from('listings').update({ status: nextStatus }).eq('id', listing.id);
+    setTogglingListingId(null);
+    if (error) {
+      addToast(`Failed to update listing: ${error.message}`, 'error');
+      return;
+    }
+    addToast(nextStatus === 'active' ? 'Listing activated' : 'Listing deactivated', 'success');
+    refreshListings();
+  };
+
+  const handleDeleteListing = async () => {
+    if (!deleteListing) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setDeletingListingId(deleteListing.id);
+    const { error } = await supabase.from('listings').delete().eq('id', deleteListing.id);
+    setDeletingListingId(null);
+    if (error) {
+      addToast(`Failed to delete listing: ${error.message}`, 'error');
+      return;
+    }
+    addToast('Listing deleted successfully', 'success');
+    setDeleteListing(null);
+    refreshListings();
+  };
+
+  return (
+    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+      <div className="max-w-6xl mx-auto px-4 md:px-8">
+
+        <QRCodeModal listing={qrModalListing} onClose={() => setQrModalListing(null)} />
+        {viewAgreementId && (
+          <RentalAgreementModal
+            agreement={rentalAgreements.find((a) => a.id === viewAgreementId) ?? null}
+            onClose={() => setViewAgreementId(null)}
+          />
+        )}
+        <EditListingModal
+          listing={editModalListing}
+          onClose={() => setEditModalListing(null)}
+          onSave={() => { setEditModalListing(null); refreshListings(); }}
+        />
+
+        {/* Delete listing modal */}
+        {deleteListing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteListing(null)} />
+            <div className="relative bg-white rounded-2xl max-w-md w-full shadow-xl p-6">
+              <div className="w-12 h-12 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <i className="ri-delete-bin-line text-red-500 text-xl" />
+              </div>
+              <h3 className="text-lg font-bold text-charcoal text-center mb-2">Delete Listing?</h3>
+              <p className="text-sm text-charcoal/60 text-center mb-6">
+                Are you sure you want to delete <strong className="text-charcoal">{deleteListing.title}</strong>? This action <strong>cannot be undone</strong>.
+              </p>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setDeleteListing(null)} className="flex-1 px-4 py-2.5 rounded-full border border-black/10 text-sm text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
+                <button
+                  onClick={handleDeleteListing}
+                  disabled={deletingListingId === deleteListing.id}
+                  className="flex-1 px-4 py-2.5 rounded-full bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                >
+                  {deletingListingId === deleteListing.id ? 'Deleting...' : 'Yes, Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Profile Header */}
+        <div className="bg-white rounded-3xl border border-black/5 overflow-hidden mb-6">
+          <div className="h-32 md:h-44 relative overflow-hidden">
+            <img
+              src="/placeholders/photo.svg"
+              alt="cover"
+              className="w-full h-full object-cover object-top"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30" />
+          </div>
+
+          <div className="px-6 pb-6">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-10 relative">
+              <div className="flex items-end gap-4">
+                <div className="w-20 h-20 rounded-2xl bg-amber-100 border-4 border-white flex items-center justify-center flex-shrink-0">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt={user.name} className="w-full h-full rounded-2xl object-cover" />
+                  ) : (
+                    <span className="text-2xl font-bold text-amber-600">{initials}</span>
+                  )}
+                </div>
+                <div className="pb-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-xl font-bold text-charcoal">{user.name}</h1>
+                    {user.verified && (
+                      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">
+                        <i className="ri-shield-check-fill text-sm" /> Verified
+                      </span>
+                    )}
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Property Owner</span>
+                    {isPro && (
+                      <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                        <i className="ri-vip-crown-line text-[10px]" /> Pro
+                      </span>
+                    )}
+                    {!isPro && (
+                      <Link to="/subscription" className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-lightgray text-charcoal/60 hover:bg-amber-50 hover:text-amber-600 transition-colors">
+                        <i className="ri-sparkling-line text-[10px]" /> Upgrade
+                      </Link>
+                    )}
+                  </div>
+                  <p className="text-sm text-charcoal/60 mt-0.5">Member since {user.joinedAt}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pb-1">
+                <NotificationBell />
+                <Link to="/list-property" className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap">
+                  <i className="ri-add-line text-sm" /> List Property
+                </Link>
+                {!editMode ? (
+                  <button
+                    onClick={() => {
+                      setEditMode(true);
+                      initEditForm();
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-black/10 text-sm font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <i className="ri-edit-line text-sm" /> Edit
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={() => setEditMode(false)} className="px-4 py-2 rounded-full border border-black/10 text-sm font-medium text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
+                    <button onClick={handleSave} className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors whitespace-nowrap">Save Changes</button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Quick stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+              {[
+                { label: 'Total Properties', value: String(totalProperties), icon: 'ri-building-line', color: 'text-amber-600' },
+                { label: 'Active Listings', value: String(myListings.length), icon: 'ri-list-check-3', color: 'text-brand' },
+                { label: 'Monthly Income', value: totalIncome, icon: 'ri-money-rupee-circle-line', color: 'text-green-600' },
+                { label: 'Urgent Requests', value: String(urgentRequests), icon: 'ri-alarm-warning-line', color: urgentRequests > 0 ? 'text-red-500' : 'text-charcoal/40' },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-offwhite rounded-xl p-3">
+                  <div className="w-7 h-7 flex items-center justify-center mb-1.5">
+                    <i className={`${stat.icon} text-base ${stat.color}`} />
+                  </div>
+                  <p className="text-sm font-bold text-charcoal">{stat.value}</p>
+                  <p className="text-xs text-charcoal/60 mt-0.5">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Subscription banners */}
+        {isInTrial && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3.5 mb-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-100 flex-shrink-0">
+                <i className="ri-vip-crown-line text-amber-600" />
+              </div>
+              <p className="text-sm font-semibold text-amber-700">
+                Pro trial active — {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''} left. <Link to="/subscription" className="underline">Upgrade now</Link> to keep Pro access.
+              </p>
+            </div>
+          </div>
+        )}
+        {isInGracePeriod && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3.5 mb-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-100 flex-shrink-0">
+                <i className="ri-error-warning-line text-red-600" />
+              </div>
+              <p className="text-sm font-semibold text-red-700">
+                Payment failed — update your payment method within 7 days to keep Pro access.
+              </p>
+            </div>
+            <Link to="/subscription" className="text-sm font-bold text-red-600 hover:text-red-700 whitespace-nowrap flex items-center gap-1">
+              Update Payment <i className="ri-arrow-right-line" />
+            </Link>
+          </div>
+        )}
+
+        {/* Urgent alert */}
+        {urgentRequests > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3.5 mb-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-100 flex-shrink-0">
+                <i className="ri-alarm-warning-line text-red-600" />
+              </div>
+              <p className="text-sm font-semibold text-red-700">
+                {urgentRequests} urgent maintenance request{urgentRequests > 1 ? 's' : ''} need your attention
+              </p>
+            </div>
+            <button onClick={() => setActiveTab('requests')} className="text-sm font-bold text-red-600 hover:text-red-700 whitespace-nowrap flex items-center gap-1 cursor-pointer">
+              View Requests <i className="ri-arrow-right-line" />
+            </button>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex gap-1 bg-white rounded-xl border border-black/5 p-1.5 mb-6 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); setActiveChatRequestId(null); }}
+              className={`relative flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 md:flex-1 ${
+                activeTab === tab.id ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+              }`}
+            >
+              <i className={`${tab.icon} text-sm`} />
+              {tab.label}
+              {tab.badge != null && tab.badge > 0 && (
+                <span className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${activeTab === tab.id ? 'bg-white text-amber-600' : 'bg-amber-500 text-white'}`}>
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Personal Info */}
+              <div className="bg-white rounded-3xl border border-black/5 p-6">
+                <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <i className="ri-user-line text-amber-600" />
+                  </div>
+                  Personal Information
+                  <button
+                    onClick={() => {
+                      if (!editMode) initEditForm();
+                      setEditMode(!editMode);
+                    }}
+                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-black/10 text-xs font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <i className={`${editMode ? 'ri-close-line' : 'ri-edit-line'} text-sm`} />
+                    {editMode ? 'Cancel' : 'Edit'}
+                  </button>
+                </h2>
+                {editMode ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Full Name</label>
+                      <input
+                        type="text"
+                        value={formName}
+                        onChange={(e) => setFormName(e.target.value.replace(/[^A-Za-z\s]/g, ''))}
+                        className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${nameError ? 'ring-2 ring-red-300' : 'focus:ring-amber-300'}`}
+                      />
+                      {nameError && <p className="text-xs text-red-500 mt-1">{nameError}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Email</label>
+                      <input
+                        type="email"
+                        value={formEmail}
+                        onChange={(e) => setFormEmail(e.target.value)}
+                        className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${emailError ? 'ring-2 ring-red-300' : 'focus:ring-amber-300'}`}
+                      />
+                      {emailError ? (
+                        <p className="text-xs text-red-500 mt-1">{emailError}</p>
+                      ) : formEmail !== user.email ? (
+                        <p className="text-xs text-amber-600 mt-1">A verification link will be sent to confirm this change.</p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Phone</label>
+                      <input
+                        type="tel"
+                        value={formPhone}
+                        onChange={(e) => setFormPhone(formatIndianPhoneInput(e.target.value))}
+                        placeholder="+91 98765 43210"
+                        className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${phoneError ? 'ring-2 ring-red-300' : 'focus:ring-amber-300'}`}
+                      />
+                      {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Emergency Contact</label>
+                      <input
+                        type="text"
+                        value={formEmergency}
+                        onChange={(e) => setFormEmergency(e.target.value)}
+                        className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Date of Birth</label>
+                      <div className="grid grid-cols-3 gap-3">
+                        <select value={formDobDay} onChange={(e) => setFormDobDay(e.target.value)} className="w-full px-3 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer">
+                          <option value="">Day</option>
+                          {Array.from({ length: daysInMonth(Number(formDobMonth), Number(formDobYear)) }, (_, i) => i + 1).map((d) => (
+                            <option key={d} value={String(d).padStart(2, '0')}>{d}</option>
+                          ))}
+                        </select>
+                        <select value={formDobMonth} onChange={(e) => setFormDobMonth(e.target.value)} className="w-full px-3 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer">
+                          <option value="">Month</option>
+                          {MONTH_OPTIONS.map((m) => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </select>
+                        <select value={formDobYear} onChange={(e) => setFormDobYear(e.target.value)} className="w-full px-3 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer">
+                          <option value="">Year</option>
+                          {yearOptions(1900).map((y) => (
+                            <option key={y} value={String(y)}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className={formOccupation === 'Other' ? '' : 'sm:col-span-2'}>
+                      <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Occupation</label>
+                      <select value={formOccupation} onChange={(e) => setFormOccupation(e.target.value)} className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer">
+                        <option value="">Select occupation</option>
+                        {OCCUPATION_OPTIONS.map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {formOccupation === 'Other' && (
+                      <div>
+                        <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Specify Occupation</label>
+                        <input
+                          type="text"
+                          value={formOccupationOther}
+                          onChange={(e) => setFormOccupationOther(e.target.value)}
+                          className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Aadhaar</label>
+                      <div className="w-full px-4 py-3 bg-lightgray rounded-xl text-sm text-charcoal/40 flex items-center justify-between gap-2">
+                        <span>{user.aadhaarLast4 ? `XXXX XXXX ${user.aadhaarLast4}` : 'Not verified'}</span>
+                        {!user.aadhaarLast4 && (
+                          <Link to="/aadhaar-verify" className="text-amber-600 font-semibold hover:text-amber-700 whitespace-nowrap">Verify</Link>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Member Since</label>
+                      <div className="w-full px-4 py-3 bg-lightgray rounded-xl text-sm text-charcoal/40">{user.joinedAt}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      { label: 'Full Name', value: user.name, icon: 'ri-user-line' },
+                      { label: 'Email', value: user.email, icon: 'ri-mail-line' },
+                      { label: 'Phone', value: user.phone ?? 'Not added', icon: 'ri-phone-line' },
+                      { label: 'Date of Birth', value: user.dateOfBirth ?? 'Not added', icon: 'ri-cake-line' },
+                      { label: 'Occupation', value: user.occupation ?? 'Not added', icon: 'ri-briefcase-line' },
+                      { label: 'Emergency Contact', value: user.emergencyContact ?? 'Not added', icon: 'ri-contacts-book-line' },
+                      { label: 'Aadhaar', value: user.aadhaarLast4 ? `XXXX XXXX ${user.aadhaarLast4}` : 'Not verified', icon: 'ri-shield-user-line' },
+                      { label: 'Member Since', value: user.joinedAt, icon: 'ri-time-line' },
+                    ].map((field) => (
+                      <div key={field.label} className="flex items-start gap-3">
+                        <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-50 flex-shrink-0 mt-0.5">
+                          <i className={`${field.icon} text-sm text-amber-600`} />
+                        </div>
+                        <div>
+                          <p className="text-xs text-charcoal/40 font-medium">{field.label}</p>
+                          <p className="text-sm font-semibold text-charcoal mt-0.5">{field.value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right sidebar */}
+            <div className="space-y-6">
+              {/* Verification */}
+              <div className="bg-white rounded-3xl border border-black/5 p-5">
+                <h3 className="text-sm font-bold text-charcoal mb-4">Verification Status</h3>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Email Verified', done: true, icon: 'ri-mail-check-line' },
+                    { label: 'Phone Verified', done: !!user.phone, icon: 'ri-smartphone-line' },
+                    { label: 'Aadhaar Verified', done: user.verified, icon: 'ri-shield-check-line' },
+                    { label: 'Property Documents', done: true, icon: 'ri-file-text-line' },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-7 h-7 flex items-center justify-center rounded-lg ${item.done ? 'bg-green-50' : 'bg-lightgray'}`}>
+                          <i className={`${item.icon} text-sm ${item.done ? 'text-green-600' : 'text-charcoal/40'}`} />
+                        </div>
+                        <span className="text-sm text-charcoal font-medium">{item.label}</span>
+                      </div>
+                      {item.done ? (
+                        <i className="ri-checkbox-circle-fill text-green-500 text-base" />
+                      ) : (
+                        <Link to="/aadhaar-verify" className="text-xs text-amber-600 font-semibold hover:text-amber-700 whitespace-nowrap">Verify</Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="bg-white rounded-3xl border border-black/5 p-5">
+                <h3 className="text-sm font-bold text-charcoal mb-4">Quick Actions</h3>
+                <div className="space-y-2">
+                  {[
+                    { to: '/list-property', icon: 'ri-home-4-line', label: 'List a Property', color: 'bg-amber-50 text-amber-600' },
+                    { to: '/rent-payment', icon: 'ri-money-rupee-circle-line', label: 'Rent Payments', color: 'bg-red-50 text-red-500' },
+                    { to: '/rental-agreements', icon: 'ri-file-list-3-line', label: 'Rental Agreements', color: 'bg-orange-50 text-orange-600' },
+                    { to: '/rent-receipts', icon: 'ri-file-text-line', label: 'Rent Receipts', color: 'bg-orange-50 text-orange-600' },
+                    { to: '/tax-forms', icon: 'ri-government-line', label: 'Tax Forms', color: 'bg-blue-50 text-blue-600' },
+                    { to: '/feedback', icon: 'ri-star-line', label: 'View Reviews', color: 'bg-brand/10 text-brand' },
+                    { to: '/community', icon: 'ri-discuss-line', label: 'Community Forum', color: 'bg-teal-50 text-teal-600' },
+                  ].map((action) => (
+                    <Link key={action.to} to={action.to} className="flex items-center gap-3 p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
+                      <div className={`w-8 h-8 flex items-center justify-center rounded-lg flex-shrink-0 ${action.color}`}>
+                        <i className={`${action.icon} text-sm`} />
+                      </div>
+                      <span className="text-sm font-medium text-charcoal">{action.label}</span>
+                      <div className="w-4 h-4 flex items-center justify-center ml-auto">
+                        <i className="ri-arrow-right-s-line text-charcoal/40" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pending actions */}
+              {pendingRequests > 0 && (
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      <i className="ri-notification-3-line text-amber-600" />
+                    </div>
+                    <h3 className="text-sm font-bold text-amber-800">Action Required</h3>
+                  </div>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    You have <strong>{pendingRequests} pending</strong> maintenance requests waiting for acknowledgement.
+                  </p>
+                  <button onClick={() => setActiveTab('requests')} className="mt-3 text-xs font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                    Review Now <i className="ri-arrow-right-line" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'listings' && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-charcoal">My Listings</h2>
+                <p className="text-sm text-charcoal/60 mt-0.5">{myListings.length} active listings on Bhavan</p>
+              </div>
+              <Link to="/list-property" className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap">
+                <i className="ri-add-line text-sm" /> Add Listing
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {myListings.map((listing) => (
+                <div key={listing.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden hover:border-amber-200 transition-all group">
+                  <div className="relative h-44 overflow-hidden">
+                    <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                    <span className={`absolute top-3 left-3 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${listing.status !== 'active' ? 'bg-gray-500 text-white' : 'bg-green-500 text-white'}`}>
+                      <i className={`${listing.status !== 'active' ? 'ri-close-circle-fill' : 'ri-checkbox-circle-fill'} text-[10px]`} /> {listing.status !== 'active' ? 'Inactive' : 'Active'}
+                    </span>
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                      <button onClick={() => setEditModalListing(listing)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 hover:bg-white transition-colors cursor-pointer">
+                        <i className="ri-edit-line text-amber-600 text-sm" />
+                      </button>
+                      <button onClick={() => navigate(`/listings/${listing.id}`)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/90 hover:bg-white transition-colors cursor-pointer">
+                        <i className="ri-eye-line text-charcoal/70 text-sm" />
+                      </button>
+                    </div>
+                    <div className="absolute bottom-3 left-3">
+                      <span className="text-xs font-bold text-white bg-black/50 px-2 py-0.5 rounded-full">
+                        {(listing.property_type ?? 'apartment').charAt(0).toUpperCase() + (listing.property_type ?? 'apartment').slice(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-bold text-charcoal leading-snug">{listing.title}</h3>
+                      <p className="text-sm font-bold text-amber-600 whitespace-nowrap">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-normal text-charcoal/40">/mo</span></p>
+                    </div>
+                    <p className="text-xs text-charcoal/60 flex items-center gap-1 mt-1">
+                      <i className="ri-map-pin-line text-sm" /> {listing.location}
+                    </p>
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
+                      <span className="flex items-center gap-1 text-xs text-charcoal/60">
+                        <i className="ri-hotel-bed-line text-sm" />{(listing.bedrooms ?? 0) === 0 ? 'Studio' : `${listing.bedrooms} BHK`}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-charcoal/60">
+                        <i className="ri-drop-line text-sm" /> {listing.bathrooms ?? 1} Bath
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-charcoal/60">
+                        <i className="ri-ruler-line text-sm" /> {listing.area_sqft ?? 0} sqft
+                      </span>
+                      {listing.furnished && (
+                        <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                          <i className="ri-checkbox-circle-line text-sm" /> Furnished
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      {[
+                        { label: 'Views', value: String(listing.views_count ?? 0), icon: 'ri-eye-line' },
+                        { label: 'Inquiries', value: String(listing.inquiries_count ?? 0), icon: 'ri-message-3-line' },
+                        { label: 'Saves', value: String(listing.saves_count ?? 0), icon: 'ri-bookmark-line' },
+                      ].map((stat) => (
+                        <div key={stat.label} className="bg-offwhite rounded-xl p-2.5 text-center">
+                          <div className="w-5 h-5 flex items-center justify-center mx-auto mb-1">
+                            <i className={`${stat.icon} text-xs text-amber-600`} />
+                          </div>
+                          <p className="text-sm font-bold text-charcoal">{stat.value}</p>
+                          <p className="text-[10px] text-charcoal/40">{stat.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                      <button onClick={() => setEditModalListing(listing)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap">
+                        <i className="ri-edit-line text-sm" /> Edit
+                      </button>
+                      <button onClick={() => setQrModalListing(listing)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap">
+                        <i className="ri-qr-code-line text-sm" /> QR Code
+                      </button>
+                      <button
+                        onClick={() => handleToggleActive(listing)}
+                        disabled={togglingListingId === listing.id}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 ${listing.status !== 'active' ? 'border-green-100 text-green-600 hover:bg-green-50' : 'border-black/10 text-charcoal hover:border-amber-400 hover:text-amber-600'}`}
+                      >
+                        <i className={`${togglingListingId === listing.id ? 'ri-loader-4-line animate-spin' : listing.status !== 'active' ? 'ri-play-circle-line' : 'ri-pause-circle-line'} text-xs`} /> {listing.status !== 'active' ? 'Activate' : 'Deactivate'}
+                      </button>
+                      <button onClick={() => setDeleteListing(listing)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-red-100 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap">
+                        <i className="ri-delete-bin-line text-sm" /> Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {myListings.length === 0 && (
+              <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
+                <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-amber-50 rounded-full">
+                  <i className="ri-home-4-line text-2xl text-amber-500" />
+                </div>
+                <h3 className="text-base font-bold text-charcoal mb-2">No listings yet</h3>
+                <p className="text-sm text-charcoal/60 mb-5">List your property to start receiving tenant inquiries.</p>
+                <Link to="/list-property" className="bg-amber-500 text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-amber-600 transition-colors whitespace-nowrap">
+                  List a Property
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'tenants' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-charcoal">Active Tenants ({tenantRows.length})</h2>
+            </div>
+            <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-black/5">
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Tenant</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Flat</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Property</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Rent</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Lease End</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Status</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Payment</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Agreement</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tenantRows.map((t) => {
+                      const agreement = rentalAgreements.find((a) => a.tenantId === t.id);
+                      return (
+                        <tr key={t.id} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs font-bold text-amber-600">{t.name[0]}</span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-charcoal">{t.name}</p>
+                                {t.verified && (
+                                  <span className="text-[10px] text-green-600 flex items-center gap-0.5">
+                                    <i className="ri-shield-check-fill text-[10px]" /> Verified
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 text-sm text-charcoal font-medium">{t.flat}</td>
+                          <td className="px-5 py-4 text-sm text-charcoal/60">{t.property}</td>
+                          <td className="px-5 py-4 text-sm font-bold text-charcoal">{t.rent}</td>
+                          <td className="px-5 py-4 text-sm text-charcoal/60">{t.leaseEnd}</td>
+                          <td className="px-5 py-4">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">Active</span>
+                          </td>
+                          <td className="px-5 py-4">
+                            {(() => {
+                              const tenantPayStatuses: Record<string, string> = {
+                                t1: 'Paid',
+                                t2: 'Failed',
+                                t3: 'Paid',
+                                t4: 'Paid',
+                                t5: 'Reconciled',
+                              };
+                              const payColors: Record<string, string> = {
+                                Paid: 'bg-green-50 text-green-600',
+                                Failed: 'bg-red-50 text-red-600',
+                                Reconciled: 'bg-blue-50 text-blue-600',
+                              };
+                              const s = tenantPayStatuses[t.id] ?? 'Pending';
+                              return (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${payColors[s] ?? 'bg-amber-50 text-amber-600'}`}>
+                                  {s}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-5 py-4">
+                            {agreement ? (
+                              <button onClick={() => setViewAgreementId(agreement.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap">
+                                <i className="ri-file-text-line text-sm" /> View
+                              </button>
+                            ) : (
+                              <span className="text-xs text-charcoal/40">Not generated</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'inquiries' && <InquiriesTab onOpenChat={(id) => { setActiveChatRequestId(id); setActiveTab('messages'); }} />}
+
+        {activeTab === 'messages' && <ChatTab initialRequestId={activeChatRequestId} />}
+
+        {activeTab === 'requests' && <RequestsTab />}
+
+        {activeTab === 'documents' && (
+          <div className="space-y-6">
+            {/* Generator Tools */}
+            <div>
+              <h2 className="text-base font-bold text-charcoal mb-4">Document Tools</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { to: '/rental-agreements', icon: 'ri-file-list-3-line', label: 'Rental Agreement Generator', desc: 'Create & share legally valid rental agreements', color: 'bg-orange-50 text-orange-600' },
+                  { to: '/rent-receipts', icon: 'ri-file-text-line', label: 'Rent Receipt Generator', desc: 'Generate formatted rent receipts instantly', color: 'bg-amber-50 text-amber-600' },
+                  { to: '/tax-forms', icon: 'ri-government-line', label: 'Tax & Legal Forms', desc: 'Income tax, TDS & HRA declaration forms', color: 'bg-teal-50 text-teal-600' },
+                ].map((tool) => (
+                  <Link key={tool.to} to={tool.to} className="bg-white rounded-3xl border border-black/5 p-5 hover:border-amber-200 transition-all group">
+                    <div className={`w-10 h-10 flex items-center justify-center rounded-xl mb-3 ${tool.color}`}>
+                      <i className={`${tool.icon} text-lg`} />
+                    </div>
+                    <h3 className="text-sm font-bold text-charcoal mb-1">{tool.label}</h3>
+                    <p className="text-xs text-charcoal/60 leading-relaxed">{tool.desc}</p>
+                    <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-amber-600 group-hover:text-amber-700">
+                      Open Tool <i className="ri-arrow-right-line" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Agreements */}
+            <div>
+              <h2 className="text-base font-bold text-charcoal mb-4">Rental Agreements</h2>
+              {rentalAgreements.length === 0 ? (
+                <div className="bg-white rounded-3xl border border-black/5 p-10 text-center">
+                  <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-amber-50 rounded-full">
+                    <i className="ri-file-list-3-line text-2xl text-amber-500" />
+                  </div>
+                  <h3 className="text-base font-bold text-charcoal mb-2">No agreements yet</h3>
+                  <p className="text-sm text-charcoal/60 mb-5">Generate your first rental agreement using the tool above.</p>
+                  <Link to="/rental-agreements" className="bg-amber-500 text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-amber-600 transition-colors whitespace-nowrap">
+                    Create Agreement
+                  </Link>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-black/5">
+                          <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Agreement #</th>
+                          <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Tenant</th>
+                          <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Property</th>
+                          <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Lease Period</th>
+                          <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Rent</th>
+                          <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Status</th>
+                          <th className="text-left px-5 py-3.5 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rentalAgreements.map((ag) => (
+                          <tr key={ag.id} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
+                            <td className="px-5 py-4 text-sm font-medium text-charcoal">{ag.agreementNumber}</td>
+                            <td className="px-5 py-4 text-sm text-charcoal">{ag.tenantName}</td>
+                            <td className="px-5 py-4 text-sm text-charcoal/60">{ag.propertyAddress}</td>
+                            <td className="px-5 py-4 text-sm text-charcoal/60">{ag.leaseStartDate} – {ag.leaseEndDate}</td>
+                            <td className="px-5 py-4 text-sm font-bold text-charcoal">{formatINR(ag.monthlyRent)}</td>
+                            <td className="px-5 py-4">
+                              {ag.sharedWithTenant ? (
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">Sent to Tenant</span>
+                              ) : (
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Pending</span>
+                              )}
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setViewAgreementId(ag.id)}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap"
+                                >
+                                  <i className="ri-eye-line text-sm" /> View
+                                </button>
+                                {!ag.sharedWithTenant && (
+                                  <button
+                                    onClick={() => {
+                                      markShared(ag.id);
+                                      addToast('Agreement shared with tenant', 'success');
+                                    }}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap"
+                                  >
+                                    <i className="ri-share-forward-line text-sm" /> Share
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'billing' && (
+          <div className="max-w-4xl space-y-6">
+            {/* Plan Summary */}
+            <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+                <div>
+                  <h2 className="text-base font-bold text-charcoal">Current Plan</h2>
+                  <p className="text-sm text-charcoal/60 mt-0.5">
+                    {isPro ? `Pro (${plan === 'pro_monthly' ? 'Monthly' : 'Annual'})` : 'Free Forever'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isPro ? (
+                    <>
+                      <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-600">
+                        <i className="ri-checkbox-circle-fill text-sm" /> Active
+                      </span>
+                      {status === 'cancelled' && (
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600">
+                          Cancels at period end
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <Link to="/subscription" className="px-4 py-2 rounded-full bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors whitespace-nowrap">
+                      Upgrade to Pro
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {isPro && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-offwhite rounded-xl p-4">
+                    <p className="text-xs text-charcoal/40 font-medium">Next Billing Date</p>
+                    <p className="text-sm font-bold text-charcoal mt-1">
+                      {nextBillingDate ? new Date(nextBillingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+                    </p>
+                  </div>
+                  <div className="bg-offwhite rounded-xl p-4">
+                    <p className="text-xs text-charcoal/40 font-medium">Total Spent</p>
+                    <p className="text-sm font-bold text-charcoal mt-1">₹{(totalSpent / 100).toLocaleString('en-IN')}</p>
+                  </div>
+                  <div className="bg-offwhite rounded-xl p-4">
+                    <p className="text-xs text-charcoal/40 font-medium">Auto-Renewal</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        onClick={async () => {
+                          const sub = await toggleAutoRenew(true);
+                          if (!sub.error) addToast('Auto-renewal enabled', 'success');
+                        }}
+                        className="text-sm font-semibold text-green-600 flex items-center gap-1 cursor-pointer"
+                      >
+                        On <i className="ri-toggle-fill text-green-500 text-lg" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!isPro && (
+                <div className="bg-offwhite rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-50">
+                    <i className="ri-sparkling-line text-sm text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-charcoal">Unlock Pro Features</p>
+                    <p className="text-xs text-charcoal/60">Unlimited listings, analytics, bulk receipts, and priority support.</p>
+                  </div>
+                  <Link to="/subscription" className="ml-auto px-4 py-2 rounded-full bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors whitespace-nowrap">
+                    View Plans
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Invoice History */}
+            <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <h2 className="text-base font-bold text-charcoal mb-4">Billing History</h2>
+              {billingHistory.length === 0 ? (
+                <div className="text-center py-10">
+                  <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
+                    <i className="ri-bill-line text-2xl text-charcoal/40" />
+                  </div>
+                  <p className="text-sm text-charcoal/60">No invoices yet. They will appear here after your first payment.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-black/5">
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Invoice #</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Plan</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Period</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Amount</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Status</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {billingHistory.map((inv) => (
+                        <tr key={inv.id} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
+                          <td className="px-4 py-3.5 text-sm font-medium text-charcoal">{inv.invoice_number}</td>
+                          <td className="px-4 py-3.5 text-sm text-charcoal/60">
+                            {inv.plan === 'pro_monthly' ? 'Pro Monthly' : inv.plan === 'pro_annual' ? 'Pro Annual' : 'Free'}
+                          </td>
+                          <td className="px-4 py-3.5 text-sm text-charcoal/60">
+                            {new Date(inv.billing_period_start).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="px-4 py-3.5 text-sm font-bold text-charcoal">
+                            ₹{(inv.total_amount / 100).toLocaleString('en-IN')}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              inv.status === 'paid' ? 'bg-green-50 text-green-600' :
+                              inv.status === 'failed' ? 'bg-red-50 text-red-600' :
+                              inv.status === 'refunded' ? 'bg-amber-50 text-amber-600' :
+                              'bg-lightgray text-charcoal/60'
+                            }`}>
+                              {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap">
+                              <i className="ri-download-line text-sm" /> PDF
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Subscription Actions */}
+            {isPro && (
+              <div className="bg-white rounded-3xl border border-black/5 p-6">
+                <h2 className="text-base font-bold text-charcoal mb-4">Subscription Settings</h2>
+                <div className="space-y-3">
+                  <button
+                    onClick={async () => {
+                      const { error } = await cancelSubscription();
+                      if (error) addToast(error, 'error');
+                      else addToast('Subscription cancelled. You\'ll keep Pro access until the end of your billing period.', 'success');
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl border border-red-100 hover:bg-red-50 transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50">
+                        <i className="ri-close-circle-line text-sm text-red-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-red-600">Cancel Subscription</p>
+                        <p className="text-xs text-charcoal/40">You\'ll keep Pro access until the end of your current period</p>
+                      </div>
+                    </div>
+                    <i className="ri-arrow-right-s-line text-charcoal/40" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="max-w-2xl space-y-6">
+            <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <h2 className="text-base font-bold text-charcoal mb-4">Notification Preferences</h2>
+              <div className="space-y-4">
+                <NotificationToggle label="New Maintenance Requests" desc="Get notified when tenants submit requests" defaultOn activeColor="bg-amber-500" />
+                <NotificationToggle label="Rent Payment Alerts" desc="When rent is paid or overdue" defaultOn activeColor="bg-amber-500" />
+                <NotificationToggle label="Lease Expiry Reminders" desc="Alert 60 days before lease expiry" defaultOn activeColor="bg-amber-500" />
+                <NotificationToggle label="New Tenant Inquiries" desc="When someone inquires about your listing" defaultOn activeColor="bg-amber-500" />
+                <NotificationToggle label="Platform Updates" desc="Tips, guides and platform updates" activeColor="bg-amber-500" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
+                <div className="w-6 h-6 flex items-center justify-center">
+                  <i className="ri-signal-tower-line text-amber-600" />
+                </div>
+                Delivery Channels
+              </h2>
+              <p className="text-sm text-charcoal/60 mb-4">
+                Choose how you receive each type of notification. If push fails, SMS and email fallbacks activate automatically.
+              </p>
+              <ChannelPreferences />
+            </div>
+
+            <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <h2 className="text-base font-bold text-charcoal mb-4">Security</h2>
+              <div className="space-y-3">
+                <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-50">
+                      <i className="ri-lock-password-line text-sm text-amber-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-charcoal">Change Password</p>
+                      <p className="text-xs text-charcoal/40">Last changed 2 months ago</p>
+                    </div>
+                  </div>
+                  <i className="ri-arrow-right-s-line text-charcoal/40" />
+                </button>
+                <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-50">
+                      <i className="ri-smartphone-line text-sm text-green-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-charcoal">Two-Factor Authentication</p>
+                      <p className="text-xs text-charcoal/40">Add extra security to your account</p>
+                    </div>
+                  </div>
+                  <i className="ri-arrow-right-s-line text-charcoal/40" />
+                </button>
+              </div>
+            </div>
+
+            {/* Activity Rate Limits */}
+            <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
+                <div className="w-6 h-6 flex items-center justify-center">
+                  <i className="ri-shield-check-line text-amber-600" />
+                </div>
+                Activity Rate Limits
+              </h2>
+              <p className="text-sm text-charcoal/60 mb-4">
+                These limits prevent spam and ensure fair usage across the platform. All limits reset automatically.
+              </p>
+              <div className="space-y-4">
+                {/* Inquiry Responses */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-50">
+                        <i className="ri-message-3-line text-xs text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-charcoal">Inquiry Responses</p>
+                        <p className="text-[11px] text-charcoal/40">Approve or decline connection requests</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold ${inquiry.canSend ? 'text-green-600' : 'text-red-500'}`}>
+                      {inquiry.dailyRemaining} / 50 daily
+                    </span>
+                  </div>
+                  <div className="w-full bg-lightgray rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${inquiry.dailyRemaining === 0 ? 'bg-red-500' : 'bg-blue-500'}`}
+                      style={{ width: `${inquiry.dailyCount + inquiry.dailyRemaining > 0 ? (inquiry.dailyRemaining / (inquiry.dailyRemaining + inquiry.dailyCount)) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-charcoal/40 mt-1">{inquiry.weeklyRemaining} / 200 weekly remaining</p>
+                </div>
+
+                {/* Chat Messages */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-50">
+                        <i className="ri-chat-3-line text-xs text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-charcoal">Chat Messages</p>
+                        <p className="text-[11px] text-charcoal/40">Messages to approved prospects</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold ${chat.canSend ? 'text-green-600' : 'text-red-500'}`}>
+                      {chat.dailyRemaining} / 100 daily
+                    </span>
+                  </div>
+                  <div className="w-full bg-lightgray rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${chat.dailyRemaining === 0 ? 'bg-red-500' : 'bg-green-500'}`}
+                      style={{ width: `${chat.dailyCount + chat.dailyRemaining > 0 ? (chat.dailyRemaining / (chat.dailyRemaining + chat.dailyCount)) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-charcoal/40 mt-1">{chat.weeklyRemaining} / 500 weekly remaining</p>
+                </div>
+
+                {/* Community Posts */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-50">
+                        <i className="ri-discuss-line text-xs text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-charcoal">Community Posts</p>
+                        <p className="text-[11px] text-charcoal/40">Discussions, advice and reviews</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold ${community.canSend ? 'text-green-600' : 'text-red-500'}`}>
+                      {community.dailyRemaining} / 5 daily
+                    </span>
+                  </div>
+                  <div className="w-full bg-lightgray rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${community.dailyRemaining === 0 ? 'bg-red-500' : 'bg-purple-500'}`}
+                      style={{ width: `${community.dailyCount + community.dailyRemaining > 0 ? (community.dailyRemaining / (community.dailyRemaining + community.dailyCount)) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-charcoal/40 mt-1">{community.weeklyRemaining} / 15 weekly remaining</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-red-100 p-6">
+              <h2 className="text-base font-bold text-red-600 mb-4">Danger Zone</h2>
+              <button className="w-full flex items-center gap-3 p-3 rounded-xl border border-red-100 hover:bg-red-50 transition-colors cursor-pointer text-left">
+                <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 flex-shrink-0">
+                  <i className="ri-delete-bin-line text-sm text-red-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-red-600">Delete Account</p>
+                  <p className="text-xs text-charcoal/40">Permanently remove your account and all data</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
