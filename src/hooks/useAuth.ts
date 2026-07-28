@@ -414,11 +414,15 @@ export function useAuthProvider(): AuthContextValue {
   // set, the on_auth_user_phone_confirmed trigger (migration 042) syncs
   // public.users.phone/verified_phone -- refreshProfile() below just pulls
   // that synced row back into app state.
+  // The profile's displayed phone is formatted "+91 98765 43210" for
+  // readability (see formatIndianPhoneInput); GoTrue's phone-change hook
+  // payload requires a bare E.164 string with no internal spaces, or it
+  // fails with "Invalid payload sent to hook" before an OTP is even sent.
   const sendPhoneVerificationOtp = async (phone: string): Promise<{ error: string | null }> => {
     const supabase = getSupabase();
     if (!supabase) return { error: 'Supabase not connected' };
 
-    const { error } = await supabase.auth.updateUser({ phone });
+    const { error } = await supabase.auth.updateUser({ phone: phone.replace(/\s+/g, '') });
     if (error) return { error: error.message };
     return { error: null };
   };
@@ -427,7 +431,7 @@ export function useAuthProvider(): AuthContextValue {
     const supabase = getSupabase();
     if (!supabase) return { error: 'Supabase not connected' };
 
-    const { error } = await supabase.auth.verifyOtp({ phone, token, type: 'phone_change' });
+    const { error } = await supabase.auth.verifyOtp({ phone: phone.replace(/\s+/g, ''), token, type: 'phone_change' });
     if (error) return { error: error.message };
 
     await refreshProfile();

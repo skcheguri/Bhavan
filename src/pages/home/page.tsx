@@ -72,30 +72,34 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trust Indicators */}
+      {/* Why Bhavan */}
       <section className="bg-lightgray py-16 md:py-24">
         <div className="w-full px-5 md:px-10 lg:px-16">
           <div className="max-w-6xl mx-auto">
             <span className="inline-block px-4 py-1.5 bg-white border border-brand/30 text-brand text-xs font-semibold rounded-full uppercase tracking-wider">
-              Trusted by 50,000+ renters
+              Built for trust
             </span>
             <h2 className="mt-5 text-3xl md:text-[2.75rem] font-bold text-charcoal leading-[1.1] tracking-tight">
-              Why renters choose<br />our platform
+              Why renters and owners<br />choose our platform
             </h2>
+            <p className="mt-4 text-charcoal/70 max-w-xl leading-relaxed">
+              No brokers, no guesswork. Every account can complete Aadhaar e-KYC verification, and every listing is tied to a real,
+              accountable owner — so both sides know exactly who they're dealing with.
+            </p>
 
-            <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { number: '50K+', label: 'Active renters' },
-                { number: '4.9', label: 'Average rating', star: true },
-                { number: '24/7', label: 'Support available' },
-                { number: '100%', label: 'Verified landlords' },
-              ].map((stat) => (
-                <div key={stat.label} className="text-center md:text-left">
-                  <div className="text-4xl md:text-5xl font-bold text-brand tracking-tight">
-                    {stat.number}
-                    {stat.star && <span className="text-2xl ml-1">★</span>}
+                { icon: 'ri-shield-user-line', title: 'Aadhaar verification', description: 'Landlords and tenants can verify their identity through Aadhaar e-KYC before connecting.' },
+                { icon: 'ri-hand-coin-line', title: 'Broker-free, always', description: 'Connect directly with owners and tenants — no middlemen, no brokerage fees for either side.' },
+                { icon: 'ri-home-4-line', title: 'Verified listings', description: 'Every listing is tied to a real, verified owner account, not an anonymous ad.' },
+                { icon: 'ri-file-shield-2-line', title: 'Digital rent tools', description: 'Both sides can track payments, generate receipts, and manage rental agreements online.' },
+              ].map((item) => (
+                <div key={item.title} className="bg-white rounded-2xl p-6">
+                  <div className="w-12 h-12 rounded-full bg-brand/10 flex items-center justify-center mb-4">
+                    <i className={`${item.icon} text-brand text-xl`} />
                   </div>
-                  <p className="mt-2 text-sm md:text-base font-medium text-charcoal/70">{stat.label}</p>
+                  <h3 className="text-base font-semibold text-charcoal">{item.title}</h3>
+                  <p className="mt-1.5 text-sm text-charcoal/60 leading-relaxed">{item.description}</p>
                 </div>
               ))}
             </div>
@@ -403,14 +407,12 @@ export default function Home() {
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               <div>
-                <span className="inline-block px-4 py-1.5 border border-brand/30 bg-white text-brand text-xs font-semibold rounded-full uppercase tracking-wider">
-                  Coming soon
-                </span>
-                <h2 className="mt-6 text-3xl md:text-[2.75rem] font-bold text-charcoal leading-[1.1] tracking-tight">
+                <h2 className="text-3xl md:text-[2.75rem] font-bold text-charcoal leading-[1.1] tracking-tight">
                   Manage your rent<br />digitally
                 </h2>
                 <p className="mt-4 text-charcoal/60 leading-relaxed">
-                  Say goodbye to paper clutter. Our digital rent management tools help you track payments, submit maintenance requests, and store important documents all in one place.
+                  Say goodbye to paper clutter. Generate and share rental agreements and rent receipts digitally, submit maintenance
+                  requests, and track every rent payment in one place.
                 </p>
                 <div className="mt-8 space-y-4">
                   <div className="flex items-start gap-4">
@@ -418,8 +420,8 @@ export default function Home() {
                       <i className="ri-check-line text-brand" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-charcoal">Document storage</h4>
-                      <p className="text-sm text-charcoal/60 mt-1">Securely store and access your rent agreement, receipts, and communications</p>
+                      <h4 className="font-semibold text-charcoal">Agreements & receipts</h4>
+                      <p className="text-sm text-charcoal/60 mt-1">Generate, share, and access your rental agreement and rent receipts anytime — no paperwork needed</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
@@ -427,13 +429,19 @@ export default function Home() {
                       <i className="ri-check-line text-brand" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-charcoal">Payment tracking</h4>
-                      <p className="text-sm text-charcoal/60 mt-1">Never miss a payment with automated reminders and history</p>
+                      <h4 className="font-semibold text-charcoal">Payment history</h4>
+                      <p className="text-sm text-charcoal/60 mt-1">Every rent payment — paid, pending, or failed — is tracked and visible to both sides</p>
                     </div>
                   </div>
                 </div>
                 <Link
-                  to={user ? '/tenant-profile' : '/how-it-works'}
+                  to={
+                    !user
+                      ? '/signup'
+                      : user.role === 'tenant'
+                      ? '/tenant-profile?tab=rentManagement&sub=documents'
+                      : '/owner-profile?tab=documents'
+                  }
                   className="inline-block mt-8 bg-brand text-white font-semibold px-8 py-4 rounded-full hover:bg-brand-dark transition-colors"
                 >
                   {user ? 'Go to dashboard' : 'Learn more'}
@@ -485,7 +493,7 @@ export default function Home() {
                 </div>
                 <div className="flex flex-col gap-3 flex-shrink-0">
                   <Link
-                    to="/list-property"
+                    to={user ? '/list-property' : '/signup'}
                     className="bg-brand text-white font-semibold px-8 py-3.5 rounded-full hover:bg-brand-dark transition-colors text-center whitespace-nowrap"
                   >
                     List as owner

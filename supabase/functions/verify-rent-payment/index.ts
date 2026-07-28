@@ -17,6 +17,7 @@
 //   RAZORPAY_KEY_SECRET
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyRazorpaySignature } from "../../../src/lib/payments/razorpaySignature.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,25 +31,6 @@ interface VerifyRequest {
   razorpay_order_id?: string;
   razorpay_payment_id?: string;
   razorpay_signature?: string;
-}
-
-async function hmacSha256Hex(secret: string, message: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 
 Deno.serve(async (req) => {
@@ -85,8 +67,13 @@ Deno.serve(async (req) => {
       return json({ error: "Missing payment verification fields." }, 400);
     }
 
-    const expectedSignature = await hmacSha256Hex(RAZORPAY_KEY_SECRET, `${razorpay_order_id}|${razorpay_payment_id}`);
-    if (!safeEqual(expectedSignature, razorpay_signature)) {
+    const signatureOk = await verifyRazorpaySignature(
+      RAZORPAY_KEY_SECRET,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    );
+    if (!signatureOk) {
       return json({ error: "Payment verification failed. Please contact support before retrying." }, 400);
     }
 

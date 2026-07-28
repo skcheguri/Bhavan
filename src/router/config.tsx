@@ -1,40 +1,53 @@
+import { lazy } from "react";
 import type { RouteObject } from "react-router-dom";
-import NotFound from "../pages/NotFound";
-import Forbidden from "../pages/Forbidden";
-import ServerError from "../pages/ServerError";
 import Home from "../pages/home/page";
-import Listings from "../pages/listings/page";
-import ListingDetail from "../pages/listing-detail/page";
-import Community from "../pages/community/page";
-import About from "../pages/about/page";
-import Contact from "../pages/contact/page";
 import Login from "../pages/login/page";
 import Signup from "../pages/signup/page";
-import AuthCallback from "../pages/auth-callback/page";
-import ResetPassword from "../pages/reset-password/page";
-import ListProperty from "../pages/list-property/page";
-import Feedback from "../pages/feedback/page";
-import AadhaarVerify from "../pages/aadhaar-verify/page";
-import TenantProfile from "../pages/tenant-profile/page";
-import OwnerProfile from "../pages/owner-profile/page";
-import ScanLanding from "../pages/scan/page";
-import HowItWorks from "../pages/how-it-works/page";
-import TaxForms from "../pages/tax-forms/page";
-import RentReceipts from "../pages/rent-receipts/page";
-import RentalAgreements from "../pages/rental-agreements/page";
-import Notifications from "../pages/notifications/page";
-import SubscriptionPage from "../pages/subscription/page";
-import RentPayment from "../pages/rent-payment/page";
-import AdminDashboard from "../pages/admin/page";
-import AdminBrokerReports from "../pages/admin/broker-reports/page";
-import AdminVerification from "../pages/admin/verification/page";
-import AdminPropertyVerification from "../pages/admin/property-verification/page";
-import AdminCommunity from "../pages/admin/community/page";
-import AdminUsers from "../pages/admin/users/page";
-import AdminListings from "../pages/admin/listings/page";
-import AdminSupport from "../pages/admin/support/page";
-import AdminLogin from "../pages/admin/login/page";
 import RequireAdmin from "../components/feature/RequireAdmin";
+
+// Everything below is lazy-loaded per route -- Home/Login/Signup stay
+// eager since they're the most common entry points and lazy-loading them
+// would just add a Suspense round-trip on the page most visitors land on
+// first. Every other route was bundled into one ~1.3MB JS file with no
+// splitting at all; this puts each route (and each admin page, which most
+// visitors never touch) in its own chunk instead.
+const NotFound = lazy(() => import("../pages/NotFound"));
+const Forbidden = lazy(() => import("../pages/Forbidden"));
+const ServerError = lazy(() => import("../pages/ServerError"));
+const Listings = lazy(() => import("../pages/listings/page"));
+const ListingDetail = lazy(() => import("../pages/listing-detail/page"));
+const Community = lazy(() => import("../pages/community/page"));
+const About = lazy(() => import("../pages/about/page"));
+const Contact = lazy(() => import("../pages/contact/page"));
+const AuthCallback = lazy(() => import("../pages/auth-callback/page"));
+const ResetPassword = lazy(() => import("../pages/reset-password/page"));
+const ListProperty = lazy(() => import("../pages/list-property/page"));
+const Feedback = lazy(() => import("../pages/feedback/page"));
+const AadhaarVerify = lazy(() => import("../pages/aadhaar-verify/page"));
+const TenantProfile = lazy(() => import("../pages/tenant-profile/page"));
+const OwnerProfile = lazy(() => import("../pages/owner-profile/page"));
+const ScanLanding = lazy(() => import("../pages/scan/page"));
+const HowItWorks = lazy(() => import("../pages/how-it-works/page"));
+const Terms = lazy(() => import("../pages/terms/page"));
+const Privacy = lazy(() => import("../pages/privacy/page"));
+const Cookies = lazy(() => import("../pages/cookies/page"));
+const Accessibility = lazy(() => import("../pages/accessibility/page"));
+const TaxForms = lazy(() => import("../pages/tax-forms/page"));
+const RentReceipts = lazy(() => import("../pages/rent-receipts/page"));
+const RentalAgreements = lazy(() => import("../pages/rental-agreements/page"));
+const Notifications = lazy(() => import("../pages/notifications/page"));
+const SubscriptionPage = lazy(() => import("../pages/subscription/page"));
+const RentPayment = lazy(() => import("../pages/rent-payment/page"));
+const AdminDashboard = lazy(() => import("../pages/admin/page"));
+const AdminBrokerReports = lazy(() => import("../pages/admin/broker-reports/page"));
+const AdminVerification = lazy(() => import("../pages/admin/verification/page"));
+const AdminPropertyVerification = lazy(() => import("../pages/admin/property-verification/page"));
+const AdminCommunity = lazy(() => import("../pages/admin/community/page"));
+const AdminUsers = lazy(() => import("../pages/admin/users/page"));
+const AdminListings = lazy(() => import("../pages/admin/listings/page"));
+const AdminSupport = lazy(() => import("../pages/admin/support/page"));
+const AdminErrors = lazy(() => import("../pages/admin/errors/page"));
+const AdminLogin = lazy(() => import("../pages/admin/login/page"));
 
 const routes: RouteObject[] = [
   {
@@ -64,6 +77,22 @@ const routes: RouteObject[] = [
   {
     path: "/contact",
     element: <Contact />,
+  },
+  {
+    path: "/terms",
+    element: <Terms />,
+  },
+  {
+    path: "/privacy",
+    element: <Privacy />,
+  },
+  {
+    path: "/cookies",
+    element: <Cookies />,
+  },
+  {
+    path: "/accessibility",
+    element: <Accessibility />,
   },
   {
     path: "/login",
@@ -164,6 +193,10 @@ const routes: RouteObject[] = [
   {
     path: "/admin/support",
     element: <RequireAdmin><AdminSupport /></RequireAdmin>,
+  },
+  {
+    path: "/admin/errors",
+    element: <RequireAdmin><AdminErrors /></RequireAdmin>,
   },
   {
     path: "/403",

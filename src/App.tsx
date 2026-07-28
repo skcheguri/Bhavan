@@ -1,6 +1,6 @@
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { AppRoutes } from "./router";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { I18nextProvider } from "react-i18next";
 import i18n from "./i18n";
 import Navbar from "./components/feature/Navbar";
@@ -19,15 +19,28 @@ function ScrollToTop() {
   return null;
 }
 
+function RouteLoadingFallback() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <i className="ri-loader-4-line animate-spin text-3xl text-brand" />
+    </div>
+  );
+}
+
 function RoutesWithErrorBoundary() {
   // Keying by pathname remounts the boundary (clearing an error) on the
   // next navigation, rather than leaving the fallback stuck up forever
   // once tripped -- Navbar/Footer stay mounted and usable either way
-  // since the boundary only wraps the routed page content.
+  // since the boundary only wraps the routed page content. Suspense
+  // covers the lazy-loaded route chunks (see router/config.tsx); it sits
+  // inside the boundary so a failed chunk load is also caught as an error
+  // rather than left as an unhandled rejection.
   const { pathname } = useLocation();
   return (
     <ErrorBoundary key={pathname}>
-      <AppRoutes />
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <AppRoutes />
+      </Suspense>
     </ErrorBoundary>
   );
 }

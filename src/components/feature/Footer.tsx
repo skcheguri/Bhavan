@@ -5,12 +5,19 @@ export default function Footer() {
   const { user } = useAuth();
   const isTenant = user?.role === 'tenant';
 
+  // Dashboard/verification links shouldn't dead-end a signed-out visitor
+  // on a "please sign in" page, and shouldn't send a signed-in user to a
+  // profile page for a role that isn't theirs -- both always resolve to
+  // the current user's own real destination.
+  const dashboardHref = !user ? '/signup' : user.role === 'admin' ? '/admin' : user.role === 'owner' ? '/owner-profile' : '/tenant-profile';
+  const verificationHref = !user ? '/signup' : '/aadhaar-verify';
+
   const columns = [
     {
       title: 'For Renters',
       links: [
         { to: '/listings', label: 'Browse Listings' },
-        { to: '/tenant-profile', label: 'My Dashboard' },
+        { to: dashboardHref, label: 'My Dashboard' },
         { to: '/community', label: 'Community Forum' },
         { to: '/feedback', label: 'Reviews & Feedback' },
       ],
@@ -19,8 +26,8 @@ export default function Footer() {
       title: 'For Landlords',
       links: [
         ...(isTenant ? [] : [{ to: '/list-property', label: 'List Property' }]),
-        { to: '/owner-profile', label: 'Owner Dashboard' },
-        { to: '/aadhaar-verify', label: 'Verification Process' },
+        { to: dashboardHref, label: 'Owner Dashboard' },
+        { to: verificationHref, label: 'Verification Process' },
         { to: '/how-it-works', label: 'How It Works' },
       ],
     },
@@ -36,10 +43,10 @@ export default function Footer() {
     {
       title: 'Legal',
       links: [
-        { to: '/about', label: 'Terms of Service' },
-        { to: '/about', label: 'Privacy Policy' },
-        { to: '/about', label: 'Cookie Policy' },
-        { to: '/about', label: 'Accessibility' },
+        { to: '/terms', label: 'Terms of Service' },
+        { to: '/privacy', label: 'Privacy Policy' },
+        { to: '/cookies', label: 'Cookie Policy' },
+        { to: '/accessibility', label: 'Accessibility' },
       ],
     },
   ];

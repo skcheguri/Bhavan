@@ -1,29 +1,12 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { getSupabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/useToast';
+import { INDIA_STATES, CITIES_BY_STATE, OTHER_CITY_OPTION } from '@/content/indiaLocations';
 
 type Step = 'gate' | 'ownership' | 'landing' | 'property-type' | 'form';
 type PropertyCategory = 'residential' | 'commercial' | 'vacation' | '';
-
-const cities = [
-  'Mumbai', 'Bangalore', 'New Delhi', 'Hyderabad', 'Chennai',
-  'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Surat',
-];
-
-const localities: Record<string, string[]> = {
-  Mumbai: ['Bandra West', 'Andheri West', 'Powai', 'Juhu', 'Worli', 'Dadar', 'Borivali', 'Malad'],
-  Bangalore: ['Koramangala', 'Whitefield', 'Indiranagar', 'HSR Layout', 'Marathahalli', 'Jayanagar', 'BTM Layout'],
-  'New Delhi': ['Hauz Khas', 'Lajpat Nagar', 'Dwarka', 'Rohini', 'Saket', 'Vasant Kunj', 'Karol Bagh'],
-  Hyderabad: ['Banjara Hills', 'Jubilee Hills', 'Gachibowli', 'Madhapur', 'Kondapur', 'Hitech City'],
-  Chennai: ['Anna Nagar', 'T. Nagar', 'Adyar', 'Velachery', 'Porur', 'Nungambakkam'],
-  Pune: ['Koregaon Park', 'Viman Nagar', 'Baner', 'Kothrud', 'Wakad', 'Hinjewadi'],
-  Kolkata: ['Salt Lake', 'New Town', 'Park Street', 'Ballygunge', 'Alipore'],
-  Ahmedabad: ['Satellite', 'Prahlad Nagar', 'Bodakdev', 'Vastrapur', 'Navrangpura'],
-  Jaipur: ['Malviya Nagar', 'Vaishali Nagar', 'C-Scheme', 'Mansarovar', 'Jagatpura'],
-  Surat: ['Adajan', 'Vesu', 'Piplod', 'Athwa', 'Katargam'],
-};
 
 const AMENITY_OPTIONS = [
   { name: 'amenity_wifi', label: 'WiFi Included', icon: 'ri-wifi-line' },
@@ -51,11 +34,25 @@ function generateImageUrl(category: PropertyCategory, city: string) {
 export default function ListProperty() {
   const { user } = useAuth();
   const { addToast } = useToast();
+  const navigate = useNavigate();
   const isAadhaarVerified = user?.verified ?? false;
   const isTenant = user?.role === 'tenant';
 
   const [step, setStep] = useState<Step>(isAadhaarVerified ? 'ownership' : 'gate');
+
+  // Every step past the gate assumes a signed-in owner (ownership-document
+  // upload writes to storage under user.id, and the final submit needs
+  // user.id for the listing). The "Already verified? Continue to listing"
+  // link on the gate screen is the one place that can move past it without
+  // an auth check -- this is a defensive backstop for that and any other
+  // path that might land here signed out.
+  useEffect(() => {
+    if (!user && step !== 'gate') {
+      navigate('/login');
+    }
+  }, [user, step, navigate]);
   const [propertyCategory, setPropertyCategory] = useState<PropertyCategory>('');
+  const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -135,7 +132,9 @@ export default function ListProperty() {
 
     const title = String(fd.get('property_title') ?? '');
     const description = String(fd.get('description') ?? '');
-    const city = String(fd.get('city') ?? selectedCity);
+    const state = String(fd.get('state') ?? '');
+    const cityRaw = String(fd.get('city') ?? selectedCity);
+    const city = cityRaw === OTHER_CITY_OPTION ? String(fd.get('city_other') ?? '').trim() : cityRaw;
     const location = String(fd.get('locality') ?? '');
     const fullAddress = String(fd.get('full_address') ?? '');
     const price = parseInt(String(fd.get('monthly_rent') ?? '0'), 10) || parseInt(String(fd.get('nightly_rate') ?? '0'), 10) || 0;
@@ -170,6 +169,7 @@ export default function ListProperty() {
         name: title,
         address: fullAddress || location,
         city: city,
+        state: state || null,
         verified: false,
         verification_doc_url: ownershipDocPath || null,
       })
@@ -195,6 +195,7 @@ export default function ListProperty() {
         maintenance_charge: maintenance || null,
         location: location || fullAddress,
         city,
+        state: state || null,
         bedrooms: bedrooms || null,
         bathrooms: bathrooms || null,
         area_sqft: area || null,
@@ -383,7 +384,15 @@ export default function ListProperty() {
                 <p className="mt-3 text-xs text-charcoal/40">Free · Instant · Powered by UIDAI</p>
 
                 <div className="mt-6 pt-6 border-t border-black/5">
-                  <p className="text-xs text-charcoal/40 mb-3">Already verified? <span className="text-brand font-medium cursor-pointer" onClick={() => setStep('ownership')}>Continue to listing</span></p>
+                  <p className="text-xs text-charcoal/40 mb-3">
+                    Already verified?{' '}
+                    <span
+                      className="text-brand font-medium cursor-pointer"
+                      onClick={() => (user ? setStep('ownership') : navigate('/login'))}
+                    >
+                      Continue to listing
+                    </span>
+                  </p>
                   <Link to="/how-it-works" className="text-xs text-charcoal/40 hover:text-brand transition-colors">
                     Learn how the listing process works <i className="ri-arrow-right-line text-sm" />
                   </Link>
@@ -576,10 +585,10 @@ export default function ListProperty() {
                 <p className="text-xs font-semibold text-charcoal/40 uppercase tracking-widest mb-5 text-center">Why list on Bhavan?</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                   {[
-                    { icon: 'ri-eye-line', label: '10K+ Monthly Views' },
-                    { icon: 'ri-shield-user-line', label: 'Verified Tenants Only' },
+                    { icon: 'ri-hand-coin-line', label: 'No Broker Fees' },
+                    { icon: 'ri-shield-user-line', label: 'Aadhaar Verification Available' },
                     { icon: 'ri-price-tag-3-line', label: '100% Free Listing' },
-                    { icon: 'ri-customer-service-2-line', label: '24/7 Support' },
+                    { icon: 'ri-chat-3-line', label: 'Direct Tenant Messages' },
                   ].map((b) => (
                     <div key={b.label}>
                       <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center mx-auto mb-2">
@@ -834,10 +843,12 @@ export default function ListProperty() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                       <div>
-                        <label className="block text-sm font-medium text-charcoal mb-1.5">Bedrooms <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-charcoal mb-1.5">
+                          Bedrooms {propertyCategory === 'commercial' ? <span className="text-charcoal/40 font-normal">(optional)</span> : <span className="text-red-500">*</span>}
+                        </label>
                         <select
                           name="bedrooms"
-                          required
+                          required={propertyCategory !== 'commercial'}
                           className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal focus:outline-none focus:border-brand transition-colors cursor-pointer"
                         >
                           <option value="">Select</option>
@@ -850,10 +861,12 @@ export default function ListProperty() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-charcoal mb-1.5">Bathrooms <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-charcoal mb-1.5">
+                          Bathrooms {propertyCategory === 'commercial' ? <span className="text-charcoal/40 font-normal">(optional)</span> : <span className="text-red-500">*</span>}
+                        </label>
                         <select
                           name="bathrooms"
-                          required
+                          required={propertyCategory !== 'commercial'}
                           className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal focus:outline-none focus:border-brand transition-colors cursor-pointer"
                         >
                           <option value="">Select</option>
@@ -886,51 +899,71 @@ export default function ListProperty() {
                   <div className="space-y-5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-sm font-medium text-charcoal mb-1.5">City <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-charcoal mb-1.5">State <span className="text-red-500">*</span></label>
                         <select
-                          name="city"
+                          name="state"
                           required
-                          value={selectedCity}
-                          onChange={(e) => setSelectedCity(e.target.value)}
+                          value={selectedState}
+                          onChange={(e) => {
+                            setSelectedState(e.target.value);
+                            setSelectedCity('');
+                          }}
                           className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal focus:outline-none focus:border-brand transition-colors cursor-pointer"
                         >
-                          <option value="">Select city</option>
-                          {cities.map((c) => (
-                            <option key={c} value={c}>{c}</option>
+                          <option value="">Select state</option>
+                          {INDIA_STATES.map((s) => (
+                            <option key={s} value={s}>{s}</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-charcoal mb-1.5">Locality / Area <span className="text-red-500">*</span></label>
-                        {selectedCity && localities[selectedCity] ? (
-                          <select
-                            name="locality"
-                            required
-                            className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal focus:outline-none focus:border-brand transition-colors cursor-pointer"
-                          >
-                            <option value="">Select locality</option>
-                            {localities[selectedCity].map((l) => (
-                              <option key={l} value={l}>{l}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            name="locality"
-                            required
-                            placeholder="e.g. Koramangala"
-                            className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal placeholder-charcoal/40 focus:outline-none focus:border-brand transition-colors"
-                          />
-                        )}
+                        <label className="block text-sm font-medium text-charcoal mb-1.5">City <span className="text-red-500">*</span></label>
+                        <select
+                          name="city"
+                          required
+                          disabled={!selectedState}
+                          value={selectedCity}
+                          onChange={(e) => setSelectedCity(e.target.value)}
+                          className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal focus:outline-none focus:border-brand transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <option value="">{selectedState ? 'Select city' : 'Select a state first'}</option>
+                          {(CITIES_BY_STATE[selectedState] ?? []).map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                          {selectedState && <option value={OTHER_CITY_OPTION}>{OTHER_CITY_OPTION}</option>}
+                        </select>
                       </div>
                     </div>
+                    {selectedCity === OTHER_CITY_OPTION && (
+                      <div>
+                        <label className="block text-sm font-medium text-charcoal mb-1.5">City Name <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          name="city_other"
+                          required
+                          placeholder="Enter your city"
+                          className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal placeholder-charcoal/40 focus:outline-none focus:border-brand transition-colors"
+                        />
+                      </div>
+                    )}
                     <div>
-                      <label className="block text-sm font-medium text-charcoal mb-1.5">Full Address</label>
+                      <label className="block text-sm font-medium text-charcoal mb-1.5">Locality / Area <span className="text-red-500">*</span></label>
                       <input
                         type="text"
-                        name="full_address"
-                        placeholder="Building name, street, landmark (optional)"
+                        name="locality"
+                        required
+                        placeholder="e.g. Koramangala, HSR Layout"
                         className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal placeholder-charcoal/40 focus:outline-none focus:border-brand transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-charcoal mb-1.5">Full Address <span className="text-red-500">*</span></label>
+                      <textarea
+                        name="full_address"
+                        required
+                        rows={3}
+                        placeholder="Flat/House no., building or society name, street, landmark — Indian addresses usually need all of these to be found easily"
+                        className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal placeholder-charcoal/40 focus:outline-none focus:border-brand transition-colors resize-none"
                       />
                     </div>
                   </div>

@@ -6,6 +6,7 @@ import { useAdminCommunityModeration } from '@/hooks/useCommunity';
 import { useAdminUserStats } from '@/hooks/useAdminUsers';
 import { useAdminOverviewCounts } from '@/hooks/useAdminOverview';
 import { useAdminContactInquiries } from '@/hooks/useContactInquiries';
+import { useAdminErrorLogs } from '@/hooks/useAdminErrorLogs';
 
 interface AdminCard {
   title: string;
@@ -23,12 +24,14 @@ export default function AdminDashboard() {
   const { stats: userStats } = useAdminUserStats();
   const { counts: overviewCounts } = useAdminOverviewCounts();
   const { inquiries } = useAdminContactInquiries();
+  const { logs: errorLogs } = useAdminErrorLogs();
   const [search, setSearch] = useState('');
 
   const pendingReports = reports.filter((r) => r.status === 'pending').length;
   const pendingPropertyVerifications = propertyVerificationRequests.filter((r) => r.status === 'pending').length;
   const flaggedPosts = communityPosts.filter((p) => p.report_count > 0 && !p.hidden).length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
+  const recentErrors = errorLogs.filter((l) => Date.now() - new Date(l.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000).length;
 
   const cards: AdminCard[] = [
     {
@@ -54,6 +57,14 @@ export default function AdminDashboard() {
       color: 'bg-indigo-50 text-indigo-600',
       to: '/admin/support',
       description: 'Messages submitted through the public Contact Us form.',
+    },
+    {
+      title: 'Error Logs',
+      count: recentErrors,
+      icon: 'ri-bug-line',
+      color: 'bg-rose-50 text-rose-600',
+      to: '/admin/errors',
+      description: 'Crashes and uncaught errors reported by real browser sessions in the last 7 days.',
     },
     {
       title: 'Broker Reports',

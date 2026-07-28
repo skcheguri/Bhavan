@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrokerReport, ReportReason } from '@/hooks/useBrokerReport';
-import { useOwnerRateLimit } from '@/hooks/useOwnerRateLimit';
 import { useOwnerConnectionRequests, type ConnectionRequest } from '@/hooks/useConnectionRequests';
 import { useChatMessages, getLastMessagesByRequest, getUnreadCountsByRequest, type ChatMessageFromDB } from '@/hooks/useChatMessages';
 import { useToast } from '@/hooks/useToast';
@@ -35,7 +34,6 @@ export default function ChatTab({ initialRequestId }: ChatTabProps) {
   const [replyText, setReplyText] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const { chat: chatLimit, recordChat } = useOwnerRateLimit(user?.id);
   const { addToast } = useToast();
 
   const [lastMessages, setLastMessages] = useState<Record<string, ChatMessageFromDB>>({});
@@ -69,17 +67,6 @@ export default function ChatTab({ initialRequestId }: ChatTabProps) {
 
   const handleSend = async () => {
     if (!replyText.trim() || !activeChat) return;
-
-    if (!chatLimit.canSend) {
-      addToast(chatLimit.limitReason || 'Rate limit reached. Please try again later.', 'error');
-      return;
-    }
-
-    const ok = recordChat();
-    if (!ok) {
-      addToast(chatLimit.limitReason || 'Rate limit reached. Please try again later.', 'error');
-      return;
-    }
 
     const text = replyText.trim();
     setReplyText('');
@@ -204,16 +191,6 @@ export default function ChatTab({ initialRequestId }: ChatTabProps) {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[400px]">
-              {/* Rate limit banner inside chat */}
-              {!chatLimit.canSend && chatLimit.limitReason && (
-                <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-start gap-2 mb-3">
-                  <i className="ri-error-warning-line text-red-500 text-sm flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-red-700">Chat Message Limit Reached</p>
-                    <p className="text-[11px] text-red-500">{chatLimit.limitReason}</p>
-                  </div>
-                </div>
-              )}
               {messages.length === 0 && (
                 <div className="text-center py-8">
                   <p className="text-sm text-charcoal/40">No messages yet. Start the conversation!</p>
@@ -245,25 +222,16 @@ export default function ChatTab({ initialRequestId }: ChatTabProps) {
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-                  placeholder={chatLimit.canSend ? 'Type a message...' : 'Message limit reached'}
-                  disabled={!chatLimit.canSend}
+                  placeholder="Type a message..."
                   className="flex-1 px-4 py-3 bg-offwhite rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!replyText.trim() || !chatLimit.canSend}
+                  disabled={!replyText.trim()}
                   className="w-10 h-10 flex items-center justify-center rounded-full bg-amber-500 text-white hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
                 >
                   <i className="ri-send-plane-fill text-sm" />
                 </button>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <p className="text-[11px] text-charcoal/40">
-                  {chatLimit.dailyRemaining}/{chatLimit.dailyRemaining + chatLimit.dailyCount} messages remaining today
-                </p>
-                {!chatLimit.canSend && (
-                  <p className="text-[11px] text-red-500 font-medium">Limit reached</p>
-                )}
               </div>
             </div>
           </>

@@ -22,29 +22,6 @@ export default function About() {
     },
   ];
 
-  const team = [
-    {
-      name: 'Jennifer Walsh',
-      role: 'Founder & CEO',
-      avatar: '/placeholders/avatar.svg',
-    },
-    {
-      name: 'Michael Torres',
-      role: 'Head of Product',
-      avatar: '/placeholders/avatar.svg',
-    },
-    {
-      name: 'Aisha Patel',
-      role: 'Community Lead',
-      avatar: '/placeholders/avatar.svg',
-    },
-    {
-      name: 'David Kim',
-      role: 'Tech Lead',
-      avatar: '/placeholders/avatar.svg',
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-offwhite">
       {/* Header */}
@@ -72,20 +49,6 @@ export default function About() {
                 <p className="mt-4 text-charcoal/70 leading-relaxed">
                   Today, we are building the most renter-friendly platform in India. From verified listings in Mumbai, Bangalore, and Delhi to digital rent management and a thriving community, we are here to make your rental journey smooth from start to finish.
                 </p>
-                <div className="mt-8 grid grid-cols-3 gap-6">
-                  <div>
-                    <div className="text-3xl font-bold text-brand">50K+</div>
-                    <p className="text-sm text-charcoal/60 mt-1">Active Renters</p>
-                  </div>
-                  <div>
-                    <div className="text-3xl font-bold text-brand">12K+</div>
-                    <p className="text-sm text-charcoal/60 mt-1">Verified Listings</p>
-                  </div>
-                  <div>
-                    <div className="text-3xl font-bold text-brand">98%</div>
-                    <p className="text-sm text-charcoal/60 mt-1">Satisfaction Rate</p>
-                  </div>
-                </div>
               </div>
               <div>
                 <img
@@ -121,32 +84,6 @@ export default function About() {
                   </div>
                   <h3 className="text-lg font-semibold text-charcoal">{value.title}</h3>
                   <p className="mt-2 text-sm text-charcoal/70">{value.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Team */}
-      <section className="py-16 md:py-24">
-        <div className="w-full px-4 md:px-8 lg:px-12">
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-charcoal">Meet the Team</h2>
-              <p className="mt-3 text-charcoal/70">The people behind Bhavan</p>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {team.map((member) => (
-                <div key={member.name} className="text-center">
-                  <img
-                    src={member.avatar}
-                    alt={member.name}
-                    className="w-32 h-32 md:w-40 md:h-40 rounded-full object-cover mx-auto"
-                  />
-                  <h3 className="mt-4 text-lg font-semibold text-charcoal">{member.name}</h3>
-                  <p className="text-sm text-charcoal/60">{member.role}</p>
                 </div>
               ))}
             </div>

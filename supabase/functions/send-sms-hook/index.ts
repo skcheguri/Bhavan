@@ -32,14 +32,28 @@ const MSG91_OTP_VAR_NAME = Deno.env.get("MSG91_OTP_VAR_NAME") ?? "OTP";
 const HOOK_SECRET = Deno.env.get("SEND_SMS_HOOK_SECRET") ?? "";
 
 interface SendSmsHookPayload {
-  user: { phone?: string };
-  sms: { otp: string };
+  // For a phone_change action (adding/changing the phone on an existing
+  // session) user.phone is still the OLD confirmed number -- possibly
+  // empty, as for an account that signed up by email -- and the pending
+  // new number is in user.new_phone. sms.phone is GoTrue's own resolved
+  // "send to" number and covers both the signup and phone_change cases,
+  // so it's checked first; the others are fallbacks. Confirmed against a
+  // real phone_change hook payload (top-level: metadata/user/sms).
+  user: { phone?: string; new_phone?: string };
+  sms: { otp: string; phone?: string };
 }
 
+// Supabase's Auth Hooks contract requires the actual HTTP transport
+// status to be 200 for GoTrue to parse the response at all -- the
+// app-level error code/message travel entirely inside the JSON body's
+// `error` field. Returning the http_code as the real HTTP status (as
+// this used to) makes GoTrue treat the response as a failed hook
+// invocation and report a generic "Invalid payload sent to hook" to the
+// client instead of the message below.
 function errorResponse(message: string, httpCode = 500) {
   return new Response(
     JSON.stringify({ error: { http_code: httpCode, message } }),
-    { status: httpCode, headers: { "Content-Type": "application/json" } }
+    { status: 200, headers: { "Content-Type": "application/json" } }
   );
 }
 
@@ -95,7 +109,7 @@ Deno.serve(async (req) => {
       "webhook-signature": req.headers.get("webhook-signature") ?? "",
     }) as SendSmsHookPayload;
 
-    const phone = verified.user?.phone;
+    const phone = verified.sms?.phone || verified.user?.new_phone || verified.user?.phone;
     const otp = verified.sms?.otp;
     if (!phone || !otp) {
       return errorResponse("Malformed Send SMS hook payload.", 400);

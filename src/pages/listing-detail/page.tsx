@@ -252,8 +252,6 @@ export default function ListingDetail() {
 
     await contactRate.record(listing.id);
     await refreshTenantRequests();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _ = submittingRequest;
     setRequestSent(true);
     setRequestOpen(false);
     setTimeout(() => setRequestSent(false), 5000);
@@ -559,10 +557,10 @@ export default function ListingDetail() {
               </button>
               <button
                 onClick={handleSendRequest}
-                disabled={!reqName.trim() || !reqPhone.trim() || !contactRate.canSend}
+                disabled={!reqName.trim() || !reqPhone.trim() || !contactRate.canSend || submittingRequest}
                 className="flex-1 px-4 py-2.5 rounded-full bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
               >
-                Send Request
+                {submittingRequest ? 'Sending...' : 'Send Request'}
               </button>
             </div>
           </div>

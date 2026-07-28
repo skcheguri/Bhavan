@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { logClientError } from '@/lib/errorLogging';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -17,6 +18,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Unhandled error in app:', error, info.componentStack);
+    logClientError(error, 'error_boundary', { componentStack: info.componentStack ?? undefined });
   }
 
   render() {

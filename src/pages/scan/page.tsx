@@ -671,22 +671,6 @@ export default function ScanLanding() {
           </div>
         )}
 
-        {/* App download nudge */}
-        <div className="bg-white rounded-3xl border border-black/5 p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500 flex-shrink-0">
-              <i className="ri-smartphone-line text-white text-lg" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-charcoal">Get the Bhavan App</p>
-              <p className="text-xs text-charcoal/60 mt-0.5">Track your request status, manage viewings, and rent smarter.</p>
-            </div>
-            <button className="px-4 py-2 rounded-full bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap">
-              Download
-            </button>
-          </div>
-        </div>
-
         {/* Footer */}
         <div className="text-center py-4">
           <p className="text-xs text-charcoal/40">

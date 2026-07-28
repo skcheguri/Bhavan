@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useRentPayment } from '@/hooks/useRentPayment';
+import { useRentPayment, type RentPayment } from '@/hooks/useRentPayment';
 import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 import { useToast } from '@/hooks/useToast';
 import { getSupabase, functionErrorMessage } from '@/lib/supabase';
@@ -35,7 +35,7 @@ const statusLabels: Record<string, string> = {
 
 export default function RentPayment() {
   const { user } = useAuth();
-  const { payments, mandates, tenantPayments, hasFailedPayment, getMandateForTenant, createPayment, refresh } = useRentPayment();
+  const { payments, mandates, tenantPayments, getMandateForTenant, createPayment, refresh } = useRentPayment();
   const { addToast } = useToast();
   const isTenant = user?.role === 'tenant';
   const isOwner = user?.role === 'owner';
@@ -52,7 +52,8 @@ export default function RentPayment() {
   const [offlineDate, setOfflineDate] = useState(new Date().toISOString().split('T')[0]);
 
   const { agreements: rentalAgreements } = useTenantRentalAgreements(user?.id);
-  const activeAgreement = rentalAgreements[0] ?? null;
+  const [selectedAgreementId, setSelectedAgreementId] = useState<string | null>(null);
+  const activeAgreement = rentalAgreements.find((a) => a.id === selectedAgreementId) ?? rentalAgreements[0] ?? null;
   const rentAmount = activeAgreement?.monthlyRent ?? 0; // rupees
   const propertyName = activeAgreement?.propertyAddress || 'Your property';
   const flatNumber = activeAgreement?.flatNumber ?? '';
@@ -63,8 +64,12 @@ export default function RentPayment() {
 
   const myPayments = isTenant && user ? tenantPayments(user.id) : payments;
   const myMandate = isTenant && user ? getMandateForTenant(user.id) : null;
-  const hasFailed = isTenant && user ? hasFailedPayment(user.id) : false;
-  const latestFailed = myPayments.find((p) => p.status === 'failed');
+  // Scoped to the currently selected property -- a failed payment on a
+  // different property shouldn't block or mislabel the retry button here,
+  // since retrying always pays against activeAgreement.
+  const activePropertyPayments = activeAgreement ? myPayments.filter((p) => p.agreement_id === activeAgreement.id) : [];
+  const latestFailed = activePropertyPayments.find((p) => p.status === 'failed');
+  const hasFailed = isTenant && !!latestFailed;
 
   const months = Array.from(new Set(payments.map((p) => p.month))).sort();
 
@@ -102,8 +107,9 @@ export default function RentPayment() {
     await refresh();
   };
 
-  const handlePayNow = async (monthOverride?: string) => {
-    if (!activeAgreement) return;
+  const handlePayNow = async (monthOverride?: string, agreementIdOverride?: string) => {
+    const agreementId = agreementIdOverride ?? activeAgreement?.id;
+    if (!agreementId) return;
     const supabase = getSupabase();
     if (!supabase) {
       setPayStatus('failed');
@@ -116,7 +122,7 @@ export default function RentPayment() {
 
     const month = monthOverride || formatMonthKey(new Date());
     const { data: orderData, error: orderError } = await supabase.functions.invoke('create-rent-payment-order', {
-      body: { agreementId: activeAgreement.id, month },
+      body: { agreementId, month },
     });
 
     if (orderError || !orderData?.orderId) {
@@ -170,9 +176,14 @@ export default function RentPayment() {
     razorpay.open();
   };
 
-  const handleRetryPayment = (month: string) => {
+  // Retrying must target the property the failed payment actually belongs
+  // to, not whatever happens to be selected in the property dropdown --
+  // passing agreementId explicitly avoids relying on setSelectedAgreementId
+  // (async state) having applied before handlePayNow reads it.
+  const handleRetryPayment = (payment: RentPayment) => {
+    if (payment.agreement_id) setSelectedAgreementId(payment.agreement_id);
     setActiveTab('pay');
-    handlePayNow(month);
+    handlePayNow(payment.month, payment.agreement_id ?? undefined);
   };
 
   const tabs: { id: PaymentTab; label: string; icon: string; show: boolean }[] = [
@@ -223,12 +234,30 @@ export default function RentPayment() {
             )}
           </div>
 
+          {/* Property Selector -- only relevant once a tenant has more than one rental agreement */}
+          {isTenant && rentalAgreements.length > 1 && (
+            <div className="mt-5 pt-5 border-t border-black/5">
+              <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Which property is this for?</label>
+              <select
+                value={activeAgreement?.id ?? ''}
+                onChange={(e) => setSelectedAgreementId(e.target.value)}
+                className="w-full md:w-96 px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 border border-black/5 cursor-pointer"
+              >
+                {rentalAgreements.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.propertyAddress}{a.flatNumber ? ` · ${a.flatNumber}` : ''} — ₹{a.monthlyRent.toLocaleString('en-IN')}/mo
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Failure Banner */}
           {hasFailed && latestFailed && (
             <div className="mt-5">
               <FailureBanner
                 failureReason={latestFailed.failure_reason ?? 'UPI_TIMEOUT'}
-                onRetry={() => handleRetryPayment(latestFailed.month)}
+                onRetry={() => handleRetryPayment(latestFailed)}
                 onAlternative={() => setActiveTab('pay')}
               />
             </div>
@@ -471,6 +500,9 @@ export default function RentPayment() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-black/5">
+                      {rentalAgreements.length > 1 && (
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Property</th>
+                      )}
                       <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Month</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Amount</th>
                       <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Mode</th>
@@ -483,6 +515,11 @@ export default function RentPayment() {
                   <tbody>
                     {filteredHistory.map((p) => (
                       <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
+                        {rentalAgreements.length > 1 && (
+                          <td className="px-4 py-3.5 text-sm text-charcoal/60">
+                            {rentalAgreements.find((a) => a.id === p.agreement_id)?.propertyAddress || '—'}
+                          </td>
+                        )}
                         <td className="px-4 py-3.5 text-sm font-semibold text-charcoal">{p.month}</td>
                         <td className="px-4 py-3.5 text-sm font-bold text-charcoal">₹{(p.amount / 100).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-3.5 text-sm text-charcoal/60">{paymentModeLabels[p.payment_mode]}</td>
@@ -497,15 +534,10 @@ export default function RentPayment() {
                           <div className="flex items-center gap-2">
                             {p.status === 'failed' && (
                               <button
-                                onClick={() => handleRetryPayment(p.month)}
+                                onClick={() => handleRetryPayment(p)}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
                               >
                                 <i className="ri-refresh-line text-sm" /> Retry
-                              </button>
-                            )}
-                            {p.receipt_url && (
-                              <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-brand/40 hover:text-brand transition-colors cursor-pointer whitespace-nowrap">
-                                <i className="ri-download-line text-sm" /> Receipt
                               </button>
                             )}
                           </div>

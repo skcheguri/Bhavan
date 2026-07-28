@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { getDeviceFingerprint } from '@/lib/fingerprint';
 
 export type ContactInquiryStatus = 'new' | 'in_progress' | 'resolved';
 
@@ -43,9 +44,15 @@ export function useSubmitContactInquiry() {
         email: input.email,
         subject: input.subject,
         message: input.message,
+        device_fingerprint: getDeviceFingerprint(),
       });
       setSubmitting(false);
-      if (error) return { error: error.message };
+      if (error) {
+        // The rate-limit trigger raises a plain message, not a generic
+        // Postgres constraint error -- surface it as-is rather than a
+        // confusing raw error code.
+        return { error: error.message };
+      }
       return { error: null };
     },
     []

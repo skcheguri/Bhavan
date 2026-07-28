@@ -21,7 +21,7 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
 
   useEffect(() => {
     if (!listing) return;
-    const url = `https://bungalow.in/scan/${listing.id}`;
+    const url = `${window.location.origin}/scan/${listing.id}`;
     QRCode.toDataURL(url, {
       width: 280,
       margin: 2,
@@ -143,7 +143,7 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
   const handleDownload = () => {
     if (!canvasRef.current || !listing) return;
     const link = document.createElement('a');
-    link.download = `rentconnect-qr-${listing.id}.png`;
+    link.download = `bhavan-qr-${listing.id}.png`;
     link.href = canvasRef.current.toDataURL('image/png');
     link.click();
   };
@@ -238,7 +238,7 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
 
   const handleCopyLink = () => {
     if (!listing) return;
-    navigator.clipboard.writeText(`https://bungalow.in/scan/${listing.id}`);
+    navigator.clipboard.writeText(`${window.location.origin}/scan/${listing.id}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -300,7 +300,7 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
             <div className="flex-1 min-w-0">
               <p className="text-xs text-charcoal/40">Listing URL</p>
               <p className="text-xs text-charcoal font-medium truncate">
-                bungalow.in/scan/{listing.id}
+                {window.location.host}/scan/{listing.id}
               </p>
             </div>
             <button

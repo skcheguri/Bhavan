@@ -18,14 +18,30 @@ export interface RentReceiptData {
   createdAt: string;
 }
 
+// `iso` here is usually a date-only string ("2026-08-01") from a <input
+// type=date> or a Postgres `date` column, with no timezone info of its
+// own. `new Date('2026-08-01')` parses that as UTC midnight, so
+// formatting it in any timezone behind UTC (including most of the
+// Americas, where an NRI landlord using this app may well be) rolls it
+// back to the previous calendar day. Parsing the y/m/d components into
+// a local Date instead makes the displayed date match what was typed,
+// regardless of the reader's timezone.
+function parseDateOnly(iso: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
 function formatDate(iso: string): string {
   if (!iso) return '_______________';
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  const local = parseDateOnly(iso) ?? new Date(iso);
+  return local.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function formatDateShort(iso: string): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const local = parseDateOnly(iso) ?? new Date(iso);
+  return local.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function formatINR(n: number): string {

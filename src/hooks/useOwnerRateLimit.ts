@@ -8,11 +8,6 @@ const INQUIRY_MAX_DAILY = 50;
 const INQUIRY_MAX_WEEKLY = 200;
 const INQUIRY_KEY_PREFIX = 'bungalow_owner_inquiry_responses_';
 
-/* ───────── Chat Message Limits ───────── */
-const CHAT_MAX_DAILY = 100;
-const CHAT_MAX_WEEKLY = 500;
-const CHAT_KEY_PREFIX = 'bungalow_owner_chat_';
-
 /* ───────── Community Post Limits ───────── */
 const COMMUNITY_MAX_DAILY = 5;
 const COMMUNITY_MAX_WEEKLY = 15;
@@ -114,26 +109,6 @@ export function recordInquiryResponse(userId: string): boolean {
   );
 }
 
-/* ───────── Chat Messages ───────── */
-export function getChatLimitStatus(userId: string): RateLimitStatus {
-  return buildStatus(
-    getTimestamps(userId, CHAT_KEY_PREFIX),
-    CHAT_MAX_DAILY,
-    CHAT_MAX_WEEKLY,
-    'messages',
-  );
-}
-
-export function recordChatMessage(userId: string): boolean {
-  return recordAttempt(
-    userId,
-    CHAT_KEY_PREFIX,
-    CHAT_MAX_DAILY,
-    CHAT_MAX_WEEKLY,
-    'messages',
-  );
-}
-
 /* ───────── Community Posts ───────── */
 export function getCommunityLimitStatus(userId: string): RateLimitStatus {
   return buildStatus(
@@ -157,20 +132,14 @@ export function recordCommunityPost(userId: string): boolean {
 /* ───────── React Hook ───────── */
 export interface OwnerRateLimits {
   inquiry: RateLimitStatus;
-  chat: RateLimitStatus;
   community: RateLimitStatus;
   recordInquiry: () => boolean;
-  recordChat: () => boolean;
   recordCommunity: () => boolean;
 }
 
 export function useOwnerRateLimit(userId: string | undefined): OwnerRateLimits {
   const inquiry = useMemo(
     () => getInquiryLimitStatus(userId || ''),
-    [userId],
-  );
-  const chat = useMemo(
-    () => getChatLimitStatus(userId || ''),
     [userId],
   );
   const community = useMemo(
@@ -183,15 +152,10 @@ export function useOwnerRateLimit(userId: string | undefined): OwnerRateLimits {
     return recordInquiryResponse(userId);
   }, [userId]);
 
-  const recordChat = useCallback((): boolean => {
-    if (!userId) return false;
-    return recordChatMessage(userId);
-  }, [userId]);
-
   const recordCommunity = useCallback((): boolean => {
     if (!userId) return false;
     return recordCommunityPost(userId);
   }, [userId]);
 
-  return { inquiry, chat, community, recordInquiry, recordChat, recordCommunity };
+  return { inquiry, community, recordInquiry, recordCommunity };
 }

@@ -54,34 +54,19 @@ export default function Contact() {
                     </div>
                     <div>
                       <h4 className="font-semibold text-charcoal">Email</h4>
-                      <p className="text-sm text-charcoal/70 mt-1">hello@rentconnect.com</p>
-                      <p className="text-sm text-charcoal/70">support@rentconnect.com</p>
+                      <p className="text-sm text-charcoal/70 mt-1">support@bhavan.in</p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center flex-shrink-0">
                       <div className="w-6 h-6 flex items-center justify-center">
-                        <i className="ri-phone-line text-brand" />
+                        <i className="ri-time-line text-brand" />
                       </div>
                     </div>
                     <div>
-                      <h4 className="font-semibold text-charcoal">Phone</h4>
-                      <p className="text-sm text-charcoal/70 mt-1">+91 98765 43210</p>
-                      <p className="text-sm text-charcoal/70">Mon-Sat, 9am-7pm IST</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center flex-shrink-0">
-                      <div className="w-6 h-6 flex items-center justify-center">
-                        <i className="ri-map-pin-line text-brand" />
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-charcoal">Office</h4>
-                      <p className="text-sm text-charcoal/70 mt-1">123 Innovation Drive</p>
-                      <p className="text-sm text-charcoal/70">Bandra Kurla Complex, Mumbai 400051</p>
+                      <h4 className="font-semibold text-charcoal">Response time</h4>
+                      <p className="text-sm text-charcoal/70 mt-1">We aim to respond within 24 hours via the form below.</p>
                     </div>
                   </div>
                 </div>

@@ -51,7 +51,12 @@ export function useChatMessages(requestId: string | undefined) {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `request_id=eq.${requestId}` },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as ChatMessageFromDB]);
+          // The sender's own insert already appends this row locally (see
+          // sendMessage below) -- without this guard, the realtime INSERT
+          // event echoes right back to the same client and the sender
+          // sees their own message twice.
+          const incoming = payload.new as ChatMessageFromDB;
+          setMessages((prev) => (prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]));
         }
       )
       .subscribe();

@@ -6,6 +6,7 @@ import { useOwnerRateLimit } from '@/hooks/useOwnerRateLimit';
 import { getSupabase } from '@/lib/supabase';
 import QRCodeModal from './components/QRCodeModal';
 import PhoneVerifyModal from '@/components/feature/PhoneVerifyModal';
+import DeleteAccountModal from '@/components/feature/DeleteAccountModal';
 import EditListingModal from './components/EditListingModal';
 import RentalAgreementModal from './components/RentalAgreementModal';
 import { useRentalAgreements } from '@/hooks/useRentalAgreements';
@@ -39,26 +40,8 @@ function formatINR(num: number): string {
   return `\u20b9${num.toLocaleString('en-IN')}`;
 }
 
-function NotificationToggle({ label, desc, defaultOn = false, activeColor = 'bg-amber-500' }: { label: string; desc: string; defaultOn?: boolean; activeColor?: string }) {
-  const [on, setOn] = useState(defaultOn);
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm font-semibold text-charcoal">{label}</p>
-        <p className="text-xs text-charcoal/40 mt-0.5">{desc}</p>
-      </div>
-      <button
-        onClick={() => setOn(!on)}
-        className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ${on ? activeColor : 'bg-gray-200'}`}
-      >
-        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${on ? 'translate-x-5' : 'translate-x-0'}`} />
-      </button>
-    </div>
-  );
-}
-
 export default function OwnerProfile() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, sendPasswordResetEmail } = useAuth();
   const { isPro, plan, status, nextBillingDate, isInGracePeriod, isInTrial, trialDaysLeft, totalSpent, billingHistory, cancelSubscription, toggleAutoRenew } = useSubscription();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -76,7 +59,7 @@ export default function OwnerProfile() {
   const [togglingListingId, setTogglingListingId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const { addToast } = useToast();
-  const { inquiry, chat, community } = useOwnerRateLimit(user?.id);
+  const { inquiry, community } = useOwnerRateLimit(user?.id);
 
   const [formName, setFormName] = useState(user?.name ?? '');
   const [formPhone, setFormPhone] = useState(user?.phone ?? '');
@@ -94,6 +77,8 @@ export default function OwnerProfile() {
   const [viewAgreementId, setViewAgreementId] = useState<string | null>(null);
   const { agreements: rentalAgreements, markShared } = useRentalAgreements(user?.id);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
   const { payments: allPayments } = useRentPayment();
   const { requests: maintenanceRequests } = useOwnerMaintenanceRequests(user?.id);
 
@@ -187,6 +172,18 @@ export default function OwnerProfile() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!user) return;
+    setSendingReset(true);
+    const { error } = await sendPasswordResetEmail(user.email, `${window.location.origin}/reset-password`);
+    setSendingReset(false);
+    if (error) {
+      addToast(error, 'error');
+      return;
+    }
+    addToast(`Password reset link sent to ${user.email}`, 'success');
+  };
+
   // Recurring rent from currently active tenancies, not just what's been
   // recorded as paid this month -- a listing sitting on a signed
   // agreement is real income even before this month's payment lands.
@@ -239,6 +236,7 @@ export default function OwnerProfile() {
 
   const myListings = myListingsFromDB;
   const totalProperties = new Set(myListingsFromDB.map((l) => l.property_id).filter(Boolean)).size;
+  const activeListingsCount = myListings.filter((l) => l.status === 'active').length;
 
   const handleToggleActive = async (listing: ListingFromDB) => {
     const supabase = getSupabase();
@@ -276,6 +274,7 @@ export default function OwnerProfile() {
       <div className="max-w-6xl mx-auto px-4 md:px-8">
 
         <QRCodeModal listing={qrModalListing} onClose={() => setQrModalListing(null)} />
+        {showDeleteAccount && <DeleteAccountModal onClose={() => setShowDeleteAccount(false)} />}
         {showPhoneVerify && user.phone && (
           <PhoneVerifyModal
             phone={user.phone}
@@ -381,7 +380,7 @@ export default function OwnerProfile() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
               {[
                 { label: 'Total Properties', value: String(totalProperties), icon: 'ri-building-line', color: 'text-amber-600', tab: 'listings' as ProfileTab },
-                { label: 'Active Listings', value: String(myListings.length), icon: 'ri-list-check-3', color: 'text-brand', tab: 'listings' as ProfileTab },
+                { label: 'Active Listings', value: String(activeListingsCount), icon: 'ri-list-check-3', color: 'text-brand', tab: 'listings' as ProfileTab },
                 { label: 'Monthly Income', value: totalIncome, icon: 'ri-money-rupee-circle-line', color: 'text-green-600', tab: 'tenants' as ProfileTab },
                 { label: 'Urgent Requests', value: String(urgentRequests), icon: 'ri-alarm-warning-line', color: urgentRequests > 0 ? 'text-red-500' : 'text-charcoal/40', tab: 'requests' as ProfileTab },
               ].map((stat) => (
@@ -708,7 +707,7 @@ export default function OwnerProfile() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-charcoal">My Listings</h2>
-                <p className="text-sm text-charcoal/60 mt-0.5">{myListings.length} active listings on Bhavan</p>
+                <p className="text-sm text-charcoal/60 mt-0.5">{activeListingsCount} of {myListings.length} listings active on Bhavan</p>
               </div>
               <Link to="/list-property" className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap">
                 <i className="ri-add-line text-sm" /> Add Listing
@@ -1093,7 +1092,6 @@ export default function OwnerProfile() {
                         <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Period</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Amount</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Status</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1118,11 +1116,6 @@ export default function OwnerProfile() {
                             }`}>
                               {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
                             </span>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap">
-                              <i className="ri-download-line text-sm" /> PDF
-                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1165,22 +1158,11 @@ export default function OwnerProfile() {
         {activeTab === 'settings' && (
           <div className="max-w-2xl space-y-6">
             <div className="bg-white rounded-3xl border border-black/5 p-6">
-              <h2 className="text-base font-bold text-charcoal mb-4">Notification Preferences</h2>
-              <div className="space-y-4">
-                <NotificationToggle label="New Maintenance Requests" desc="Get notified when tenants submit requests" defaultOn activeColor="bg-amber-500" />
-                <NotificationToggle label="Rent Payment Alerts" desc="When rent is paid or overdue" defaultOn activeColor="bg-amber-500" />
-                <NotificationToggle label="Lease Expiry Reminders" desc="Alert 60 days before lease expiry" defaultOn activeColor="bg-amber-500" />
-                <NotificationToggle label="New Tenant Inquiries" desc="When someone inquires about your listing" defaultOn activeColor="bg-amber-500" />
-                <NotificationToggle label="Platform Updates" desc="Tips, guides and platform updates" activeColor="bg-amber-500" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
               <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-signal-tower-line text-amber-600" />
                 </div>
-                Delivery Channels
+                Notifications
               </h2>
               <p className="text-sm text-charcoal/60 mb-4">
                 Choose how you receive each type of notification. If push fails, SMS and email fallbacks activate automatically.
@@ -1190,32 +1172,22 @@ export default function OwnerProfile() {
 
             <div className="bg-white rounded-3xl border border-black/5 p-6">
               <h2 className="text-base font-bold text-charcoal mb-4">Security</h2>
-              <div className="space-y-3">
-                <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-50">
-                      <i className="ri-lock-password-line text-sm text-amber-600" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-charcoal">Change Password</p>
-                      <p className="text-xs text-charcoal/40">Last changed 2 months ago</p>
-                    </div>
+              <button
+                onClick={handleChangePassword}
+                disabled={sendingReset}
+                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer disabled:opacity-60"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-50">
+                    <i className="ri-lock-password-line text-sm text-amber-600" />
                   </div>
-                  <i className="ri-arrow-right-s-line text-charcoal/40" />
-                </button>
-                <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-50">
-                      <i className="ri-smartphone-line text-sm text-green-600" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-charcoal">Two-Factor Authentication</p>
-                      <p className="text-xs text-charcoal/40">Add extra security to your account</p>
-                    </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-charcoal">Change Password</p>
+                    <p className="text-xs text-charcoal/40">{sendingReset ? 'Sending link...' : `We'll email a secure reset link to ${user.email}`}</p>
                   </div>
-                  <i className="ri-arrow-right-s-line text-charcoal/40" />
-                </button>
-              </div>
+                </div>
+                <i className="ri-arrow-right-s-line text-charcoal/40" />
+              </button>
             </div>
 
             {/* Activity Rate Limits */}
@@ -1255,31 +1227,6 @@ export default function OwnerProfile() {
                   <p className="text-[11px] text-charcoal/40 mt-1">{inquiry.weeklyRemaining} / 200 weekly remaining</p>
                 </div>
 
-                {/* Chat Messages */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-50">
-                        <i className="ri-chat-3-line text-xs text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-charcoal">Chat Messages</p>
-                        <p className="text-[11px] text-charcoal/40">Messages to approved prospects</p>
-                      </div>
-                    </div>
-                    <span className={`text-xs font-bold ${chat.canSend ? 'text-green-600' : 'text-red-500'}`}>
-                      {chat.dailyRemaining} / 100 daily
-                    </span>
-                  </div>
-                  <div className="w-full bg-lightgray rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all ${chat.dailyRemaining === 0 ? 'bg-red-500' : 'bg-green-500'}`}
-                      style={{ width: `${chat.dailyCount + chat.dailyRemaining > 0 ? (chat.dailyRemaining / (chat.dailyRemaining + chat.dailyCount)) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <p className="text-[11px] text-charcoal/40 mt-1">{chat.weeklyRemaining} / 500 weekly remaining</p>
-                </div>
-
                 {/* Community Posts */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -1309,13 +1256,16 @@ export default function OwnerProfile() {
 
             <div className="bg-white rounded-2xl border border-red-100 p-6">
               <h2 className="text-base font-bold text-red-600 mb-4">Danger Zone</h2>
-              <button className="w-full flex items-center gap-3 p-3 rounded-xl border border-red-100 hover:bg-red-50 transition-colors cursor-pointer text-left">
+              <button
+                onClick={() => setShowDeleteAccount(true)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-red-100 hover:bg-red-50 transition-colors cursor-pointer text-left"
+              >
                 <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 flex-shrink-0">
                   <i className="ri-delete-bin-line text-sm text-red-500" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-red-600">Delete Account</p>
-                  <p className="text-xs text-charcoal/40">Permanently remove your account and all data</p>
+                  <p className="text-xs text-charcoal/40">Request permanent removal of your account and data</p>
                 </div>
               </button>
             </div>

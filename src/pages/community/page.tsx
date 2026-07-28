@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { testimonials } from '@/content/testimonials';
 import { useAuth } from '@/hooks/useAuth';
 import { useOwnerRateLimit } from '@/hooks/useOwnerRateLimit';
 import { useToast } from '@/hooks/useToast';
@@ -89,48 +88,20 @@ export default function Community() {
       {/* Header */}
       <section className="bg-white py-12 md:py-16 border-b">
         <div className="w-full px-4 md:px-8 lg:px-12">
-          <div className="max-w-6xl mx-auto">
-            <h1 className="text-3xl md:text-4xl font-bold text-charcoal">Community</h1>
-            <p className="mt-2 text-charcoal/70 max-w-2xl">
-              Connect with fellow renters, share experiences, ask questions, and get advice from our supportive community.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Bar */}
-      <section className="bg-white border-b">
-        <div className="w-full px-4 md:px-8 lg:px-12">
-          <div className="max-w-6xl mx-auto py-6">
-            <div className="flex flex-wrap items-center justify-between gap-6">
-              <div className="flex flex-wrap gap-6 md:gap-10">
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <i className="ri-group-line text-brand" />
-                  </div>
-                  <span className="text-sm font-medium text-charcoal">12,450 Members</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <i className="ri-chat-1-line text-brand" />
-                  </div>
-                  <span className="text-sm font-medium text-charcoal">3,280 Discussions</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <i className="ri-heart-line text-brand" />
-                  </div>
-                  <span className="text-sm font-medium text-charcoal">98% Helpful Rate</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                disabled={!communityLimit.canSend || !user}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-              >
-                <i className="ri-add-line" /> New Post
-              </button>
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-charcoal">Community</h1>
+              <p className="mt-2 text-charcoal/70 max-w-2xl">
+                Connect with fellow renters, share experiences, ask questions, and get advice from our supportive community.
+              </p>
             </div>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              disabled={!communityLimit.canSend || !user}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+            >
+              <i className="ri-add-line" /> New Post
+            </button>
           </div>
         </div>
       </section>
@@ -214,29 +185,6 @@ export default function Community() {
 
               {/* Sidebar */}
               <div className="space-y-6">
-                {/* Testimonials */}
-                <div className="bg-white rounded-2xl p-6 border border-black/5">
-                  <h3 className="font-semibold text-charcoal mb-4">Community Voices</h3>
-                  <div className="space-y-4">
-                    {testimonials.slice(0, 3).map((t) => (
-                      <div key={t.id} className="border-b last:border-0 pb-4 last:pb-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <img
-                            src={t.avatar}
-                            alt={t.name}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-charcoal">{t.name}</p>
-                            <p className="text-xs text-charcoal/60">{t.role}</p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-charcoal/70 line-clamp-3">&ldquo;{t.text}&rdquo;</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Guidelines */}
                 <div className="bg-brand-light rounded-2xl p-6">
                   <h3 className="font-semibold text-charcoal mb-3">Community Guidelines</h3>

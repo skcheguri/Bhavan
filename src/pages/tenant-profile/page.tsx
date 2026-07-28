@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSavedListings } from '@/hooks/useListings';
 import NotificationBell from '@/pages/owner-profile/components/NotificationBell';
 import PhoneVerifyModal from '@/components/feature/PhoneVerifyModal';
+import DeleteAccountModal from '@/components/feature/DeleteAccountModal';
 import { useToast } from '@/hooks/useToast';
 import TenantInquiriesTab from './components/TenantInquiriesTab';
 import TenantChatTab from './components/TenantChatTab';
@@ -52,26 +53,8 @@ function formatLeaseDate(dateStr: string) {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function NotificationToggle({ label, desc, defaultOn = false }: { label: string; desc: string; defaultOn?: boolean }) {
-  const [on, setOn] = useState(defaultOn);
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm font-semibold text-charcoal">{label}</p>
-        <p className="text-xs text-charcoal/40 mt-0.5">{desc}</p>
-      </div>
-      <button
-        onClick={() => setOn(!on)}
-        className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ${on ? 'bg-brand' : 'bg-gray-200'}`}
-      >
-        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${on ? 'translate-x-5' : 'translate-x-0'}`} />
-      </button>
-    </div>
-  );
-}
-
 export default function TenantProfile() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, sendPasswordResetEmail } = useAuth();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as ProfileTab | null;
   const subParam = searchParams.get('sub');
@@ -86,6 +69,8 @@ export default function TenantProfile() {
   const brokerReport = useBrokerReport(user?.id);
   const [softBlockModalOpen, setSoftBlockModalOpen] = useState(false);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
   const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(null);
 
   const { requests: maintRequestsFromDB } = useMaintenanceRequests(user?.id);
@@ -205,6 +190,18 @@ export default function TenantProfile() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!user) return;
+    setSendingReset(true);
+    const { error } = await sendPasswordResetEmail(user.email, `${window.location.origin}/reset-password`);
+    setSendingReset(false);
+    if (error) {
+      addToast(error, 'error');
+      return;
+    }
+    addToast(`Password reset link sent to ${user.email}`, 'success');
+  };
+
   const handleUnsave = async (id: string, title: string) => {
     if (!user?.id) return;
     const supabase = (await import('@/lib/supabase')).getSupabase();
@@ -244,6 +241,7 @@ export default function TenantProfile() {
     <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-6xl mx-auto px-4 md:px-8">
 
+        {showDeleteAccount && <DeleteAccountModal onClose={() => setShowDeleteAccount(false)} />}
         {showPhoneVerify && user.phone && (
           <PhoneVerifyModal
             phone={user.phone}
@@ -821,25 +819,13 @@ export default function TenantProfile() {
 
         {activeTab === 'settings' && (
           <div className="max-w-2xl space-y-6">
-            {/* Notification Preferences */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
-              <h2 className="text-base font-bold text-charcoal mb-4">Notification Preferences</h2>
-              <div className="space-y-4">
-                <NotificationToggle label="Maintenance Updates" desc="Get notified when your request status changes" defaultOn />
-                <NotificationToggle label="Rent Reminders" desc="Monthly reminder before rent due date" defaultOn />
-                <NotificationToggle label="Lease Renewal Alerts" desc="Alert 60 days before lease expiry" defaultOn />
-                <NotificationToggle label="Community Posts" desc="New posts in your area" />
-                <NotificationToggle label="Promotional Emails" desc="Tips, guides and platform updates" />
-              </div>
-            </div>
-
-            {/* Delivery Channels */}
+            {/* Notifications */}
             <div className="bg-white rounded-3xl border border-black/5 p-6">
               <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-signal-tower-line text-brand" />
                 </div>
-                Delivery Channels
+                Notifications
               </h2>
               <p className="text-sm text-charcoal/60 mb-4">
                 Choose how you receive each type of notification. If push fails, SMS and email fallbacks activate automatically.
@@ -850,48 +836,39 @@ export default function TenantProfile() {
             {/* Security */}
             <div className="bg-white rounded-3xl border border-black/5 p-6">
               <h2 className="text-base font-bold text-charcoal mb-4">Security</h2>
-              <div className="space-y-3">
-                <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-brand/10">
-                      <i className="ri-lock-password-line text-sm text-brand" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-charcoal">Change Password</p>
-                      <p className="text-xs text-charcoal/40">Last changed 3 months ago</p>
-                    </div>
+              <button
+                onClick={handleChangePassword}
+                disabled={sendingReset}
+                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer disabled:opacity-60"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-brand/10">
+                    <i className="ri-lock-password-line text-sm text-brand" />
                   </div>
-                  <i className="ri-arrow-right-s-line text-charcoal/40" />
-                </button>
-                <button className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-50">
-                      <i className="ri-smartphone-line text-sm text-green-600" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-charcoal">Two-Factor Authentication</p>
-                      <p className="text-xs text-charcoal/40">Add extra security to your account</p>
-                    </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-charcoal">Change Password</p>
+                    <p className="text-xs text-charcoal/40">{sendingReset ? 'Sending link...' : `We'll email a secure reset link to ${user.email}`}</p>
                   </div>
-                  <i className="ri-arrow-right-s-line text-charcoal/40" />
-                </button>
-              </div>
+                </div>
+                <i className="ri-arrow-right-s-line text-charcoal/40" />
+              </button>
             </div>
 
             {/* Danger Zone */}
             <div className="bg-white rounded-2xl border border-red-100 p-6">
               <h2 className="text-base font-bold text-red-600 mb-4">Danger Zone</h2>
-              <div className="space-y-3">
-                <button className="w-full flex items-center gap-3 p-3 rounded-xl border border-red-100 hover:bg-red-50 transition-colors cursor-pointer text-left">
-                  <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 flex-shrink-0">
-                    <i className="ri-delete-bin-line text-sm text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-red-600">Delete Account</p>
-                    <p className="text-xs text-charcoal/40">Permanently remove your account and all data</p>
-                  </div>
-                </button>
-              </div>
+              <button
+                onClick={() => setShowDeleteAccount(true)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-red-100 hover:bg-red-50 transition-colors cursor-pointer text-left"
+              >
+                <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 flex-shrink-0">
+                  <i className="ri-delete-bin-line text-sm text-red-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-red-600">Delete Account</p>
+                  <p className="text-xs text-charcoal/40">Request permanent removal of your account and data</p>
+                </div>
+              </button>
             </div>
           </div>
         )}
