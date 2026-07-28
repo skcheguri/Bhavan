@@ -4,37 +4,16 @@
 Bhavan is a platform that connects renters with landlords and fellow tenants across India. It offers verified property listings, rent management tools, and a supportive community for Indian renters. Target users include renters searching for homes in major Indian cities, landlords listing properties, and tenants seeking community support.
 
 ## 2. Page Structure
-- `/` - Home (hero, features, featured listings, community preview, CTA)
-- `/listings` - Property Listings (browse, search, filter properties)
-- `/listings/:id` - Listing Detail (full property page with gallery, landlord card, request-to-connect)
-- `/community` - Community (forum, discussions, tenant support)
-- `/about` - About Us (company story, mission, team)
-- `/contact` - Contact (contact form, info, FAQ)
-- `/login` - Login page
-- `/signup` - Signup page
-- `/tenant-profile` - **Tenant Home** — consolidated dashboard with 5 tabs: Overview, Saved Listings, My Inquiries, Documents (generators + files), Settings
-- `/owner-profile` - **Owner Home** — consolidated dashboard with 10 tabs: Overview, Properties, Listings, Tenants, Inquiries, Messages, Requests, Documents, **Billing**, Settings
-- `/list-property` - Property listing form
-- `/aadhaar-verify` - Aadhaar identity verification
-- `/feedback` - Reviews and feedback
-- `/tax-forms` - Tax & legal forms hub (split owner/tenant views)
-- `/rent-receipts` - Rent Receipt Generator (create, preview, history, share with tenant)
-- `/rental-agreements` - Rental Agreement Generator (create, preview, history, share with tenant)
-- `/scan/:id` - QR code scan landing page with rate limit enforcement
-- `/how-it-works` - How the platform works
-- `/notifications` - Notification center
-- `/track-requests` - Tenant maintenance request tracking
-- `/landlord-dashboard` - Landlord analytics dashboard
-- `/rent-management` - Rent & lease management tools (reminders, rent storage, document verification, messaging)
-- `/subscription` - **Subscription Plans** — Free vs Pro pricing, upgrade flow, plan comparison (landlords only)
-- `/admin` - **Admin Dashboard** — overview cards with pending counts, recent activity feed, quick links to moderation queues
-- `/admin/broker-reports` - **Broker Report Moderation** — review, investigate and resolve landlord-reported broker activity
-- `/admin/verification` - **Aadhaar Verification Queue** — review and approve/reject submitted Aadhaar identity requests
-- `/admin/community` - **Community Moderation** — review flagged posts, hide/restore posts, dismiss reports
-- `/403` - **Forbidden** — access denied page for unauthorized navigation attempts
-- `/404` - **Not Found** — catch-all 404 page for unmatched routes
-- `/500` - **Server Error** — generic error page with refresh CTA and error ID
-- `/soft-block` - **Account Restriction** — standalone soft block resolution page for tenants
+Full, verified-current route table lives in README.md ("Route Map") — kept there instead of duplicated here to avoid the two drifting apart again. Summary:
+- Public: Home, Listings, Listing Detail, Community, About, Contact, How It Works, Feedback, legal pages (Terms/Privacy/Cookies/Accessibility), QR scan landing
+- Auth: Login, Signup, OAuth callback, password reset
+- Tenant Home (`/tenant-profile`) — consolidated dashboard: Overview, Saved Listings, My Inquiries, Documents, Settings
+- Owner Home (`/owner-profile`) — consolidated dashboard: Overview, Properties, Listings, Tenants, Inquiries, Messages, Requests, Documents, Billing, Settings
+- Document generators (`/rent-receipts`, `/rental-agreements`), `/tax-forms`, `/rent-payment`, `/subscription`, `/notifications`, `/list-property`, `/aadhaar-verify`
+- Admin (`/admin/*`) — dashboard, broker-reports, verification, property-verification, community, users, listings, support, errors, login
+- Error pages: `/403`, catch-all Not Found, `/500`
+
+> `/landlord-dashboard`, `/rent-management`, `/track-requests`, and `/soft-block` from earlier planning were never built as standalone routes — that functionality lives inside the dashboard tabs and modals instead (e.g. soft-block resolution is a modal on `/tenant-profile` and `/listings/:id`, not its own page).
 
 ## 3. Core Features
 - [x] User authentication (login/signup) — mock auth context ready, Supabase-ready
@@ -63,8 +42,17 @@ Bhavan is a platform that connects renters with landlords and fellow tenants acr
 - [x] **Owner Rate Limits** — Inquiry responses (50/day, 200/week), chat messages (100/day, 500/week), community posts (5/day, 15/week). All with UI banners, progress bars, and toast feedback.
 - [x] **Scan Landing Rate Limit Counter** — daily/weekly contact counter visible before clicking "Request to Connect"
 - [x] **Report Tenant in Messages** — broker reporting available from chat header, same flow as Inquiries tab
-- [ ] Real Supabase auth integration (Phase 2)
-- [ ] Real database for listings, maintenance, profiles (Phase 3)
+- [x] Real Supabase auth integration (Phase 2) — email/password, OTP phone verification, OAuth callback, password reset
+- [x] Real database for listings, maintenance, profiles (Phase 3) — all 34 tables live, `src/mocks/` fully removed
+- [x] **Legal pages** — Terms, Privacy, Cookies, Accessibility (`/terms`, `/privacy`, `/cookies`, `/accessibility`)
+- [x] **Client error logging** — uncaught errors + error-boundary catches logged to `client_error_logs`, viewable at `/admin/errors`
+- [x] **CI pipeline** — GitHub Actions runs typecheck/lint/test/build on every push
+- [x] **Route-based code splitting** — cut the single ~1.3MB bundle into per-route chunks
+- [x] **Server-side rate limiting** — replaced client-only localStorage limits with Postgres triggers (`rate_limit_events` table) for community posts, inquiry responses, and the Contact form; the "Request to Connect" flow was already edge-function-enforced
+- [x] **RLS hardening pass** — audited every owner/author-scoped table; found and fixed real write-tampering holes on `rent_payments`, `rental_agreements`, `connection_requests`, `maintenance_requests`, `community_posts`, `rent_receipts`, and `broker_reports` (migrations 047–053). Each has a checked-in regression script in `supabase/tests/`.
+- [x] **Unit test coverage** — Razorpay signature verification, legal document generation (found and fixed a real timezone bug), device fingerprinting, form validation
+- [ ] Aadhaar KYC provider keys (IDfy/Signzy) — integration code is built and edge function exists; live provider credentials are the user's responsibility to obtain
+- [ ] E2E test coverage beyond auth + public pages (2 spec files exist; not run in CI, needs dedicated test accounts)
 
 ## 4. Owner Subscription Model (Free vs Pro)
 
@@ -158,7 +146,7 @@ Bhavan runs a **Freemium subscription model exclusively for Property Owners / La
 | id | uuid | Primary key |
 | email | text | User email |
 | name | text | User full name |
-| role | text | renter, landlord, or admin |
+| role | text | `tenant`, `owner`, or `admin` (DB CHECK constraint — "renter"/"landlord" were the original naming, the actual column values are tenant/owner) |
 | phone | text | Phone number |
 | verified_email | boolean | Email verification status |
 | verified_phone | boolean | Phone verification status |
@@ -554,81 +542,51 @@ Bhavan runs a **Freemium subscription model exclusively for Property Owners / La
 - Security audit (RLS policies review, input sanitization)
 - Production deployment
 
-## Data Layer — Connected to Readdy Supabase ✅
+## Data Layer — Live on Supabase ✅
 
-**Status:** Connected to Readdy Supabase
+**Status:** Connected to the linked Supabase project, evolved through 53 sequential migrations (`supabase/migrations/001` through `053`).
 **Environment Variables:** `.env` configured with `VITE_PUBLIC_SUPABASE_URL` and `VITE_PUBLIC_SUPABASE_ANON_KEY`
 
-### Tables Created (31 total)
-All 24 core Bhavan tables exist in the database:
-1. `users` — User profiles with roles
-2. `properties` — Landlord properties
-3. `units` — Individual property units
-4. `listings` — Public rental listings
-5. `connection_requests` — Tenant-to-landlord inquiries
-6. `chat_messages` — Messaging between parties
-7. `broker_reports` — Fraud/broker reports
-8. `soft_block_states` — Trust & safety blocks
-9. `community_posts` — Community discussions
-10. `community_comments` — Post comments
-11. `saved_listings` — Tenant bookmarks
-12. `documents` — Uploaded documents
-13. `qr_analytics` — QR scan tracking
-14. `notifications` — User notifications
-15. `notification_preferences` — Delivery channel prefs
-16. `owner_subscriptions` — Premium plans
-17. `billing_history` — Invoice records
-18. `subscription_features` — Feature flags
-19. `rent_payments` — Rent transaction records
-20. `upi_mandates` — Auto-pay setups
-21. `contact_attempts` — Rate limit tracking
-22. `user_push_tokens` — Push notification tokens
-23. `audit_logs` — Security audit trail
-24. `maintenance_requests` — Maintenance tickets
-25-31. Product/order tables (auto-created by platform):
-    - `product_categories`, `product_items`, `product_variants`, `product_skus`, `product_custom_fields`, `product_custom_values`, `order_headers`, `order_items`
+> This section is a point-in-time summary. For the actual current schema, trust `supabase/migrations/` and the live database over this file — see the note in README.md's Data Model Summary.
+
+### Tables (34 total, live schema)
+The original 24-core + 7-product-table scaffold no longer reflects reality: the product/order tables were dropped entirely (migration `017_drop_dead_ecommerce_tables.sql`, they were never used — Bhavan doesn't sell physical products), and 11 tables were added since: `reviews`, `property_visits`, `vacation_bookings`, `rental_agreements`, `rent_receipts`, `aadhaar_verification_attempts`, `community_post_reports`, `contact_inquiries`, `client_error_logs`, `rate_limit_events`. See README.md's Data Model Summary for the full current list with notes on what each table's RLS now enforces.
 
 ### Row Level Security (RLS)
-All 31 tables have RLS enabled with 70+ policies covering:
-- Users: self-read/self-update, public read (for anon), admin-read-all
-- Properties: owner-full-access, tenant-read-all
-- Listings: public-read-active, owner-full-access
-- Connection Requests: tenant-own, owner-own
-- Chat: both parties in conversation
-- Community: public-read, auth-create, author-edit/delete
-- Billing & Subscriptions: owner-own, admin-read-all
-- Contact Attempts: admin-only
-- Notifications/Prefs/Tokens: user-own
-- Maintenance: tenant-own-create, owner-property-access
-- Saved Listings: user-own
-- Documents: user-own
-- QR Analytics: public-read
-- Soft Blocks: tenant-own, admin-read-all
-- Product tables: public select
-- Order tables: public select/insert/update (no delete)
+All 34 tables have RLS enabled. Beyond the original ownership-scoped policies (owner-full-access, tenant-own, admin-read-all, etc.), a dedicated hardening pass (migrations 047–053) found and closed real gaps where an owner/author-scoped policy allowed writes to *any* column on a row they owned, when the real UI only ever writes a specific subset:
+- `rent_payments` — a tenant could self-insert a row already marked `'paid'`, bypassing Razorpay entirely
+- `rental_agreements` — an owner could fake `signed_by_tenant = true`
+- `connection_requests` — an owner could rewrite the tenant's message, listing snapshot, or reassign `tenant_id`
+- `maintenance_requests` — an owner could rewrite the tenant's description/category/images or silently reprioritize
+- `community_posts` — an author could unhide their own admin-moderated post
+- `rent_receipts` — an owner could rewrite `rent_amount`/`tenant_name` after issuing a receipt
+- `broker_reports` — an owner could submit a report pre-marked `'resolved'` with a fabricated `admin_note`
+
+Each fix has a rollback-safe regression script checked into `supabase/tests/` (`rls_<table>.sql`) — run manually via `npx supabase db query --linked --file supabase/tests/rls_<table>.sql` after touching that table's policies.
 
 ### Functions & Triggers
-- `update_updated_at_column()` — Auto-updates `updated_at` on: users, properties, units, listings, community_posts, owner_subscriptions, rent_payments, upi_mandates, maintenance_requests
+- `update_updated_at_column()` — Auto-updates `updated_at` on most tables
 - `recalc_property_stats()` — Auto-calculates `total_units` and `occupied_units` on property changes
+- `is_admin()` — SECURITY DEFINER helper used by every admin-scoped policy (avoids RLS self-recursion on `users`)
+- `check_and_record_rate_limit()` — Shared server-side rate-limit function backing `rate_limit_events`, used by triggers on `community_posts`, `connection_requests`, and `contact_inquiries`
+- `enforce_*_immutable_fields()` / `enforce_*_no_self_unhide()` — The migration-047–053 hardening triggers listed above
 
 ### Edge Functions Deployed
-- `check-contact-limit` — Validates daily/weekly contact limits per user or device
-- `record-contact` — Records a contact attempt for rate limiting
+- `check-contact-limit` / `record-contact` — Rate limiting for the public "Request to Connect" flow
+- `create-rent-payment-order` / `verify-rent-payment` — Razorpay order creation + server-side HMAC signature verification (the signature logic itself is extracted to `src/lib/payments/razorpaySignature.ts` and unit-tested)
+- `admin-suspend-user` — Admin-only account suspension via Auth Admin API
+- `aadhaar-verify` — Aadhaar KYC submission handler (needs live IDfy/Signzy provider keys to be functional — code path exists, credentials don't)
+- `send-sms-hook` — SMS delivery hook
 
 ### Next Steps
-1. Create remaining edge functions as features are built:
-   - `send-notification` — Push/SMS/email dispatch
-   - `generate-rent-receipt` — PDF receipt generation
-   - `process-rent-payment` — Payment processing
-   - `verify-aadhaar` — ID verification
-   - `scan-qr-analytics` — QR code tracking
-2. Add demo seed data for testing (use Supabase `execute_sql`)
-3. Wire remaining hooks to real Supabase queries (some pages still in progress)
-4. Implement real-time chat subscriptions via Supabase realtime
+1. Obtain live Aadhaar KYC provider keys (IDfy or Signzy) — this is the one remaining hard blocker on the trust & safety story
+2. Expand e2e coverage beyond auth + public pages (dedicated test accounts recommended, per `e2e/README.md`)
+3. Legal page content (Terms/Privacy/Cookies/Accessibility) needs real registered-entity details and a lawyer review before launch — the pages exist but the copy is a placeholder
+4. Consider restructuring the `properties`/`units` duplication flagged during the RLS/DB review (deferred, not urgent)
 
 ### Phase Status Update
-- **Phase 1** (Core UI): ✅ Complete — All page UIs built with real Supabase data
-- **Phase 2** (Supabase Auth): ✅ Complete — Supabase auth connected, `.env` configured, protected routes working
-- **Phase 3** (Dynamic Data): 🔄 In Progress — Most tables wired to real queries. Remaining: chat real-time, document upload, notification deep-linking, community search indexing
-- **Phase 4** (Advanced Features): ⏳ Not started
-- **Phase 5** (Testing & Launch): ⏳ Not started
+- **Phase 1** (Core UI): ✅ Complete
+- **Phase 2** (Supabase Auth): ✅ Complete
+- **Phase 3** (Dynamic Data): ✅ Complete — all tables wired to real queries, `src/mocks/` removed entirely
+- **Phase 4** (Advanced Features): 🔄 Mostly done — real-time chat, QR codes, and PDF-equivalent document generation all shipped; search indexing not built
+- **Phase 5** (Testing & Launch): 🔄 In progress — CI pipeline, unit tests, and an RLS security hardening pass are done; e2e coverage is thin, Aadhaar KYC keys and legal review remain

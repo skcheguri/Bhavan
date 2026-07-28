@@ -1,5 +1,7 @@
 # Bhavan — Platform Requirements Document
 
+> **Document status:** this spec was written during the original scaffold phase (mock data, "Readdy form service" submissions, Phase 1/2/3 planning) and describes intended behavior more than current implementation. Most of it is still an accurate description of *what the product should do*. It is **not** accurate on a few specific, now-corrected points, flagged inline below: the `src/mocks/` directory referenced throughout has been fully removed (all data is live Supabase), the Contact form and other forms are Supabase-backed rather than routed through a Readdy form service, and the data model is missing ~10 tables added since this was written. For the authoritative current table list, RLS behavior, and route map, see `README.md`'s Data Model Summary and Route Map — those are kept in sync with the live database and `supabase/migrations/`, which this document is not.
+
 ## 1. Product Overview
 
 **Product Name:** Bhavan
@@ -510,6 +512,8 @@ Users can toggle each channel per notification type in Settings:
 
 ### 4.5 Offline Mode Behavior
 
+> **Not verified as currently built.** This section describes the originally-specified offline behavior, written when the app still had `src/mocks/` to fall back to. That mock data is gone, so anywhere below that says data is "served from `src/mocks/...`" is now false — there is no mock fallback. Whether the queuing/sync/draft-autosave UX described below was ever actually implemented (versus just specified) hasn't been confirmed; verify against the actual code in `src/hooks/` and `src/lib/supabase.ts` (`isSupabaseConnected()`) before relying on this section.
+
 When the user's device loses internet connectivity or Supabase is not configured, the app operates in **Offline Mode** using local mock data and cached state.
 
 #### 4.5.1 What Works Offline
@@ -543,6 +547,8 @@ When the user's device loses internet connectivity or Supabase is not configured
 
 ## 5. Data Model Requirements
 
+> **See README.md's Data Model Summary for the current, verified 34-table list.** The tables below (originally 24) are still accurate as *behavioral* descriptions of what each table stores, but the list is missing tables added later (`reviews`, `property_visits`, `vacation_bookings`, `rental_agreements`, `rent_receipts`, `aadhaar_verification_attempts`, `community_post_reports`, `contact_inquiries`, `client_error_logs`, `rate_limit_events`), and the `role` field values below are stale (see note).
+
 ### 5.1 Users Table
 | Field | Type | Description |
 |-------|------|-------------|
@@ -550,7 +556,7 @@ When the user's device loses internet connectivity or Supabase is not configured
 | email | text | Unique, required |
 | name | text | Full name |
 | phone | text | Phone number |
-| role | text | renter, landlord, or admin |
+| role | text | `tenant`, `owner`, or `admin` (DB CHECK constraint — the actual column values are tenant/owner, not renter/landlord) |
 | avatar_url | text | Profile image URL |
 | verified_email | boolean | Email verification status |
 | verified_phone | boolean | Phone verification status |
@@ -1135,6 +1141,8 @@ Recommended provider: **IDfy** or **Signzy** (India-authorized KYC APIs with dir
 
 ## 10. Development Phase Plan
 
+> **Status as of this update: Phases 1–3 complete, Phase 4 mostly complete, Phase 5 in progress.** See `project_plan.md`'s "Phase Status Update" section for the current, maintained status — this section is kept for historical context on what was originally scoped per phase. In particular: `src/mocks/` (referenced throughout Phase 1 below) was fully removed once real Supabase data replaced it; there is no dedicated Phase 2 "7-day Pro trial auto-assigned on signup" feature confirmed built (verify before relying on this); and beyond the original phases, a security hardening pass (RLS fixes across 7 tables, migrations 047–053), CI pipeline, unit test suite, client error logging, and legal pages were added — see `project_plan.md` for details.
+
 ### Phase 1: Core UI & Mock Data (COMPLETED)
 **Goal:** Build all page UIs with mock data, shared navigation, footer, and routing.
 **Deliverables:**
@@ -1213,7 +1221,9 @@ Recommended provider: **IDfy** or **Signzy** (India-authorized KYC APIs with dir
 
 ## 11. Appendix
 
-### 11.1 Mock Data Files
+### 11.1 Mock Data Files (REMOVED — kept here for historical reference only)
+The `src/mocks/` directory listed below was fully deleted once every feature was wired to real Supabase queries. There is no mock-data fallback anywhere in the app anymore; every hook reads and writes the live database. If you're looking for how a feature actually gets its data today, check the corresponding hook in `src/hooks/`, not this list.
+
 - `src/mocks/chat-messages.ts` — Chat conversation mock data
 - `src/mocks/community.ts` — Community posts and comments
 - `src/mocks/contact-requests.ts` — Tenant-to-landlord connection requests
@@ -1280,8 +1290,8 @@ Recommended provider: **IDfy** or **Signzy** (India-authorized KYC APIs with dir
 - SaveListingButton — bookmark/unsave with active state toggle
 - ScrollNavbar — transparent over hero, white background on scroll
 
-### 11.4 Form Requirements
-- All newsletter/contact/booking forms use Readdy form service
+### 11.4 Form Requirements (updated — Readdy form service was replaced)
+Forms originally submitted to a Readdy-provided form service (`application/x-www-form-urlencoded`, `data-readdy-form` attribute). All of that has been replaced with real Supabase writes — e.g. the Contact form now inserts into `contact_inquiries` via `useContactInquiries` and is server-rate-limited by device fingerprint (see README.md's Trust & Safety Stack section). The bullets below describe the original (now superseded) behavior; treat "Readdy form service" as historical only.
 - Form submissions via `application/x-www-form-urlencoded`
 - Each form has a unique ID and `data-readdy-form` attribute
 - Textarea inputs limited to 500 characters

@@ -11,12 +11,16 @@ Bhavan is a web platform that connects renters with landlords and fellow tenants
 | Framework | React 19 + TypeScript |
 | Bundler | Vite |
 | Styling | Tailwind CSS 3.4 |
-| Router | React Router v7 |
-| Auth & Database | Supabase (Auth + PostgreSQL + Realtime) |
+| Router | React Router v7 (route-based code splitting via `React.lazy`) |
+| Auth & Database | Supabase (Auth + PostgreSQL + Realtime + Edge Functions) |
+| Payments | Razorpay (rent payments, subscription billing) |
 | i18n | react-i18next |
 | Charts | Recharts |
 | Icons | Remix Icon + Font Awesome (CDN) |
 | QR Codes | qrcode |
+| Mobile | Capacitor (Android/iOS shells) |
+| Testing | Vitest (unit) + Playwright (e2e) |
+| CI | GitHub Actions (typecheck, lint, test, build) |
 | Build Tooling | ESLint 9 + TypeScript 5.8 |
 
 ---
@@ -28,76 +32,57 @@ Bhavan is a web platform that connects renters with landlords and fellow tenants
 ```
 src/
 ├── components/
-│   ├── feature/           # Global feature components
+│   ├── feature/            # Global feature components
 │   │   ├── AuthProvider.tsx
+│   │   ├── ErrorBoundary.tsx    # Catches render errors, logs via errorLogging.ts
+│   │   ├── DeleteAccountModal.tsx
+│   │   ├── LegalPageLayout.tsx  # Shared layout for Terms/Privacy/Cookies/Accessibility
 │   │   ├── Footer.tsx
 │   │   ├── Navbar.tsx
+│   │   ├── RequireAdmin.tsx     # Route guard for /admin/*
 │   │   ├── SubscriptionProvider.tsx
 │   │   └── ToastContainer.tsx
-│   └── base/              # Reusable UI primitives
+│   └── base/               # Reusable UI primitives
 ├── pages/
-│   ├── home/              # Landing page
-│   ├── listings/          # Browse listings
-│   ├── listing-detail/    # Individual property page
-│   ├── community/         # Forum & discussions
-│   ├── about/             # Company story
-│   ├── contact/           # Contact form + FAQ
-│   ├── login/             # Login page
-│   ├── signup/            # Signup page
-│   ├── list-property/     # Property listing form
-│   ├── aadhaar-verify/    # Identity verification flow
-│   ├── tenant-profile/    # Tenant dashboard (5 tabs)
-│   ├── owner-profile/     # Owner dashboard (10 tabs)
-│   ├── landlord-dashboard/ # Analytics dashboard
-│   ├── rent-management/   # Rent & lease tools
-│   ├── rent-payment/       # UPI, bank, offline payments
-│   ├── rent-receipts/      # Receipt generator
-│   ├── rental-agreements/ # Agreement generator
-│   ├── tax-forms/          # Tax calculators + guides
-│   ├── feedback/           # Reviews + ratings
-│   ├── notifications/      # Notification center
-│   ├── track-requests/     # Maintenance tracking
-│   ├── subscription/       # Free vs Pro pricing
-│   ├── scan/               # QR scan landing
-│   ├── how-it-works/      # Platform guide
-│   ├── soft-block/        # Account restriction page
-│   ├── admin/             # Admin dashboard overview
-│   ├── admin/broker-reports/  # Broker report moderation
-│   ├── admin/verification/      # Aadhaar verification queue
-│   ├── admin/community/       # Community content moderation
-│   ├── Forbidden.tsx          # Access Denied error page
-│   ├── NotFound.tsx             # 404 Not Found error page
-│   └── ServerError.tsx          # 500 Server Error page
-├── hooks/
-│   ├── useAuth.ts              # Authentication context
-│   ├── useListings.ts          # Browse + filter listings
-│   ├── useListingDetail.ts     # Single listing fetch
-│   ├── useSaveListing.ts       # Bookmark/unbookmark listings
-│   ├── useConnectionRequests.ts # Inquiry CRUD
-│   ├── useMaintenanceRequests.ts # Maintenance CRUD (tenant + owner)
-│   ├── useProperties.ts        # Owner properties + units
-│   ├── useNotifications.ts   # Notification CRUD
-│   ├── useCommunity.ts         # Posts + comments
-│   ├── useSubscription.ts     # Free vs Pro tier logic
-│   ├── useContactRateLimit.ts  # 3-layer anti-bypass rate limiting
-│   ├── useBrokerReport.ts     # Broker reporting + soft block
-│   ├── useOwnerRateLimit.ts   # Owner action rate limits
-│   ├── usePushNotifications.ts # FCM push + fallback delivery
-│   ├── useRentPayment.ts      # Payment CRUD + mandate management
-│   ├── useContactRateLimit.ts  # Rate limiting hook
-│   ├── useToast.ts            # Toast notification system
-│   └── ...
-├── mocks/                   # Legacy mock files (deprecated — data now from Supabase)
+│   ├── home/, listings/, listing-detail/, community/, about/, contact/
+│   ├── how-it-works/, feedback/, scan/
+│   ├── terms/, privacy/, cookies/, accessibility/    # Legal pages
+│   ├── login/, signup/, auth-callback/, reset-password/
+│   ├── list-property/, aadhaar-verify/
+│   ├── tenant-profile/     # Tenant dashboard (Overview, Saved, Inquiries, Documents, Settings)
+│   ├── owner-profile/      # Owner dashboard (Overview, Properties, Listings, Tenants, Inquiries, Messages, Requests, Documents, Billing, Settings)
+│   ├── rent-payment/, rent-receipts/, rental-agreements/, tax-forms/
+│   ├── notifications/, subscription/
+│   ├── admin/               # Admin dashboard overview
+│   │   ├── login/, users/, listings/, support/, errors/
+│   │   ├── broker-reports/, verification/, property-verification/, community/
+│   ├── Forbidden.tsx, NotFound.tsx, ServerError.tsx   # /403, catch-all, /500
+├── hooks/                   # One hook per data domain -- see "Custom Hooks" below
 ├── router/
-│   ├── config.tsx           # Route definitions
+│   ├── config.tsx           # Route definitions (route-based code splitting)
 │   └── index.ts             # AppRoutes + global navigate helper
 ├── lib/
 │   ├── supabase.ts          # Supabase client (singleton)
-│   └── fingerprint.ts       # Canvas/WebGL device fingerprinting
+│   ├── fingerprint.ts       # Canvas/WebGL device fingerprinting (anon rate limiting)
+│   ├── errorLogging.ts      # Client-side error capture -> client_error_logs table
+│   ├── razorpay.ts          # Razorpay Checkout script loader
+│   ├── payments/razorpaySignature.ts  # Shared, unit-tested HMAC signature verification
+│   ├── documents/           # Rent receipt + rental agreement HTML generators
+│   ├── content/             # Static copy (FAQs, feedback questions, agreement clauses)
+│   ├── validation.ts        # Name/email/phone/Aadhaar validation
+│   └── subscriptionConfig.ts
 ├── i18n/
 │   ├── index.ts             # i18n initialization
 │   └── local/               # Translation files per language
 └── main.tsx                 # App entry point
+
+supabase/
+├── migrations/              # 53 sequential SQL migrations (schema + RLS history)
+├── functions/                # Edge Functions (Razorpay, Aadhaar, rate limits, admin actions)
+└── tests/                    # Rollback-safe RLS regression scripts, run manually via
+                               # `npx supabase db query --linked --file supabase/tests/<name>.sql`
+
+e2e/                          # Playwright end-to-end specs
 ```
 
 ---
@@ -114,30 +99,37 @@ src/
 | `/contact` | Contact | No |
 | `/how-it-works` | How It Works | No |
 | `/feedback` | Reviews | No |
+| `/terms`, `/privacy`, `/cookies`, `/accessibility` | Legal pages | No |
 | `/login` | Login | No |
 | `/signup` | Signup | No |
+| `/auth/callback` | OAuth/email callback handler | No |
+| `/reset-password` | Password reset | No |
 | `/aadhaar-verify` | Aadhaar Verification | Yes |
 | `/tenant-profile` | Tenant Dashboard | Yes |
 | `/owner-profile` | Owner Dashboard | Yes |
-| `/landlord-dashboard` | Analytics | Yes (Owner) |
 | `/list-property` | List Property | Yes (Owner) |
 | `/scan/:id` | QR Landing | No |
 | `/tax-forms` | Tax Forms | Yes |
 | `/rent-receipts` | Receipt Generator | Yes |
 | `/rental-agreements` | Agreement Generator | Yes |
 | `/notifications` | Notification Center | Yes |
-| `/track-requests` | Request Tracking | Yes (Tenant) |
 | `/rent-payment` | Rent Payment | Yes |
-| `/rent-management` | Rent & Lease Tools | Yes (Owner) |
 | `/subscription` | Subscription Plans | Yes (Owner) |
 | `/403` | Access Denied | No |
-| `/404` | Not Found | No |
+| `*` (catch-all) | Not Found | No |
 | `/500` | Server Error | No |
-| `/soft-block` | Account Restriction | Yes (Tenant) |
+| `/admin/login` | Admin Login | No |
 | `/admin` | Admin Dashboard | Yes (Admin) |
 | `/admin/broker-reports` | Broker Report Moderation | Yes (Admin) |
 | `/admin/verification` | Aadhaar Verification Queue | Yes (Admin) |
+| `/admin/property-verification` | Property Ownership Verification | Yes (Admin) |
 | `/admin/community` | Community Moderation | Yes (Admin) |
+| `/admin/users` | User Management | Yes (Admin) |
+| `/admin/listings` | Listing Moderation | Yes (Admin) |
+| `/admin/support` | Support Queue | Yes (Admin) |
+| `/admin/errors` | Client Error Log Viewer | Yes (Admin) |
+
+> Note: `/landlord-dashboard`, `/rent-management`, `/track-requests`, and `/soft-block` from earlier planning docs were never built as standalone routes — that functionality now lives inside the Owner/Tenant dashboard tabs.
 
 ---
 
@@ -162,10 +154,12 @@ Two distinct user roles with separate dashboards:
 Role is set at signup and stored in the `users` table (synced to Supabase `users` table).
 
 ### 3. Trust & Safety Stack
-- **Rate Limiting**: 3-layer system (user / device fingerprint / IP) with escalating limits, enforced by Edge Functions
+- **Rate Limiting**: server-enforced, not client-side. The public "Request to Connect" flow uses Edge Functions (`check-contact-limit` + `record-contact`) with device fingerprinting and IP throttling; authenticated-user actions (community posts, inquiry responses, the Contact form) are enforced by Postgres triggers via `check_and_record_rate_limit()` and the `rate_limit_events` table — a client bypass (clearing storage, incognito) cannot defeat either path.
 - **Broker Reporting**: Owners can flag tenants; 2 reports in 48h triggers soft block
 - **Soft Block Resolution**: Aadhaar re-verification + additional details form
 - **Aadhaar Verification**: OCR extraction → name matching → provider verification (IDfy/Signzy)
+- **RLS Hardening**: every owner/author-scoped table (`rent_payments`, `rental_agreements`, `connection_requests`, `maintenance_requests`, `community_posts`, `rent_receipts`, `broker_reports`) has an explicit `WITH CHECK` or immutability trigger restricting writes to exactly what the real UI does — not just "does this row belong to you." Each has a rollback-safe regression script in `supabase/tests/`.
+- **Client Error Logging**: uncaught errors and React error-boundary catches are logged to the `client_error_logs` table (RLS: anyone inserts their own, admin-only read), viewable at `/admin/errors`.
 
 ### 4. Subscription Model (Freemium for Owners)
 - **Free Tier**: Unlimited properties, unlimited listings, unlimited inquiries
@@ -204,11 +198,28 @@ No other environment variables are required.
 ## Available Scripts
 
 ```bash
-npm run dev          # Start development server
-npm run build        # Production build
-npm run preview      # Preview production build
-npm run lint         # ESLint check
+npm run dev            # Start development server
+npm run build          # Production build
+npm run preview        # Preview production build
+npm run lint           # ESLint check
+npm run type-check     # tsc --noEmit
+npm run test           # Vitest unit tests (single run)
+npm run test:watch     # Vitest in watch mode
+npm run test:coverage  # Vitest with coverage report
+npm run test:e2e       # Playwright end-to-end tests
+npm run test:e2e:ui    # Playwright in interactive UI mode
+npm run cap:sync       # Build + sync into Capacitor (Android/iOS)
+npm run android:open   # Sync + open the Android project
+npm run ios:open       # Sync + open the iOS project
 ```
+
+CI (`.github/workflows/ci.yml`) runs type-check, lint, test, and build on every push. E2E tests are intentionally excluded from CI (they need live Supabase state) — run them locally with `npm run test:e2e`.
+
+Database changes are managed as sequential files in `supabase/migrations/` (currently 001–053). Before applying a new migration for real, test it in a rolled-back transaction against the linked project:
+```bash
+npx supabase db query --linked --file supabase/migrations/<new_migration>.sql   # wrap in BEGIN/ROLLBACK first to test
+```
+RLS regression scripts in `supabase/tests/` follow the same pattern and are meant to be re-run by hand after touching policies on the table they cover.
 
 ---
 
@@ -222,59 +233,68 @@ npm run lint         # ESLint check
 
 ### Custom Hooks
 - `useAuth`: Authentication state, login/logout, profile updates (Supabase-backed)
-- `useListings`: Browse, filter, search listings from Supabase
-- `useListingDetail`: Single listing fetch with related data
-- `useSaveListing`: Bookmark/unbookmark listings (saved_listings table)
+- `useListings` / `useListingDetail` / `useListingImages`: Browse, filter, and fetch listings
+- `useSaveListing`: Bookmark/unbookmark listings (`saved_listings` table)
 - `useConnectionRequests`: Create and manage tenant inquiries
 - `useMaintenanceRequests`: Create maintenance tickets (tenant) and manage them (owner)
-- `useProperties`: Owner properties with unit breakdown
+- `useProperties` / `usePropertyVisits`: Owner properties, unit breakdown, visit scheduling
 - `useCommunity`: Community posts and comments
-- `useNotifications`: Notification center with read/unread states
+- `useReviews` / `useReviewEligibility`: Tenant↔owner reviews, restricted to actual relationships
+- `useNotifications` / `useNotificationPreferences`: Notification center + delivery channel prefs
 - `useSubscription`: Tier checking, feature gating, billing history
-- `useContactRateLimit`: 3-layer anti-bypass rate limiting
+- `useContactRateLimit` / `useOwnerRateLimit`: Contact and owner-action rate limiting (server-enforced)
 - `useBrokerReport`: Broker flagging + soft block triggers
-- `useOwnerRateLimit`: Owner action throttling
 - `usePushNotifications`: FCM registration + delivery tracking
 - `useRentPayment`: Payment methods, history, mandates, reconciliation
+- `useRentReceipts` / `useRentalAgreements`: Generate, share, and list legal documents
+- `useChatMessages`: Tenant↔owner messaging for approved connections
+- `useQrAnalytics`: Per-listing QR scan tracking
+- `useVacationBookings`: Short-stay booking calendar
+- `useContactInquiries`: Public Contact form submissions (server rate-limited)
+- `useAdmin*` (`useAdminOverview`, `useAdminUsers`, `useAdminListings`, `useAdminVerification`, `useAdminPropertyVerification`, `useAdminErrorLogs`): Admin dashboard data
 
 ---
 
 ## Data Model Summary
 
-**Core Tables** (Supabase):
-1. `users` — accounts with role (tenant/landlord/admin)
+> This list reflects the live schema as of migration 053. It's generated from `information_schema` against the linked project, not hand-maintained — if it drifts, trust the migrations directory and the database over this file. `bhavan_schema.sql` at the repo root is a one-time DDL snapshot from 2026-05-07 and is now missing everything below (tables 25 onward) as well as the tenant-signature/immutable-fields triggers from migrations 047–053; regenerating it needs `pg_dump`/Docker, neither of which is available in this environment.
+
+1. `users` — accounts with role (tenant/owner/admin)
 2. `properties` — owner properties with derived unit counts
 3. `units` — per-unit rent, tenant, lease, payment status
 4. `listings` — public rental listings with metadata + counts
-5. `connection_requests` — tenant inquiries to landlords
+5. `connection_requests` — tenant inquiries to landlords (immutable-fields trigger: only `status`/`responded_at` are owner-writable)
 6. `chat_messages` — tenant-landlord threaded messages
-7. `broker_reports` — owner-reported broker flags
+7. `broker_reports` — owner-reported broker flags (insert-time status/admin_note locked to admin-only)
 8. `soft_block_states` — active restriction records
-9. `community_posts` — forum posts and discussions
+9. `community_posts` — forum posts and discussions (author cannot self-unhide an admin-moderated post)
 10. `community_comments` — post comments
-11. `saved_listings` — user bookmarked listings
-12. `documents` — uploaded agreements, receipts, Aadhaar, utility bills
-13. `qr_analytics` — per-listing scan and conversion tracking
-14. `notifications` — user notifications
-15. `notification_preferences` — delivery channel prefs
-16. `owner_subscriptions` — premium plans
-17. `billing_history` — invoice records
-18. `subscription_features` — feature flags
-19. `rent_payments` — rent transaction records
-20. `upi_mandates` — auto-pay setups
-21. `contact_attempts` — rate limit audit trail
-22. `user_push_tokens` — push notification tokens
-23. `audit_logs` — security audit trail
-24. `maintenance_requests` — maintenance tickets
+11. `community_post_reports` — moderation flags on posts
+12. `saved_listings` — user bookmarked listings
+13. `documents` — uploaded agreements, receipts, Aadhaar, utility bills
+14. `qr_analytics` — per-listing scan and conversion tracking
+15. `notifications` — user notifications
+16. `notification_preferences` — delivery channel prefs
+17. `owner_subscriptions` — premium plans
+18. `billing_history` — invoice records
+19. `subscription_features` — feature flags
+20. `rent_payments` — rent transaction records (status can only reach `paid` via the verified Razorpay edge function, never a direct client write)
+21. `rent_receipts` — issued receipts (immutable once issued; only `sent_to_tenant`/`sent_at` are owner-writable)
+22. `rental_agreements` — generated lease agreements (owner cannot self-mark `signed_by_tenant`)
+23. `upi_mandates` — auto-pay setups
+24. `contact_attempts` — rate limit audit trail (public "Request to Connect" flow)
+25. `contact_inquiries` — public Contact form submissions (server rate-limited via device fingerprint)
+26. `user_push_tokens` — push notification tokens
+27. `audit_logs` — security audit trail
+28. `maintenance_requests` — maintenance tickets (owner cannot rewrite the tenant's original description/category/images)
+29. `reviews` — tenant↔owner reviews, restricted to actual tenancy relationships
+30. `property_visits` — scheduled in-person visits
+31. `vacation_bookings` — short-stay booking calendar
+32. `aadhaar_verification_attempts` — KYC attempt history (retry limiting)
+33. `client_error_logs` — client-side error capture (insert own / admin read)
+34. `rate_limit_events` — backing table for `check_and_record_rate_limit()`, the shared server-side rate-limit function
 
-**Product/Order Tables** (Platform-provided):
-25. `product_categories` — product catalog categories
-26. `product_items` — product listings
-27. `product_variants` — product variant definitions
-28. `product_skus` — product SKU records
-29. `product_custom_fields` — custom field definitions
-30. `product_custom_values` — per-product custom field values
-31. `order_headers` / `order_items` — order records
+> The Product/Order tables (`product_categories`, `product_items`, `product_variants`, `product_skus`, `order_headers`, `order_items`, etc.) that shipped with the original platform scaffold were dropped in migration `017_drop_dead_ecommerce_tables.sql` — Bhavan doesn't sell physical products.
 
 ---
 
