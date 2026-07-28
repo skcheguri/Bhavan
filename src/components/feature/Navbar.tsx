@@ -8,8 +8,14 @@ const sharedMenuItems = [
   { to: '/community', icon: 'ri-discuss-line', label: 'Community Forum' },
 ];
 
-export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false);
+interface Props {
+  // Non-sticky is the default across the app -- the nav scrolls away
+  // normally. Pass true only for a page that genuinely needs it pinned
+  // and has no sticky element of its own to take over that role.
+  sticky?: boolean;
+}
+
+export default function Navbar({ sticky = false }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -17,12 +23,6 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
   const { isPro } = useSubscription();
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -39,9 +39,14 @@ export default function Navbar() {
     setProfileOpen(false);
   }, [location.pathname]);
 
-  const isHome = location.pathname === '/';
-  const navBg = scrolled || !isHome ? 'bg-white shadow-sm' : 'bg-transparent';
-  const textColor = scrolled || !isHome ? 'text-charcoal' : 'text-white';
+  // Always solid -- this used to go transparent with white text only on
+  // the home hero, back when the nav was fixed and floated over it. Now
+  // that the nav sits in normal document flow (see the `sticky` prop
+  // above), it no longer overlays anything, so a transparent/white
+  // variant would just render invisible text over the plain page
+  // background instead.
+  const navBg = 'bg-white shadow-sm';
+  const textColor = 'text-charcoal';
 
 
   const isOwner = user?.role === 'owner';
@@ -103,7 +108,7 @@ export default function Navbar() {
   }
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBg}`}>
+    <nav className={`${sticky ? 'fixed top-0 left-0 right-0' : 'relative'} z-50 transition-all duration-300 ${navBg}`}>
       <div className="w-full px-4 md:px-8 lg:px-12">
         <div className="flex items-center justify-between h-16 md:h-20">
 

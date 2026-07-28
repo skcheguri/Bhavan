@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useState } from 'react';
 import { useMaintenanceRequests, useCreateMaintenanceRequest } from '@/hooks/useMaintenanceRequests';
-import { useTenantConnectionRequests } from '@/hooks/useConnectionRequests';
-import { getSupabase } from '@/lib/supabase';
+import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 
 const maintenanceCategories = [
   { id: 'plumbing', label: 'Plumbing', icon: 'ri-drop-line', color: 'bg-brand/10 text-brand' },
@@ -21,6 +19,19 @@ function getCategoryIcon(category: string): string {
   const cat = maintenanceCategories.find((c) => c.id === category.toLowerCase());
   return cat?.icon ?? 'ri-tools-line';
 }
+
+const issuePlaceholders: Record<string, string> = {
+  plumbing: 'e.g. Kitchen tap is leaking',
+  electrical: 'e.g. Living room switch not working',
+  water: 'e.g. No water supply since morning',
+  elevator: 'e.g. Elevator stuck between floors',
+  carpentry: 'e.g. Bedroom door hinge is broken',
+  painting: 'e.g. Wall paint peeling near the window',
+  ac: 'e.g. AC not cooling properly',
+  security: 'e.g. Main gate lock is broken',
+  housekeeping: 'e.g. Common area needs cleaning',
+  other: 'Briefly describe the issue',
+};
 
 const statusConfig: Record<string, { label: string; color: string; dot: string }> = {
   pending: { label: 'Pending', color: 'bg-lightgray text-charcoal/70', dot: 'bg-gray-400' },
@@ -91,37 +102,17 @@ interface Props {
 export default function RequestsTab({ tenantId }: Props) {
   const [maintFilter, setMaintFilter] = useState<'all' | 'in_progress' | 'pending' | 'resolved'>('all');
 
-  const { user } = useAuth();
   const { requests: maintRequests, loading: maintLoading, refresh: refreshMaint } = useMaintenanceRequests(tenantId);
   const { create: createMaint, creating: creatingMaint } = useCreateMaintenanceRequest();
 
-  // A maintenance request must be tied to a real property, which only
-  // exists once an owner has approved a connection request from this
-  // tenant. Resolve it from their most recently approved connection
-  // (listing -> property) instead of the hardcoded placeholder this used
-  // to write, which meant every submitted request pointed at a property
-  // no real owner could ever see.
-  const { requests: connectionRequests } = useTenantConnectionRequests(tenantId);
-  const approvedListingId = useMemo(() => {
-    const approved = connectionRequests.filter((r) => r.status === 'approved');
-    return approved.length > 0 ? approved[0].listingId : null;
-  }, [connectionRequests]);
-
-  const [resolvedPropertyId, setResolvedPropertyId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!approvedListingId) {
-      setResolvedPropertyId(null);
-      return;
-    }
-    const supabase = getSupabase();
-    if (!supabase) return;
-    supabase
-      .from('listings')
-      .select('property_id')
-      .eq('id', approvedListingId)
-      .maybeSingle()
-      .then(({ data }) => setResolvedPropertyId((data?.property_id as string | null) ?? null));
-  }, [approvedListingId]);
+  // A request must be tied to a real rental agreement -- that's what
+  // tells us which owner to notify. A tenant can have more than one
+  // (multiple properties), so when there's more than one they pick
+  // which property the issue is for; with exactly one it's just used
+  // directly.
+  const { agreements } = useTenantRentalAgreements(tenantId);
+  const [selectedAgreementId, setSelectedAgreementId] = useState<string | null>(null);
+  const selectedAgreement = agreements.find((a) => a.id === selectedAgreementId) ?? null;
 
   const [selectedMaintId, setSelectedMaintId] = useState<string | null>(null);
   const [showNewRequest, setShowNewRequest] = useState(false);
@@ -131,17 +122,17 @@ export default function RequestsTab({ tenantId }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleSubmitRequest = async () => {
-    if (!selectedCategory || !requestForm.issue.trim() || !resolvedPropertyId) return;
+    if (!selectedCategory || !requestForm.issue.trim() || !selectedAgreement) return;
     setSubmitError(null);
 
     const { error } = await createMaint({
       tenant_id: tenantId,
-      property_id: resolvedPropertyId,
+      agreement_id: selectedAgreement.id,
       category: selectedCategory,
       title: requestForm.issue,
       description: requestForm.description,
       priority: requestForm.urgency,
-      unit: user?.currentFlat || '',
+      unit: selectedAgreement.flatNumber || '',
       preferred_time: requestForm.preferredTime,
     });
 
@@ -187,7 +178,13 @@ export default function RequestsTab({ tenantId }: Props) {
           <p className="text-sm text-charcoal/60 mt-0.5">Report issues and track their resolution</p>
         </div>
         <button
-          onClick={() => { setShowNewRequest(true); setSelectedCategory(null); setSubmitted(false); setSubmitError(null); }}
+          onClick={() => {
+            setShowNewRequest(true);
+            setSelectedCategory(null);
+            setSubmitted(false);
+            setSubmitError(null);
+            setSelectedAgreementId(agreements.length === 1 ? agreements[0].id : null);
+          }}
           className="flex items-center justify-center gap-2 bg-brand text-white font-semibold px-5 py-2.5 rounded-full hover:bg-brand-dark transition-colors cursor-pointer whitespace-nowrap"
         >
           <i className="ri-add-line" /> New Request
@@ -403,15 +400,37 @@ export default function RequestsTab({ tenantId }: Props) {
                   <h3 className="text-lg font-bold text-charcoal">Request Submitted!</h3>
                   <p className="text-sm text-charcoal/60 text-center">Your maintenance request has been raised.</p>
                 </div>
-              ) : !resolvedPropertyId ? (
+              ) : agreements.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
                   <div className="w-16 h-16 flex items-center justify-center rounded-full bg-amber-100">
                     <i className="ri-home-4-line text-amber-600 text-3xl" />
                   </div>
                   <h3 className="text-lg font-bold text-charcoal">No property on file yet</h3>
                   <p className="text-sm text-charcoal/60 max-w-xs">
-                    You need an approved connection with a property owner before you can submit a maintenance request.
+                    You need a rental agreement shared by your landlord before you can submit a maintenance request.
                   </p>
+                </div>
+              ) : !selectedAgreement ? (
+                <div>
+                  <p className="text-sm font-semibold text-charcoal mb-4">Which property is this for?</p>
+                  <div className="space-y-2">
+                    {agreements.map((a) => (
+                      <button
+                        key={a.id}
+                        onClick={() => setSelectedAgreementId(a.id)}
+                        className="w-full flex items-center gap-3 p-4 rounded-xl border border-black/5 hover:border-brand/40 hover:bg-brand/5 transition-all cursor-pointer text-left"
+                      >
+                        <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-brand/10 flex-shrink-0">
+                          <i className="ri-home-4-line text-brand" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-charcoal truncate">{a.propertyAddress || a.flatNumber || 'Property'}</p>
+                          <p className="text-xs text-charcoal/40 mt-0.5">{a.landlordName ? `Landlord: ${a.landlordName}` : a.agreementNumber}</p>
+                        </div>
+                        <i className="ri-arrow-right-s-line text-charcoal/30" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : !selectedCategory ? (
                 <div>
@@ -457,7 +476,7 @@ export default function RequestsTab({ tenantId }: Props) {
                     <input
                       value={requestForm.issue}
                       onChange={(e) => setRequestForm({ ...requestForm, issue: e.target.value })}
-                      placeholder="e.g. Kitchen tap is leaking"
+                      placeholder={issuePlaceholders[selectedCategory] ?? issuePlaceholders.other}
                       className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
                     />
                   </div>

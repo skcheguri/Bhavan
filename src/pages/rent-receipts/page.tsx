@@ -6,6 +6,7 @@ import { useOwnerEligibleTenants } from '@/hooks/useReviewEligibility';
 import { useRentReceipts, generateReceiptNumber } from '@/hooks/useRentReceipts';
 import { buildRentReceiptHtml, type RentReceiptData } from '@/lib/documents/rentReceiptDocument';
 import { useToast } from '@/hooks/useToast';
+import { viewDocument } from '@/lib/viewDocument';
 
 const PAYMENT_MODES = [
   { value: 'cash', label: 'Cash' },
@@ -14,15 +15,6 @@ const PAYMENT_MODES = [
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'card', label: 'Credit/Debit Card' },
 ];
-
-function printHtml(html: string) {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return;
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => printWindow.print(), 300);
-}
 
 function firstOfMonth(): string {
   const d = new Date();
@@ -117,7 +109,7 @@ export default function RentReceiptsPage() {
 
   if (!isOwner) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-bold text-charcoal mb-2">Owners only</h2>
           <p className="text-charcoal/60 text-sm mb-6">The rent receipt generator is available to property owners.</p>
@@ -128,7 +120,7 @@ export default function RentReceiptsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-[1440px] mx-auto px-4 md:px-8">
         <div className="mb-6">
           <Link to="/owner-profile" className="text-xs text-charcoal/40 hover:text-charcoal transition-colors">← Owner Profile</Link>
@@ -267,7 +259,7 @@ export default function RentReceiptsPage() {
               <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
                 <div className="p-4 border-b border-black/5 flex items-center justify-between">
                   <h2 className="text-sm font-bold text-charcoal">Live Preview</h2>
-                  <button onClick={() => printHtml(previewHtml)} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
+                  <button onClick={() => viewDocument(previewHtml)} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
                     <i className="ri-printer-line" /> Print
                   </button>
                 </div>
@@ -328,7 +320,7 @@ export default function RentReceiptsPage() {
               <div className="p-4 border-b border-black/5 flex items-center justify-between flex-shrink-0">
                 <h3 className="text-sm font-bold text-charcoal">{viewingReceipt.receiptNumber}</h3>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => printHtml(buildRentReceiptHtml(viewingReceipt))} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
+                  <button onClick={() => viewDocument(buildRentReceiptHtml(viewingReceipt))} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
                     <i className="ri-printer-line" /> Print
                   </button>
                   <button onClick={() => setViewingReceiptId(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-lightgray transition-colors cursor-pointer">

@@ -4,12 +4,14 @@ import { getSupabase } from '@/lib/supabase';
 export interface RentPayment {
   id: string;
   tenant_id: string;
-  property_id: string;
+  property_id: string | null;
+  agreement_id: string | null;
   owner_id: string;
   amount: number;
   month: string;
-  payment_mode: 'upi_autopay' | 'upi_qr' | 'bank_transfer' | 'offline';
+  payment_mode: 'upi_autopay' | 'razorpay' | 'cash';
   status: 'pending' | 'paid' | 'failed' | 'reconciled';
+  razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   failure_reason: string | null;
   receipt_url: string | null;
@@ -45,8 +47,8 @@ export interface PaymentFilters {
 
 export interface CreatePaymentInput {
   tenant_id: string;
-  property_id: string;
   owner_id: string;
+  agreement_id?: string | null;
   amount: number;
   month: string;
   payment_mode: RentPayment['payment_mode'];
@@ -86,7 +88,6 @@ export interface UseRentPaymentReturn extends RentPaymentState {
   hasFailedPayment: (tenantId: string) => boolean;
   getMandateForTenant: (tenantId: string) => UPIMandate | null;
   createPayment: (input: CreatePaymentInput) => Promise<{ data: RentPayment | null; error: string | null }>;
-  retryPayment: (paymentId: string) => Promise<{ data: RentPayment | null; error: string | null }>;
   reconcilePayment: (paymentId: string, note: string) => Promise<{ error: string | null }>;
   createMandate: (input: CreateMandateInput) => Promise<{ data: UPIMandate | null; error: string | null }>;
   pauseMandate: (mandateId: string) => Promise<{ error: string | null }>;
@@ -227,10 +228,37 @@ export function useRentPayment(): UseRentPaymentReturn {
 
   const createPayment = useCallback(
     async (input: CreatePaymentInput): Promise<{ data: RentPayment | null; error: string | null }> => {
+      if (supabase && isValidUUID(input.tenant_id) && isValidUUID(input.owner_id)) {
+        const { data, error: supaErr } = await supabase
+          .from('rent_payments')
+          .insert({
+            tenant_id: input.tenant_id,
+            owner_id: input.owner_id,
+            agreement_id: input.agreement_id ?? null,
+            amount: input.amount,
+            month: input.month,
+            payment_mode: input.payment_mode,
+            transaction_ref: input.transaction_ref,
+            status: 'pending',
+          })
+          .select()
+          .single();
+        if (supaErr) return { data: null, error: supaErr.message };
+        await refresh();
+        return { data: data as RentPayment, error: null };
+      }
+
       const newPayment: RentPayment = {
         id: `pay-${Date.now()}`,
-        ...input,
+        tenant_id: input.tenant_id,
+        owner_id: input.owner_id,
+        agreement_id: input.agreement_id ?? null,
+        property_id: null,
+        amount: input.amount,
+        month: input.month,
+        payment_mode: input.payment_mode,
         status: 'pending',
+        razorpay_order_id: null,
         razorpay_payment_id: null,
         failure_reason: null,
         receipt_url: null,
@@ -239,48 +267,10 @@ export function useRentPayment(): UseRentPaymentReturn {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-
-      if (supabase && isValidUUID(input.tenant_id) && isValidUUID(input.property_id) && isValidUUID(input.owner_id)) {
-        const { data, error: supaErr } = await supabase.from('rent_payments').insert(newPayment).select().single();
-        if (supaErr) return { data: null, error: supaErr.message };
-        await refresh();
-        return { data: data as RentPayment, error: null };
-      }
-
       setPayments((prev) => [newPayment, ...prev]);
       return { data: newPayment, error: null };
     },
     [supabase, refresh]
-  );
-
-  const retryPayment = useCallback(
-    async (paymentId: string): Promise<{ data: RentPayment | null; error: string | null }> => {
-      const idx = payments.findIndex((p) => p.id === paymentId);
-      if (idx === -1) return { data: null, error: 'Payment not found' };
-
-      const updated: RentPayment = {
-        ...payments[idx],
-        status: 'pending',
-        failure_reason: null,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (supabase && isValidUUID(paymentId)) {
-        const { data, error: supaErr } = await supabase
-          .from('rent_payments')
-          .update({ status: 'pending', failure_reason: null, updated_at: updated.updated_at })
-          .eq('id', paymentId)
-          .select()
-          .single();
-        if (supaErr) return { data: null, error: supaErr.message };
-        await refresh();
-        return { data: data as RentPayment, error: null };
-      }
-
-      setPayments((prev) => prev.map((p, i) => (i === idx ? updated : p)));
-      return { data: updated, error: null };
-    },
-    [payments, supabase, refresh]
   );
 
   const reconcilePayment = useCallback(
@@ -407,7 +397,6 @@ export function useRentPayment(): UseRentPaymentReturn {
     hasFailedPayment,
     getMandateForTenant,
     createPayment,
-    retryPayment,
     reconcilePayment,
     createMandate,
     pauseMandate,

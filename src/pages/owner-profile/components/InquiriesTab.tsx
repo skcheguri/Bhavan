@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useBrokerReport, ReportReason } from '@/hooks/useBrokerReport';
 import { useOwnerRateLimit } from '@/hooks/useOwnerRateLimit';
 import { useOwnerConnectionRequests, type ConnectionRequest } from '@/hooks/useConnectionRequests';
+import { useOwnerPropertyVisits, type OwnerPropertyVisit } from '@/hooks/usePropertyVisits';
 import { useToast } from '@/hooks/useToast';
 import ReportBrokerModal from './ReportBrokerModal';
 import UserProfileModal from '@/components/feature/UserProfileModal';
@@ -207,11 +208,189 @@ function RequestCard({ request, onApprove, onDecline, onOpenChat }: RequestCardP
   );
 }
 
+const visitStatusLabels: Record<OwnerPropertyVisit['status'], string> = {
+  requested: 'Awaiting Confirmation',
+  confirmed: 'Confirmed',
+  cancelled: 'Cancelled',
+  completed: 'Completed',
+};
+
+const visitStatusStyles: Record<OwnerPropertyVisit['status'], string> = {
+  requested: 'bg-amber-50 text-amber-700',
+  confirmed: 'bg-green-50 text-green-700',
+  cancelled: 'bg-red-50 text-red-500',
+  completed: 'bg-lightgray text-charcoal/60',
+};
+
+function VisitCard({ visit, onConfirm, onCancel }: { visit: OwnerPropertyVisit; onConfirm: (id: string) => void; onCancel: (id: string) => void }) {
+  return (
+    <div className={`bg-white rounded-2xl border p-5 ${visit.status === 'requested' ? 'border-amber-200' : 'border-black/5'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center flex-shrink-0">
+            <i className="ri-user-line text-brand" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-charcoal">{visit.visitor_name}</p>
+            <p className="text-xs text-charcoal/60 mt-0.5 flex items-center gap-1.5 flex-wrap">
+              <span className="flex items-center gap-0.5"><i className="ri-home-4-line text-[10px]" /> {visit.listing_title}</span>
+            </p>
+          </div>
+        </div>
+        <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0 ${visitStatusStyles[visit.status]}`}>
+          {visitStatusLabels[visit.status]}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mt-3">
+        <span className="flex items-center gap-1 text-xs text-charcoal/70 bg-offwhite px-2.5 py-1 rounded-full">
+          <i className="ri-calendar-line text-[10px] text-charcoal/40" /> {new Date(visit.visit_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </span>
+        <span className="flex items-center gap-1 text-xs text-charcoal/70 bg-offwhite px-2.5 py-1 rounded-full">
+          <i className="ri-time-line text-[10px] text-charcoal/40" /> {visit.visit_time}
+        </span>
+        <span className="flex items-center gap-1 text-xs text-charcoal/70 bg-offwhite px-2.5 py-1 rounded-full">
+          <i className="ri-phone-line text-[10px] text-charcoal/40" /> {visit.visitor_phone}
+        </span>
+        <span className="flex items-center gap-1 text-xs text-charcoal/70 bg-offwhite px-2.5 py-1 rounded-full">
+          <i className="ri-mail-line text-[10px] text-charcoal/40" /> {visit.visitor_email}
+        </span>
+      </div>
+
+      {visit.note && (
+        <div className="mt-3 p-3 bg-offwhite rounded-xl">
+          <p className="text-xs text-charcoal/70 leading-relaxed">&ldquo;{visit.note}&rdquo;</p>
+        </div>
+      )}
+
+      {visit.status === 'requested' && (
+        <div className="flex items-center gap-2 mt-4 flex-wrap">
+          <button
+            onClick={() => onCancel(visit.id)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-black/10 text-xs font-medium text-charcoal/60 hover:border-red-200 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
+          >
+            <i className="ri-close-line text-sm" /> Decline
+          </button>
+          <button
+            onClick={() => onConfirm(visit.id)}
+            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap"
+          >
+            <i className="ri-checkbox-circle-line text-sm" /> Confirm Visit
+          </button>
+        </div>
+      )}
+
+      {visit.status === 'confirmed' && (
+        <div className="flex items-center justify-between gap-2 mt-4">
+          <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+            <i className="ri-checkbox-circle-fill text-sm" /> Visit confirmed
+          </div>
+          <button
+            onClick={() => onCancel(visit.id)}
+            className="text-xs font-medium text-red-500 hover:text-red-600 cursor-pointer whitespace-nowrap"
+          >
+            Cancel visit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VisitRequestsSection({ ownerId }: { ownerId: string | undefined }) {
+  const { visits, loading, updateStatus } = useOwnerPropertyVisits(ownerId);
+  const { addToast } = useToast();
+  const [visitFilter, setVisitFilter] = useState<OwnerPropertyVisit['status'] | 'all'>('all');
+
+  const filtered = visitFilter === 'all' ? visits : visits.filter((v) => v.status === visitFilter);
+  const requestedCount = visits.filter((v) => v.status === 'requested').length;
+
+  const handleConfirm = async (id: string) => {
+    const { error } = await updateStatus(id, 'confirmed');
+    addToast(error ? 'Failed to update visit.' : 'Visit confirmed.', error ? 'error' : 'success');
+  };
+
+  const handleCancel = async (id: string) => {
+    const { error } = await updateStatus(id, 'cancelled');
+    addToast(error ? 'Failed to update visit.' : 'Visit cancelled.', error ? 'error' : 'success');
+  };
+
+  const visitFilterTabs: { id: OwnerPropertyVisit['status'] | 'all'; label: string }[] = [
+    { id: 'all', label: `All (${visits.length})` },
+    { id: 'requested', label: `Awaiting (${requestedCount})` },
+    { id: 'confirmed', label: 'Confirmed' },
+    { id: 'cancelled', label: 'Cancelled' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="min-h-[300px] flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <i className="ri-loader-4-line animate-spin text-brand text-xl" />
+          <span className="text-sm text-charcoal/60">Loading visit requests...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-charcoal">Visit Requests</h2>
+          <p className="text-sm text-charcoal/60 mt-0.5">Confirm or decline in-person property tours</p>
+        </div>
+        {requestedCount > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-amber-50 border border-amber-100">
+            <div className="w-5 h-5 flex items-center justify-center rounded-full bg-amber-500">
+              <span className="text-[10px] font-bold text-white">{requestedCount}</span>
+            </div>
+            <span className="text-xs font-semibold text-amber-700">Awaiting your response</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-1 bg-white rounded-xl border border-black/5 p-1 w-fit">
+        {visitFilterTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setVisitFilter(tab.id)}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              visitFilter === tab.id ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length > 0 ? (
+        <div className="space-y-4">
+          {filtered.map((visit) => (
+            <VisitCard key={visit.id} visit={visit} onConfirm={handleConfirm} onCancel={handleCancel} />
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
+          <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-offwhite rounded-full">
+            <i className="ri-calendar-line text-2xl text-charcoal/40" />
+          </div>
+          <h3 className="text-base font-bold text-charcoal mb-2">No visit requests here</h3>
+          <p className="text-sm text-charcoal/60">
+            {visitFilter === 'requested' ? "You're all caught up! No visits awaiting a response." : `No ${visitFilter === 'all' ? '' : visitFilter + ' '}visit requests yet.`}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface InquiriesTabProps {
   onOpenChat?: (requestId: string) => void;
 }
 
 export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
+  const [section, setSection] = useState<'connections' | 'visits'>('connections');
   const [filter, setFilter] = useState<RequestStatus | 'all'>('all');
   const [showConfirm, setShowConfirm] = useState<{ id: string; action: 'approve' | 'decline' } | null>(null);
   const { user } = useAuth();
@@ -265,19 +444,39 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
     { id: 'declined', label: 'Declined' },
   ];
 
-  if (loading) {
-    return (
-      <div className="min-h-[300px] flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <i className="ri-loader-4-line animate-spin text-brand text-xl" />
-          <span className="text-sm text-charcoal/60">Loading requests...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5">
+      {/* Section toggle */}
+      <div className="flex gap-1 bg-white rounded-xl border border-black/5 p-1 w-fit">
+        <button
+          onClick={() => setSection('connections')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+            section === 'connections' ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+          }`}
+        >
+          <i className="ri-user-add-line text-sm" /> Connection Requests
+        </button>
+        <button
+          onClick={() => setSection('visits')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+            section === 'visits' ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+          }`}
+        >
+          <i className="ri-calendar-schedule-line text-sm" /> Visit Requests
+        </button>
+      </div>
+
+      {section === 'visits' ? (
+        <VisitRequestsSection ownerId={user?.id} />
+      ) : loading ? (
+        <div className="min-h-[300px] flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <i className="ri-loader-4-line animate-spin text-brand text-xl" />
+            <span className="text-sm text-charcoal/60">Loading requests...</span>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -403,6 +602,8 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

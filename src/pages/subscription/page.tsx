@@ -42,7 +42,7 @@ export default function SubscriptionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       <UpgradeModal
         isOpen={upgradeModalOpen}
         onClose={() => setUpgradeModalOpen(false)}

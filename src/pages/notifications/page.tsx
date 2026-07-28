@@ -76,7 +76,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-3xl mx-auto px-4 md:px-8">
         {/* Header */}
         <div className="flex items-start sm:items-center justify-between gap-4 mb-6 pt-4">

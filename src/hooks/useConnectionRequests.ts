@@ -114,6 +114,9 @@ export function useOwnerConnectionRequests(ownerId: string | undefined) {
         setError(dbError.message);
         return false;
       }
+      if (newStatus === 'approved') {
+        await supabase.rpc('notify_connection_request_approved', { p_request_id: requestId });
+      }
       setRequests((prev) =>
         prev.map((r) => (r.id === requestId ? { ...r, status: newStatus, respondedAt: new Date().toISOString() } : r)),
       );
@@ -199,19 +202,27 @@ export function useCreateConnectionRequest() {
           return { success: true };
         }
 
-        const { error: dbError } = await supabase.from('connection_requests').insert({
-          tenant_id: user.id,
-          owner_id: payload.ownerId,
-          listing_id: payload.listingId,
-          listing_title: payload.listingTitle,
-          listing_location: payload.listingLocation,
-          listing_price: payload.listingPrice,
-          message: payload.message,
-          status: 'pending',
-          move_in_date: payload.moveInDate ?? null,
-          occupation: payload.occupation ?? null,
-          scanned_via_qr: payload.scannedViaQR ?? false,
-        });
+        const { data: inserted, error: dbError } = await supabase
+          .from('connection_requests')
+          .insert({
+            tenant_id: user.id,
+            owner_id: payload.ownerId,
+            listing_id: payload.listingId,
+            listing_title: payload.listingTitle,
+            listing_location: payload.listingLocation,
+            listing_price: payload.listingPrice,
+            message: payload.message,
+            status: 'pending',
+            move_in_date: payload.moveInDate ?? null,
+            occupation: payload.occupation ?? null,
+            scanned_via_qr: payload.scannedViaQR ?? false,
+          })
+          .select('id')
+          .single();
+
+        if (!dbError && inserted) {
+          await supabase.rpc('notify_connection_request_created', { p_request_id: inserted.id });
+        }
 
         if (dbError) {
           return { success: false, error: dbError.message };

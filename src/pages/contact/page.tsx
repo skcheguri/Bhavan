@@ -24,7 +24,7 @@ export default function Contact() {
   };
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20">
+    <div className="min-h-screen bg-offwhite">
       {/* Header */}
       <section className="bg-white py-12 md:py-16 border-b">
         <div className="w-full px-4 md:px-8 lg:px-12">

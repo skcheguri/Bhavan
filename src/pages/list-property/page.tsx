@@ -221,7 +221,7 @@ export default function ListProperty() {
 
   if (isTenant) {
     return (
-      <div className="min-h-screen bg-offwhite pt-20 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl p-10 max-w-md w-full text-center border border-black/5">
           <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-6">
             <div className="w-8 h-8 flex items-center justify-center">
@@ -253,7 +253,7 @@ export default function ListProperty() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-offwhite pt-20 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl p-10 max-w-md w-full text-center border border-black/5">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
             <div className="w-8 h-8 flex items-center justify-center">
@@ -284,7 +284,7 @@ export default function ListProperty() {
   }
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20">
+    <div className="min-h-screen bg-offwhite">
       {/* Breadcrumb */}
       <div className="w-full px-4 md:px-8 lg:px-12 pt-6">
         <div className="max-w-3xl mx-auto">

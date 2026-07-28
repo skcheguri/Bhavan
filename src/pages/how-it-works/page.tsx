@@ -165,7 +165,7 @@ export default function HowItWorks() {
   };
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
 
       {/* Hero */}
       <section className="relative bg-charcoal py-16 md:py-24 overflow-hidden">

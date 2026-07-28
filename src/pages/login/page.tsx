@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { isValidRawIndianMobile } from '@/lib/validation';
 
 type AuthTab = 'email' | 'mobile';
 type ForgotStep = 'email' | 'sent';
@@ -69,6 +70,10 @@ export default function Login() {
 
   const handleSendOtp = async () => {
     if (mobile.length < 10) return;
+    if (!isValidRawIndianMobile(mobile)) {
+      setLoginError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
     setLoginError('');
     setSendingOtp(true);
     const { error } = await sendPhoneOtp(`+91${mobile}`);
@@ -151,7 +156,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-offwhite flex pt-20 pb-10">
+    <div className="min-h-screen bg-offwhite flex pb-10">
       {/* Left panel */}
       <div className="hidden lg:flex flex-col justify-between w-[420px] flex-shrink-0 bg-charcoal relative overflow-hidden p-10">
         <img

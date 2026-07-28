@@ -4,7 +4,9 @@ import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
 export interface MaintenanceRequest {
   id: string;
   tenant_id: string;
-  property_id: string;
+  agreement_id: string | null;
+  owner_id: string | null;
+  property_id: string | null;
   category: string;
   title: string;
   description: string;
@@ -21,7 +23,7 @@ export interface MaintenanceRequest {
 
 export interface CreateMaintenanceRequestInput {
   tenant_id: string;
-  property_id: string;
+  agreement_id: string;
   category: string;
   title: string;
   description: string;
@@ -93,7 +95,7 @@ export function useCreateMaintenanceRequest() {
       .from('maintenance_requests')
       .insert({
         tenant_id: input.tenant_id,
-        property_id: input.property_id,
+        agreement_id: input.agreement_id,
         category: input.category,
         title: input.title,
         description: input.description,
@@ -106,13 +108,15 @@ export function useCreateMaintenanceRequest() {
       .select('*')
       .single();
 
-    setCreating(false);
-
     if (dbError) {
+      setCreating(false);
       setError(dbError.message);
       return { data: null, error: dbError.message };
     }
 
+    await supabase.rpc('notify_maintenance_request_created', { p_request_id: data.id });
+
+    setCreating(false);
     return { data: data as MaintenanceRequest, error: null };
   }, []);
 
@@ -143,33 +147,10 @@ export function useOwnerMaintenanceRequests(ownerId: string | undefined) {
 
     setLoading(true);
 
-    // Get properties owned by this owner
-    const { data: properties, error: propError } = await supabase
-      .from('properties')
-      .select('id, name')
-      .eq('owner_id', ownerId);
-
-    if (propError) {
-      setError(propError.message);
-      setRequests([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!properties || properties.length === 0) {
-      setError(null);
-      setRequests([]);
-      setLoading(false);
-      return;
-    }
-
-    const propertyIds = properties.map((p: { id: string }) => p.id);
-    const propertyNameById = new Map(properties.map((p: { id: string; name: string }) => [p.id, p.name]));
-
     const { data, error: dbError } = await supabase
       .from('maintenance_requests')
-      .select('*, tenant:users_public!maintenance_requests_tenant_id_fkey(name, avatar_url)')
-      .in('property_id', propertyIds)
+      .select('*, tenant:users_public!maintenance_requests_tenant_id_fkey(name, avatar_url), agreement:rental_agreements!maintenance_requests_agreement_id_fkey(property_address, flat_number)')
+      .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
 
     if (dbError) {
@@ -178,10 +159,13 @@ export function useOwnerMaintenanceRequests(ownerId: string | undefined) {
     } else {
       const mapped = ((data ?? []) as Record<string, unknown>[]).map((row): OwnerMaintenanceRequest => {
         const tenant = (row.tenant ?? {}) as { name?: string; avatar_url?: string };
+        const agreement = (row.agreement ?? {}) as { property_address?: string; flat_number?: string };
         return {
           id: String(row.id),
           tenant_id: String(row.tenant_id),
-          property_id: String(row.property_id),
+          agreement_id: (row.agreement_id as string | null) ?? null,
+          owner_id: (row.owner_id as string | null) ?? null,
+          property_id: (row.property_id as string | null) ?? null,
           category: String(row.category),
           title: String(row.title ?? ''),
           description: String(row.description ?? ''),
@@ -196,7 +180,7 @@ export function useOwnerMaintenanceRequests(ownerId: string | undefined) {
           resolved_at: (row.resolved_at as string | null) ?? null,
           tenant_name: tenant.name ?? 'Unknown',
           tenant_avatar: tenant.avatar_url ?? null,
-          property_name: propertyNameById.get(String(row.property_id)) ?? 'Unknown property',
+          property_name: agreement.property_address || agreement.flat_number || 'Unknown property',
         };
       });
       setRequests(mapped);

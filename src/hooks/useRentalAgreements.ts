@@ -153,6 +153,7 @@ export function useRentalAgreements(ownerId: string | undefined) {
         .from('rental_agreements')
         .update({ shared_with_tenant: true, shared_at: new Date().toISOString() })
         .eq('id', agreementId);
+      await supabase.rpc('notify_agreement_shared', { p_agreement_id: agreementId });
       setAgreements((prev) => prev.map((a) => (a.id === agreementId ? { ...a, sharedWithTenant: true, sharedAt: new Date().toISOString() } : a)));
     },
     []

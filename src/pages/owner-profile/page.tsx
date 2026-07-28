@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useOwnerRateLimit } from '@/hooks/useOwnerRateLimit';
 import { getSupabase } from '@/lib/supabase';
 import QRCodeModal from './components/QRCodeModal';
+import PhoneVerifyModal from '@/components/feature/PhoneVerifyModal';
 import EditListingModal from './components/EditListingModal';
 import RentalAgreementModal from './components/RentalAgreementModal';
 import { useRentalAgreements } from '@/hooks/useRentalAgreements';
+import { useRentPayment } from '@/hooks/useRentPayment';
+import { useOwnerMaintenanceRequests } from '@/hooks/useMaintenanceRequests';
 import NotificationBell from './components/NotificationBell';
 import RequestsTab from './components/RequestsTab';
 import InquiriesTab from './components/InquiriesTab';
@@ -29,6 +32,8 @@ import {
 } from '@/lib/validation';
 
 type ProfileTab = 'overview' | 'listings' | 'tenants' | 'inquiries' | 'messages' | 'requests' | 'documents' | 'billing' | 'settings';
+
+const PROFILE_TABS: ProfileTab[] = ['overview', 'listings', 'tenants', 'inquiries', 'messages', 'requests', 'documents', 'billing', 'settings'];
 
 function formatINR(num: number): string {
   return `\u20b9${num.toLocaleString('en-IN')}`;
@@ -56,7 +61,9 @@ export default function OwnerProfile() {
   const { user, updateProfile } = useAuth();
   const { isPro, plan, status, nextBillingDate, isInGracePeriod, isInTrial, trialDaysLeft, totalSpent, billingHistory, cancelSubscription, toggleAutoRenew } = useSubscription();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') as ProfileTab | null;
+  const [activeTab, setActiveTab] = useState<ProfileTab>(tabParam && PROFILE_TABS.includes(tabParam) ? tabParam : 'overview');
   const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(null);
 
   // Real data hooks for new users (empty initially)
@@ -86,6 +93,9 @@ export default function OwnerProfile() {
 
   const [viewAgreementId, setViewAgreementId] = useState<string | null>(null);
   const { agreements: rentalAgreements, markShared } = useRentalAgreements(user?.id);
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+  const { payments: allPayments } = useRentPayment();
+  const { requests: maintenanceRequests } = useOwnerMaintenanceRequests(user?.id);
 
   const initEditForm = () => {
     if (!user) return;
@@ -111,7 +121,7 @@ export default function OwnerProfile() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
             <i className="ri-user-line text-2xl text-charcoal/40" />
@@ -177,10 +187,43 @@ export default function OwnerProfile() {
     }
   };
 
-  const tenantRows: any[] = []; // Empty for new users
-  const totalIncome = `\u20b9${0}`; // No income for new users
-  const urgentRequests = 0; // No requests for new users
-  const pendingRequests = 0; // No pending requests for new users
+  // Recurring rent from currently active tenancies, not just what's been
+  // recorded as paid this month -- a listing sitting on a signed
+  // agreement is real income even before this month's payment lands.
+  const activeAgreements = rentalAgreements.filter(
+    (a) => !a.leaseEndDate || new Date(a.leaseEndDate).getTime() >= Date.now()
+  );
+  const monthlyIncomeAmount = activeAgreements.reduce((sum, a) => sum + a.monthlyRent, 0);
+  const totalIncome = formatINR(monthlyIncomeAmount);
+  const urgentRequests = maintenanceRequests.filter((r) => r.priority === 'high' && r.status !== 'resolved').length;
+  const pendingRequests = maintenanceRequests.filter((r) => r.status === 'pending').length;
+
+  const tenantRows = rentalAgreements.map((a) => {
+    const agreementPayments = allPayments
+      .filter((p) => p.agreement_id === a.id)
+      .sort((x, y) => new Date(y.created_at).getTime() - new Date(x.created_at).getTime());
+    const latestPayment = agreementPayments[0] ?? null;
+    const leaseEnded = a.leaseEndDate ? new Date(a.leaseEndDate).getTime() < Date.now() : false;
+    return {
+      id: a.tenantId ?? a.id,
+      agreementId: a.id,
+      name: a.tenantName || 'Tenant',
+      flat: a.flatNumber || '\u2014',
+      property: a.propertyAddress || '\u2014',
+      rent: formatINR(a.monthlyRent),
+      leaseEnd: a.leaseEndDate ? new Date(a.leaseEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014',
+      status: leaseEnded ? 'Expired' : 'Active',
+      paymentStatus: latestPayment
+        ? latestPayment.status === 'paid'
+          ? 'Paid'
+          : latestPayment.status === 'failed'
+          ? 'Failed'
+          : latestPayment.status === 'reconciled'
+          ? 'Reconciled'
+          : 'Pending'
+        : 'No payments yet',
+    };
+  });
 
   const tabs: { id: ProfileTab; label: string; icon: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: 'ri-home-4-line' },
@@ -229,10 +272,20 @@ export default function OwnerProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-6xl mx-auto px-4 md:px-8">
 
         <QRCodeModal listing={qrModalListing} onClose={() => setQrModalListing(null)} />
+        {showPhoneVerify && user.phone && (
+          <PhoneVerifyModal
+            phone={user.phone}
+            onClose={() => setShowPhoneVerify(false)}
+            onVerified={() => {
+              setShowPhoneVerify(false);
+              addToast('Phone number verified', 'success');
+            }}
+          />
+        )}
         {viewAgreementId && (
           <RentalAgreementModal
             agreement={rentalAgreements.find((a) => a.id === viewAgreementId) ?? null}
@@ -321,40 +374,28 @@ export default function OwnerProfile() {
                 <Link to="/list-property" className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap">
                   <i className="ri-add-line text-sm" /> List Property
                 </Link>
-                {!editMode ? (
-                  <button
-                    onClick={() => {
-                      setEditMode(true);
-                      initEditForm();
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-black/10 text-sm font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap"
-                  >
-                    <i className="ri-edit-line text-sm" /> Edit
-                  </button>
-                ) : (
-                  <>
-                    <button onClick={() => setEditMode(false)} className="px-4 py-2 rounded-full border border-black/10 text-sm font-medium text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
-                    <button onClick={handleSave} className="px-4 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors whitespace-nowrap">Save Changes</button>
-                  </>
-                )}
               </div>
             </div>
 
             {/* Quick stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
               {[
-                { label: 'Total Properties', value: String(totalProperties), icon: 'ri-building-line', color: 'text-amber-600' },
-                { label: 'Active Listings', value: String(myListings.length), icon: 'ri-list-check-3', color: 'text-brand' },
-                { label: 'Monthly Income', value: totalIncome, icon: 'ri-money-rupee-circle-line', color: 'text-green-600' },
-                { label: 'Urgent Requests', value: String(urgentRequests), icon: 'ri-alarm-warning-line', color: urgentRequests > 0 ? 'text-red-500' : 'text-charcoal/40' },
+                { label: 'Total Properties', value: String(totalProperties), icon: 'ri-building-line', color: 'text-amber-600', tab: 'listings' as ProfileTab },
+                { label: 'Active Listings', value: String(myListings.length), icon: 'ri-list-check-3', color: 'text-brand', tab: 'listings' as ProfileTab },
+                { label: 'Monthly Income', value: totalIncome, icon: 'ri-money-rupee-circle-line', color: 'text-green-600', tab: 'tenants' as ProfileTab },
+                { label: 'Urgent Requests', value: String(urgentRequests), icon: 'ri-alarm-warning-line', color: urgentRequests > 0 ? 'text-red-500' : 'text-charcoal/40', tab: 'requests' as ProfileTab },
               ].map((stat) => (
-                <div key={stat.label} className="bg-offwhite rounded-xl p-3">
+                <button
+                  key={stat.label}
+                  onClick={() => setActiveTab(stat.tab)}
+                  className="bg-offwhite rounded-xl p-3 text-left hover:bg-amber-50 transition-colors cursor-pointer"
+                >
                   <div className="w-7 h-7 flex items-center justify-center mb-1.5">
                     <i className={`${stat.icon} text-base ${stat.color}`} />
                   </div>
                   <p className="text-sm font-bold text-charcoal">{stat.value}</p>
                   <p className="text-xs text-charcoal/60 mt-0.5">{stat.label}</p>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -407,7 +448,7 @@ export default function OwnerProfile() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white rounded-xl border border-black/5 p-1.5 mb-6 overflow-x-auto">
+        <div className="sticky top-0 z-30 flex gap-1 bg-white rounded-xl border border-black/5 p-1.5 mb-6 overflow-x-auto shadow-sm">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -586,10 +627,9 @@ export default function OwnerProfile() {
                 <h3 className="text-sm font-bold text-charcoal mb-4">Verification Status</h3>
                 <div className="space-y-3">
                   {[
-                    { label: 'Email Verified', done: true, icon: 'ri-mail-check-line' },
-                    { label: 'Phone Verified', done: !!user.phone, icon: 'ri-smartphone-line' },
+                    { label: 'Email Verified', done: user.verifiedEmail, icon: 'ri-mail-check-line' },
+                    { label: 'Phone Verified', done: user.verifiedPhone, icon: 'ri-smartphone-line' },
                     { label: 'Aadhaar Verified', done: user.verified, icon: 'ri-shield-check-line' },
-                    { label: 'Property Documents', done: true, icon: 'ri-file-text-line' },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -600,8 +640,16 @@ export default function OwnerProfile() {
                       </div>
                       {item.done ? (
                         <i className="ri-checkbox-circle-fill text-green-500 text-base" />
-                      ) : (
+                      ) : item.label === 'Aadhaar Verified' ? (
                         <Link to="/aadhaar-verify" className="text-xs text-amber-600 font-semibold hover:text-amber-700 whitespace-nowrap">Verify</Link>
+                      ) : item.label === 'Phone Verified' ? (
+                        user.phone ? (
+                          <button onClick={() => setShowPhoneVerify(true)} className="text-xs text-amber-600 font-semibold hover:text-amber-700 whitespace-nowrap cursor-pointer">Verify</button>
+                        ) : (
+                          <span className="text-xs text-charcoal/40 font-medium whitespace-nowrap">Add phone</span>
+                        )
+                      ) : (
+                        <span className="text-xs text-charcoal/40 font-medium whitespace-nowrap">Pending</span>
                       )}
                     </div>
                   ))}
@@ -787,66 +835,54 @@ export default function OwnerProfile() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tenantRows.map((t) => {
-                      const agreement = rentalAgreements.find((a) => a.tenantId === t.id);
-                      return (
-                        <tr key={t.id} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                                <span className="text-xs font-bold text-amber-600">{t.name[0]}</span>
-                              </div>
-                              <div>
+                    {tenantRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-5 py-10 text-center text-sm text-charcoal/40">
+                          No active tenants yet. Tenants appear here once you share a rental agreement with them.
+                        </td>
+                      </tr>
+                    ) : (
+                      tenantRows.map((t) => {
+                        const payColors: Record<string, string> = {
+                          Paid: 'bg-green-50 text-green-600',
+                          Failed: 'bg-red-50 text-red-600',
+                          Reconciled: 'bg-blue-50 text-blue-600',
+                          Pending: 'bg-amber-50 text-amber-600',
+                          'No payments yet': 'bg-lightgray text-charcoal/40',
+                        };
+                        return (
+                          <tr key={t.agreementId} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-xs font-bold text-amber-600">{t.name[0]}</span>
+                                </div>
                                 <p className="text-sm font-semibold text-charcoal">{t.name}</p>
-                                {t.verified && (
-                                  <span className="text-[10px] text-green-600 flex items-center gap-0.5">
-                                    <i className="ri-shield-check-fill text-[10px]" /> Verified
-                                  </span>
-                                )}
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-sm text-charcoal font-medium">{t.flat}</td>
-                          <td className="px-5 py-4 text-sm text-charcoal/60">{t.property}</td>
-                          <td className="px-5 py-4 text-sm font-bold text-charcoal">{t.rent}</td>
-                          <td className="px-5 py-4 text-sm text-charcoal/60">{t.leaseEnd}</td>
-                          <td className="px-5 py-4">
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">Active</span>
-                          </td>
-                          <td className="px-5 py-4">
-                            {(() => {
-                              const tenantPayStatuses: Record<string, string> = {
-                                t1: 'Paid',
-                                t2: 'Failed',
-                                t3: 'Paid',
-                                t4: 'Paid',
-                                t5: 'Reconciled',
-                              };
-                              const payColors: Record<string, string> = {
-                                Paid: 'bg-green-50 text-green-600',
-                                Failed: 'bg-red-50 text-red-600',
-                                Reconciled: 'bg-blue-50 text-blue-600',
-                              };
-                              const s = tenantPayStatuses[t.id] ?? 'Pending';
-                              return (
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${payColors[s] ?? 'bg-amber-50 text-amber-600'}`}>
-                                  {s}
-                                </span>
-                              );
-                            })()}
-                          </td>
-                          <td className="px-5 py-4">
-                            {agreement ? (
-                              <button onClick={() => setViewAgreementId(agreement.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap">
+                            </td>
+                            <td className="px-5 py-4 text-sm text-charcoal font-medium">{t.flat}</td>
+                            <td className="px-5 py-4 text-sm text-charcoal/60">{t.property}</td>
+                            <td className="px-5 py-4 text-sm font-bold text-charcoal">{t.rent}</td>
+                            <td className="px-5 py-4 text-sm text-charcoal/60">{t.leaseEnd}</td>
+                            <td className="px-5 py-4">
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${t.status === 'Active' ? 'bg-green-50 text-green-600' : 'bg-lightgray text-charcoal/40'}`}>
+                                {t.status}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4">
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${payColors[t.paymentStatus] ?? 'bg-amber-50 text-amber-600'}`}>
+                                {t.paymentStatus}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4">
+                              <button onClick={() => setViewAgreementId(t.agreementId)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap">
                                 <i className="ri-file-text-line text-sm" /> View
                               </button>
-                            ) : (
-                              <span className="text-xs text-charcoal/40">Not generated</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

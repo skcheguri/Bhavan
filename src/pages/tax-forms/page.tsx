@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantRentReceipts } from '@/hooks/useRentReceipts';
-import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
+import { useTenantRentalAgreements, useRentalAgreements } from '@/hooks/useRentalAgreements';
 import { tenantTaxDocuments } from '@/content/tenant-tax-documents';
 
 /* ───────────── Owner Types ───────────── */
@@ -19,32 +19,7 @@ interface PropertyIncome {
   ownershipShare: string;
 }
 
-const ownerInitialProperties: PropertyIncome[] = [
-  {
-    id: 'prop-1',
-    propertyName: 'Prestige Towers - Flat B-204',
-    address: 'Koramangala, Bangalore, Karnataka - 560034',
-    tenantName: 'Arjun Mehta',
-    tenantPan: 'ABCDE1234F',
-    annualRent: '264000',
-    municipalTaxes: '12000',
-    interestOnLoan: '0',
-    coOwned: false,
-    ownershipShare: '100',
-  },
-  {
-    id: 'prop-2',
-    propertyName: 'Green Valley Flats - A-203',
-    address: 'HSR Layout, Bangalore, Karnataka - 560102',
-    tenantName: 'Vikram Singh',
-    tenantPan: 'FGHIJ5678K',
-    annualRent: '216000',
-    municipalTaxes: '8000',
-    interestOnLoan: '48000',
-    coOwned: false,
-    ownershipShare: '100',
-  },
-];
+const ownerInitialProperties: PropertyIncome[] = [];
 
 /* ───────────── Helpers ───────────── */
 function formatCurrency(value: string | number): string {
@@ -60,6 +35,9 @@ function parseNum(value: string): number {
 /*  OWNER VIEW                          */
 /* ════════════════════════════════════ */
 function OwnerTaxView({ userName }: { userName: string }) {
+  const { user } = useAuth();
+  const { agreements: ownerAgreements } = useRentalAgreements(user?.id);
+  const ownerPan = ownerAgreements.find((a) => a.landlordPan)?.landlordPan || '';
   const [activeTab, setActiveTab] = useState<'schedule-hp' | 'summary' | 'filing'>('schedule-hp');
   const [properties, setProperties] = useState<PropertyIncome[]>(ownerInitialProperties);
   const [selectedYear, setSelectedYear] = useState('2025-26');
@@ -203,8 +181,8 @@ function OwnerTaxView({ userName }: { userName: string }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Name', value: userName },
-            { label: 'PAN', value: 'ABCPD1234E' },
-            { label: 'Aadhaar', value: 'XXXX-XXXX-1234' },
+            { label: 'PAN', value: ownerPan || 'Not added' },
+            { label: 'Aadhaar', value: user?.aadhaarLast4 ? `XXXX XXXX ${user.aadhaarLast4}` : 'Not verified' },
             { label: 'Status', value: 'Individual' },
           ].map((field) => (
             <div key={field.label} className="bg-offwhite rounded-xl p-3">
@@ -234,6 +212,13 @@ function OwnerTaxView({ userName }: { userName: string }) {
       {/* Schedule HP */}
       {activeTab === 'schedule-hp' && (
         <div className="space-y-6">
+          {properties.length === 0 && (
+            <div className="bg-white rounded-3xl border border-dashed border-black/10 p-8 text-center">
+              <i className="ri-building-line text-2xl text-charcoal/30" />
+              <p className="text-sm font-medium text-charcoal mt-2">No properties added yet</p>
+              <p className="text-xs text-charcoal/50 mt-1">Add a rental property to calculate your Income from House Property.</p>
+            </div>
+          )}
           {computations.map((prop, index) => (
             <div key={prop.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-3">
@@ -964,7 +949,7 @@ export default function TaxForms() {
   const userName = user?.name || 'User';
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-5xl mx-auto px-4 md:px-8">
         {isOwner ? <OwnerTaxView userName={userName} /> : <TenantTaxView userName={userName} />}
       </div>

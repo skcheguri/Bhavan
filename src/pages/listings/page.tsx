@@ -3,17 +3,40 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useListings, type ListingCategory } from '@/hooks/useListings';
 
+interface SearchFilters {
+  searchQuery: string;
+  propertyType: string;
+  priceRange: string;
+  bedrooms: string;
+  furnished: string;
+  parking: string;
+  maxGuests: string;
+  verifiedOnly: string;
+}
+
+const DEFAULT_FILTERS: SearchFilters = {
+  searchQuery: '',
+  propertyType: 'all',
+  priceRange: 'all',
+  bedrooms: 'all',
+  furnished: 'all',
+  parking: 'all',
+  maxGuests: 'all',
+  verifiedOnly: 'all',
+};
+
 export default function Listings() {
   const [searchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState<ListingCategory | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [propertyType, setPropertyType] = useState('all');
-  const [priceRange, setPriceRange] = useState('all');
-  const [bedrooms, setBedrooms] = useState('all');
-  const [furnished, setFurnished] = useState('all');
-  const [parking, setParking] = useState('all');
-  const [maxGuests, setMaxGuests] = useState('all');
-  const [verifiedOnly, setVerifiedOnly] = useState('all');
+
+  // Draft values are what the search bar's inputs are bound to -- they
+  // only take effect once "Update Search" is clicked (or Enter is
+  // pressed), matching a standard hotel-search-style search bar rather
+  // than filtering live on every keystroke/selection.
+  const [draft, setDraft] = useState<SearchFilters>(DEFAULT_FILTERS);
+  const [applied, setApplied] = useState<SearchFilters>(DEFAULT_FILTERS);
+
+  const { searchQuery, propertyType, priceRange, bedrooms, furnished, parking, maxGuests, verifiedOnly } = applied;
 
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -21,6 +44,11 @@ export default function Listings() {
     activeCategory === 'all' ? undefined : activeCategory
   );
   const isAadhaarVerified = user?.verified ?? false;
+
+  const applySearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setApplied(draft);
+  };
 
   useEffect(() => {
     const cat = searchParams.get('category');
@@ -109,7 +137,7 @@ export default function Listings() {
   });
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20">
+    <div className="min-h-screen bg-offwhite">
       {/* Category Tabs */}
       <div className="bg-white border-b border-black/5">
         <div className="w-full px-4 md:px-8 lg:px-12">
@@ -124,10 +152,9 @@ export default function Listings() {
                 key={tab.key}
                 onClick={() => {
                   setActiveCategory(tab.key);
-                  setPropertyType('all');
-                  setPriceRange('all');
-                  setBedrooms('all');
-                  setMaxGuests('all');
+                  const reset = { ...DEFAULT_FILTERS, searchQuery: draft.searchQuery };
+                  setDraft(reset);
+                  setApplied(reset);
                 }}
                 className={`flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   activeCategory === tab.key
@@ -190,10 +217,15 @@ export default function Listings() {
         </div>
       </section>
 
-      {/* Search */}
-      <section className="bg-white py-6 border-b border-black/5">
+      {/* Search + filters -- sticky so it stays reachable while scrolling
+          through results, with changes only taking effect on "Update
+          Search" (or Enter) rather than live per-keystroke/selection. */}
+      <form
+        onSubmit={applySearch}
+        className="sticky top-0 z-30 bg-white border-b border-black/5 shadow-sm py-4"
+      >
         <div className="w-full px-4 md:px-8 lg:px-12">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-6xl mx-auto space-y-3">
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
                 <i className="ri-search-line text-charcoal/40" />
@@ -202,26 +234,18 @@ export default function Listings() {
                 type="text"
                 aria-label={isVacation ? 'Search by destination or property name' : 'Search by location or property name'}
                 placeholder={isVacation ? 'Search by destination or property name...' : 'Search by location or property name...'}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={draft.searchQuery}
+                onChange={(e) => setDraft({ ...draft, searchQuery: e.target.value })}
                 className={`w-full pl-10 pr-4 py-3 bg-lightgray rounded-xl text-sm focus:outline-none transition-colors ${
                   isVacation ? 'focus:ring-2 focus:ring-sage/40' : 'focus:ring-2 focus:ring-brand/30'
                 }`}
               />
             </div>
-          </div>
-        </div>
-      </section>
 
-      {/* Listings Grid */}
-      <section className="py-8 md:py-12">
-        <div className="w-full px-4 md:px-8 lg:px-12">
-          <div className="max-w-6xl mx-auto">
-            {/* Result filters */}
-            <div className="flex flex-wrap gap-3 mb-5">
+            <div className="flex flex-wrap gap-3">
               <select
-                value={propertyType}
-                onChange={(e) => setPropertyType(e.target.value)}
+                value={draft.propertyType}
+                onChange={(e) => setDraft({ ...draft, propertyType: e.target.value })}
                 className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
               >
                 <option value="all">All Types</option>
@@ -242,8 +266,8 @@ export default function Listings() {
               </select>
 
               <select
-                value={priceRange}
-                onChange={(e) => setPriceRange(e.target.value)}
+                value={draft.priceRange}
+                onChange={(e) => setDraft({ ...draft, priceRange: e.target.value })}
                 className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
               >
                 <option value="all">{isVacation ? 'Any Nightly Rate' : 'Any Price'}</option>
@@ -265,8 +289,8 @@ export default function Listings() {
 
               {isVacation ? (
                 <select
-                  value={maxGuests}
-                  onChange={(e) => setMaxGuests(e.target.value)}
+                  value={draft.maxGuests}
+                  onChange={(e) => setDraft({ ...draft, maxGuests: e.target.value })}
                   className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
                 >
                   <option value="all">Any Guests</option>
@@ -277,8 +301,8 @@ export default function Listings() {
                 </select>
               ) : (
                 <select
-                  value={bedrooms}
-                  onChange={(e) => setBedrooms(e.target.value)}
+                  value={draft.bedrooms}
+                  onChange={(e) => setDraft({ ...draft, bedrooms: e.target.value })}
                   className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
                 >
                   <option value="all">Any Beds</option>
@@ -291,8 +315,8 @@ export default function Listings() {
 
               {!isVacation && (
                 <select
-                  value={furnished}
-                  onChange={(e) => setFurnished(e.target.value)}
+                  value={draft.furnished}
+                  onChange={(e) => setDraft({ ...draft, furnished: e.target.value })}
                   className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
                 >
                   <option value="all">Furnishing</option>
@@ -303,8 +327,8 @@ export default function Listings() {
 
               {!isVacation && (
                 <select
-                  value={parking}
-                  onChange={(e) => setParking(e.target.value)}
+                  value={draft.parking}
+                  onChange={(e) => setDraft({ ...draft, parking: e.target.value })}
                   className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
                 >
                   <option value="all">Parking</option>
@@ -315,15 +339,31 @@ export default function Listings() {
               )}
 
               <select
-                value={verifiedOnly}
-                onChange={(e) => setVerifiedOnly(e.target.value)}
+                value={draft.verifiedOnly}
+                onChange={(e) => setDraft({ ...draft, verifiedOnly: e.target.value })}
                 className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
               >
                 <option value="all">All Verification</option>
                 <option value="verified">Verified Only</option>
               </select>
-            </div>
 
+              <button
+                type="submit"
+                className={`ml-auto flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors cursor-pointer whitespace-nowrap ${
+                  isVacation ? 'bg-sage hover:bg-sage-dark' : 'bg-brand hover:bg-brand-dark'
+                }`}
+              >
+                <i className="ri-search-line" /> Update Search
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      {/* Listings Grid */}
+      <section className="py-8 md:py-12">
+        <div className="w-full px-4 md:px-8 lg:px-12">
+          <div className="max-w-6xl mx-auto">
             <p className="text-sm text-charcoal/50 mb-6">
               {filteredListings.length} {filteredListings.length === 1 ? 'property' : 'properties'} found
             </p>
@@ -367,117 +407,60 @@ export default function Listings() {
                         {listing.property_type}
                       </span>
                     </div>
-                    <div className="p-5">
+                    <div className="p-4">
                       {listing.category === 'vacation' ? (
                         <div className="flex items-baseline gap-1">
-                          <span className="text-sage-dark font-bold text-2xl">₹{listing.price.toLocaleString('en-IN')}</span>
-                          <span className="text-charcoal/40 text-sm">/night</span>
+                          <span className="text-sage-dark font-bold text-xl">₹{listing.price.toLocaleString('en-IN')}</span>
+                          <span className="text-charcoal/40 text-xs">/night</span>
                         </div>
                       ) : (
-                        <div className="text-brand font-bold text-2xl">₹{listing.price.toLocaleString('en-IN')}<span className="text-sm font-medium text-charcoal/50">/mo</span></div>
+                        <div className="text-brand font-bold text-xl">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-medium text-charcoal/50">/mo</span></div>
                       )}
-                      <h3 className="mt-1.5 text-lg font-semibold text-charcoal">{listing.title}</h3>
-                      <div className="mt-2 flex items-center gap-1.5 text-charcoal/50 text-sm">
-                        <i className="ri-map-pin-line text-sm" />
+                      <h3 className="mt-1 text-sm font-semibold text-charcoal line-clamp-1">{listing.title}</h3>
+                      <div className="mt-1 flex items-center gap-1 text-charcoal/50 text-xs">
+                        <i className="ri-map-pin-line text-xs" />
                         {listing.location}
                       </div>
 
                       {listing.category === 'vacation' ? (
-                        <>
-                          <div className="mt-3 flex items-center gap-4 text-sm text-charcoal/60">
-                            <span className="flex items-center gap-1.5">
-                              <i className="ri-group-line text-sm" />
-                              {'max_guests' in listing && listing.max_guests ? `Up to ${listing.max_guests} guests` : ''}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <i className="ri-hotel-bed-line text-sm" />
-                              {listing.bedrooms} {listing.bedrooms === 1 ? 'Bed' : 'Beds'}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <i className="ri-drop-line text-sm" />
-                              {listing.bathrooms} Bath{listing.bathrooms > 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          {listing.amenities && listing.amenities.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-1.5">
-                              {listing.amenities.slice(0, 3).map((a: string) => (
-                                <span key={a} className="text-xs bg-sage-light text-sage-dark px-2.5 py-1 rounded-full font-medium">{a}</span>
-                              ))}
-                              {listing.amenities.length > 3 && (
-                                <span className="text-xs bg-lightgray text-charcoal/50 px-2.5 py-1 rounded-full font-medium">+{listing.amenities.length - 3} more</span>
-                              )}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {listing.furnished && (
-                              <span className="flex items-center gap-1.5 text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full">
-                                <i className="ri-sofa-line text-sm" />
-                                Furnished
-                              </span>
-                            )}
-                            {listing.parking === '2-wheeler' && (
-                              <span className="flex items-center gap-1.5 text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
-                                <i className="ri-motorbike-line text-sm" />
-                                2W Parking
-                              </span>
-                            )}
-                            {listing.parking === '4-wheeler' && (
-                              <span className="flex items-center gap-1.5 text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
-                                <i className="ri-car-line text-sm" />
-                                4W Parking
-                              </span>
-                            )}
-                            {listing.parking === 'both' && (
-                              <span className="flex items-center gap-1.5 text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
-                                <i className="ri-parking-line text-sm" />
-                                2W + 4W Parking
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-3 flex items-center gap-4 text-sm text-charcoal/60">
-                            <span className="flex items-center gap-1.5">
-                              <i className="ri-hotel-bed-line text-sm" />
-                              {listing.bedrooms} {listing.bedrooms === 1 ? 'Bed' : 'Beds'}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <i className="ri-drop-line text-sm" />
-                              {listing.bathrooms} {listing.bathrooms === 1 ? 'Bath' : 'Baths'}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <i className="ri-ruler-line text-sm" />
-                              {listing.area} sq ft
-                            </span>
-                          </div>
-                        </>
-                      )}
-                      <p className="mt-3 text-sm text-charcoal/60 line-clamp-2">{listing.description}</p>
-                      <div className="mt-4 pt-4 border-t border-black/5">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={listing.landlord_avatar}
-                              alt={listing.landlord_name}
-                              className="w-9 h-9 rounded-full object-cover"
-                            />
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-sm font-medium text-charcoal">{listing.landlord_name}</p>
-                                <i className="ri-shield-check-fill text-green-500 text-xs" title="Aadhaar Verified Owner" />
-                              </div>
-                              <p className="text-xs text-charcoal/50">Aadhaar Verified Owner</p>
-                            </div>
-                          </div>
+                        <div className="mt-2 flex items-center gap-3 text-xs text-charcoal/60">
+                          <span className="flex items-center gap-1">
+                            <i className="ri-group-line text-xs" />
+                            {'max_guests' in listing && listing.max_guests ? `Up to ${listing.max_guests} guests` : ''}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <i className="ri-hotel-bed-line text-xs" />
+                            {listing.bedrooms} {listing.bedrooms === 1 ? 'Bed' : 'Beds'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <i className="ri-drop-line text-xs" />
+                            {listing.bathrooms} Bath{listing.bathrooms > 1 ? 's' : ''}
+                          </span>
                         </div>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-3 text-xs text-charcoal/60">
+                          <span className="flex items-center gap-1">
+                            <i className="ri-hotel-bed-line text-xs" />
+                            {listing.bedrooms} {listing.bedrooms === 1 ? 'Bed' : 'Beds'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <i className="ri-drop-line text-xs" />
+                            {listing.bathrooms} {listing.bathrooms === 1 ? 'Bath' : 'Baths'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <i className="ri-ruler-line text-xs" />
+                            {listing.area} sq ft
+                          </span>
+                        </div>
+                      )}
+                      <div className="mt-3 pt-3 border-t border-black/5">
                         {user ? (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate(`/listings/${listing.id}`);
                             }}
-                            className={`w-full text-white text-sm font-semibold px-4 py-3 rounded-full transition-colors whitespace-nowrap cursor-pointer ${
+                            className={`w-full text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-colors whitespace-nowrap cursor-pointer ${
                               listing.category === 'vacation'
                                 ? 'bg-sage hover:bg-sage-dark'
                                 : 'bg-brand hover:bg-brand-dark'
@@ -489,7 +472,7 @@ export default function Listings() {
                           <Link
                             to="/login"
                             onClick={(e) => e.stopPropagation()}
-                            className={`w-full flex items-center justify-center gap-2 text-white text-sm font-semibold px-4 py-3 rounded-full transition-colors whitespace-nowrap ${
+                            className={`w-full flex items-center justify-center gap-1.5 text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-colors whitespace-nowrap ${
                               listing.category === 'vacation'
                                 ? 'bg-sage hover:bg-sage-dark'
                                 : 'bg-brand hover:bg-brand-dark'

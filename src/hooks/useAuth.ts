@@ -10,6 +10,8 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   verified: boolean;
+  verifiedEmail: boolean;
+  verifiedPhone: boolean;
   avatar: string | null;
   phone: string | null;
   joinedAt: string;
@@ -36,6 +38,8 @@ interface AuthContextValue {
   signInWithGoogle: (role: 'tenant' | 'owner') => Promise<{ error: string | null }>;
   sendPhoneOtp: (phone: string, name?: string, role?: 'tenant' | 'owner') => Promise<{ error: string | null }>;
   verifyPhoneOtp: (phone: string, token: string) => Promise<{ error: string | null }>;
+  sendPhoneVerificationOtp: (phone: string) => Promise<{ error: string | null }>;
+  confirmPhoneVerificationOtp: (phone: string, token: string) => Promise<{ error: string | null }>;
   sendPasswordResetEmail: (email: string, redirectTo: string) => Promise<{ error: string | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -81,6 +85,8 @@ async function buildAuthUser(supabaseUser: User): Promise<AuthUser | null> {
       email: supabaseUser.email || '',
       role: dbRoleToAppRole(supabaseUser.user_metadata?.role) || 'tenant',
       verified: false,
+      verifiedEmail: !!supabaseUser.email_confirmed_at,
+      verifiedPhone: !!supabaseUser.phone_confirmed_at,
       avatar: supabaseUser.user_metadata?.avatar_url || null,
       phone: supabaseUser.phone || null,
       joinedAt: new Date(supabaseUser.created_at).toLocaleDateString('en-IN', {
@@ -96,6 +102,8 @@ async function buildAuthUser(supabaseUser: User): Promise<AuthUser | null> {
     email: profile.email || '',
     role: dbRoleToAppRole(profile.role),
     verified: profile.verified_aadhaar || false,
+    verifiedEmail: profile.verified_email || false,
+    verifiedPhone: profile.verified_phone || false,
     avatar: profile.avatar_url || null,
     phone: profile.phone || null,
     aadhaarLast4: profile.aadhaar_last4 || undefined,
@@ -121,6 +129,8 @@ export const AuthContext = createContext<AuthContextValue>({
   signInWithGoogle: async () => ({ error: null }),
   sendPhoneOtp: async () => ({ error: null }),
   verifyPhoneOtp: async () => ({ error: null }),
+  sendPhoneVerificationOtp: async () => ({ error: null }),
+  confirmPhoneVerificationOtp: async () => ({ error: null }),
   sendPasswordResetEmail: async () => ({ error: null }),
   updatePassword: async () => ({ error: null }),
   signOut: async () => {},
@@ -395,5 +405,49 @@ export function useAuthProvider(): AuthContextValue {
     }
   };
 
-  return { user, loading, signIn, signUp, signInWithGoogle, sendPhoneOtp, verifyPhoneOtp, sendPasswordResetEmail, updatePassword, signOut, updateProfile, refreshProfile };
+  // Verifying (or re-verifying) the contact phone number shown on an
+  // already-logged-in profile -- distinct from sendPhoneOtp/verifyPhoneOtp
+  // above, which are the phone-as-login-identity flow used at signup.
+  // updateUser({ phone }) sends an OTP to the new number without touching
+  // the current session/identity; verifyOtp's 'phone_change' type confirms
+  // it against that same session. Once auth.users.phone_confirmed_at is
+  // set, the on_auth_user_phone_confirmed trigger (migration 042) syncs
+  // public.users.phone/verified_phone -- refreshProfile() below just pulls
+  // that synced row back into app state.
+  const sendPhoneVerificationOtp = async (phone: string): Promise<{ error: string | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: 'Supabase not connected' };
+
+    const { error } = await supabase.auth.updateUser({ phone });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
+  const confirmPhoneVerificationOtp = async (phone: string, token: string): Promise<{ error: string | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: 'Supabase not connected' };
+
+    const { error } = await supabase.auth.verifyOtp({ phone, token, type: 'phone_change' });
+    if (error) return { error: error.message };
+
+    await refreshProfile();
+    return { error: null };
+  };
+
+  return {
+    user,
+    loading,
+    signIn,
+    signUp,
+    signInWithGoogle,
+    sendPhoneOtp,
+    verifyPhoneOtp,
+    sendPhoneVerificationOtp,
+    confirmPhoneVerificationOtp,
+    sendPasswordResetEmail,
+    updatePassword,
+    signOut,
+    updateProfile,
+    refreshProfile,
+  };
 }

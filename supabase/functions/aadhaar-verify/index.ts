@@ -191,7 +191,13 @@ Deno.serve(async (req) => {
       });
       if (insertError) throw insertError;
 
-      await supabase.from("users").update({ aadhaar_verification_status: "pending" }).eq("id", userId);
+      // A dedicated RPC, not a raw table update -- see migration 042.
+      // protect_privileged_user_columns() pins verification columns back
+      // to their old value for any caller that isn't an admin, which
+      // includes this function (it deliberately runs as the user's own
+      // JWT). Only this RPC can flip the trusted-write escape hatch.
+      const { error: statusError } = await supabase.rpc("set_aadhaar_verification_status", { p_status: "pending" });
+      if (statusError) throw statusError;
 
       return json({ referenceId, maskedAadhaar: `XXXX XXXX ${last4}` });
     }
@@ -239,15 +245,8 @@ Deno.serve(async (req) => {
         .update({ status: "verified", verified_at: now })
         .eq("id", attempt.id);
 
-      await supabase
-        .from("users")
-        .update({
-          verified_aadhaar: true,
-          aadhaar_last4: attempt.aadhaar_last4,
-          aadhaar_verification_status: "verified",
-          aadhaar_verified_at: now,
-        })
-        .eq("id", userId);
+      const { error: verifyError } = await supabase.rpc("mark_aadhaar_verified", { p_last4: attempt.aadhaar_last4 });
+      if (verifyError) throw verifyError;
 
       return json({ success: true, name: result.name, dob: result.dob, gender: result.gender });
     }

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useSavedListings } from '@/hooks/useListings';
 import NotificationBell from '@/pages/owner-profile/components/NotificationBell';
+import PhoneVerifyModal from '@/components/feature/PhoneVerifyModal';
 import { useToast } from '@/hooks/useToast';
 import TenantInquiriesTab from './components/TenantInquiriesTab';
 import TenantChatTab from './components/TenantChatTab';
@@ -28,6 +29,8 @@ import {
 } from '@/lib/validation';
 
 type ProfileTab = 'overview' | 'saved' | 'inquiries' | 'messages' | 'rentManagement' | 'reviews' | 'settings';
+
+const PROFILE_TABS: ProfileTab[] = ['overview', 'saved', 'inquiries', 'messages', 'rentManagement', 'reviews', 'settings'];
 
 function leaseCountdown(leaseEndDate: string, noticePeriodDays: number) {
   const end = new Date(`${leaseEndDate}T00:00:00`);
@@ -69,7 +72,10 @@ function NotificationToggle({ label, desc, defaultOn = false }: { label: string;
 
 export default function TenantProfile() {
   const { user, updateProfile } = useAuth();
-  const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') as ProfileTab | null;
+  const subParam = searchParams.get('sub');
+  const [activeTab, setActiveTab] = useState<ProfileTab>(tabParam && PROFILE_TABS.includes(tabParam) ? tabParam : 'overview');
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [leaseModalOpen, setLeaseModalOpen] = useState(false);
@@ -79,6 +85,7 @@ export default function TenantProfile() {
   const { listings: savedListingsFromDB, loading: savedLoading, refresh: refreshSaved } = useSavedListings(user?.id);
   const brokerReport = useBrokerReport(user?.id);
   const [softBlockModalOpen, setSoftBlockModalOpen] = useState(false);
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(null);
 
   const { requests: maintRequestsFromDB } = useMaintenanceRequests(user?.id);
@@ -129,7 +136,7 @@ export default function TenantProfile() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
             <i className="ri-user-line text-2xl text-charcoal/40" />
@@ -234,8 +241,19 @@ export default function TenantProfile() {
   ];
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-6xl mx-auto px-4 md:px-8">
+
+        {showPhoneVerify && user.phone && (
+          <PhoneVerifyModal
+            phone={user.phone}
+            onClose={() => setShowPhoneVerify(false)}
+            onVerified={() => {
+              setShowPhoneVerify(false);
+              addToast('Phone number verified', 'success');
+            }}
+          />
+        )}
 
         {/* Profile Header */}
         <div className="bg-white rounded-3xl border border-black/5 overflow-hidden mb-6">
@@ -276,29 +294,6 @@ export default function TenantProfile() {
               {/* Actions */}
               <div className="flex items-center gap-2 pb-1">
                 <NotificationBell />
-                {!editMode ? (
-                  <button
-                    onClick={() => { initEditForm(); setEditMode(true); }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-black/10 text-sm font-medium text-charcoal hover:border-brand/40 hover:text-brand transition-colors cursor-pointer whitespace-nowrap"
-                  >
-                    <i className="ri-edit-line text-sm" /> Edit Profile
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setEditMode(false)}
-                      className="px-4 py-2 rounded-full border border-black/10 text-sm font-medium text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => { handleSave(); }}
-                      className="px-4 py-2 rounded-full bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors whitespace-nowrap"
-                    >
-                      Save Changes
-                    </button>
-                  </>
-                )}
               </div>
             </div>
 
@@ -353,7 +348,7 @@ export default function TenantProfile() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white rounded-xl border border-black/5 p-1.5 mb-6 overflow-x-auto">
+        <div className="sticky top-0 z-30 flex gap-1 bg-white rounded-xl border border-black/5 p-1.5 mb-6 overflow-x-auto shadow-sm">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -576,8 +571,8 @@ export default function TenantProfile() {
                 )}
               </div>
 
-              {/* Current Flat Card - only show if set */}
-              {user.currentFlat && (
+              {/* Current Flat Card - only show if there's a real active agreement */}
+              {activeAgreement && (
                 <div className="bg-white rounded-3xl border border-black/5 p-6">
                   <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                     <div className="w-6 h-6 flex items-center justify-center">
@@ -588,23 +583,34 @@ export default function TenantProfile() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-offwhite rounded-xl p-4">
                       <p className="text-xs text-charcoal/40 font-medium">Property</p>
-                      <p className="text-sm font-bold text-charcoal mt-1">Prestige Towers</p>
-                      <p className="text-xs text-charcoal/60 mt-0.5">Koramangala, Bangalore</p>
+                      <p className="text-sm font-bold text-charcoal mt-1">{activeAgreement.propertyAddress || 'Not set'}</p>
                     </div>
                     <div className="bg-offwhite rounded-xl p-4">
                       <p className="text-xs text-charcoal/40 font-medium">Flat / Unit</p>
-                      <p className="text-sm font-bold text-charcoal mt-1">{user.currentFlat}</p>
-                      <p className="text-xs text-charcoal/60 mt-0.5">2 BHK · 1150 sqft</p>
+                      <p className="text-sm font-bold text-charcoal mt-1">{activeAgreement.flatNumber || user.currentFlat || 'Not set'}</p>
+                      {activeAgreement.carpetArea > 0 && (
+                        <p className="text-xs text-charcoal/60 mt-0.5">{activeAgreement.carpetArea} sq ft</p>
+                      )}
                     </div>
                     <div className="bg-offwhite rounded-xl p-4">
                       <p className="text-xs text-charcoal/40 font-medium">Landlord</p>
-                      <p className="text-sm font-bold text-charcoal mt-1">Suresh Patel</p>
-                      <p className="text-xs text-charcoal/60 mt-0.5">+91-98450-12345</p>
+                      <p className="text-sm font-bold text-charcoal mt-1">{activeAgreement.landlordName || 'Not set'}</p>
+                      {activeAgreement.landlordPhone && (
+                        <p className="text-xs text-charcoal/60 mt-0.5">{activeAgreement.landlordPhone}</p>
+                      )}
                     </div>
                     <div className="bg-offwhite rounded-xl p-4">
                       <p className="text-xs text-charcoal/40 font-medium">Lease Period</p>
-                      <p className="text-sm font-bold text-charcoal mt-1">Jan 2025 — Dec 2026</p>
-                      <p className="text-xs text-charcoal/60 mt-0.5">11 months remaining</p>
+                      <p className="text-sm font-bold text-charcoal mt-1">
+                        {activeAgreement.leaseStartDate ? new Date(activeAgreement.leaseStartDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
+                        {' — '}
+                        {activeAgreement.leaseEndDate ? new Date(activeAgreement.leaseEndDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
+                      </p>
+                      {activeAgreement.leaseEndDate && (
+                        <p className="text-xs text-charcoal/60 mt-0.5">
+                          {leaseCountdown(activeAgreement.leaseEndDate, activeAgreement.noticePeriodDays).monthsLeft} months remaining
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -618,10 +624,10 @@ export default function TenantProfile() {
                 <h3 className="text-sm font-bold text-charcoal mb-4">Verification Status</h3>
                 <div className="space-y-3">
                   {[
-                    { label: 'Email Verified', done: true, icon: 'ri-mail-check-line' },
-                    { label: 'Phone Verified', done: !!user.phone, icon: 'ri-smartphone-line' },
+                    { label: 'Email Verified', done: user.verifiedEmail, icon: 'ri-mail-check-line' },
+                    { label: 'Phone Verified', done: user.verifiedPhone, icon: 'ri-smartphone-line' },
                     { label: 'Aadhaar Verified', done: user.verified, icon: 'ri-shield-check-line' },
-                    { label: 'Rental Agreement', done: false, icon: 'ri-file-text-line' },
+                    { label: 'Rental Agreement', done: rentalAgreements.some((a) => a.sharedWithTenant), icon: 'ri-file-text-line' },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -632,6 +638,14 @@ export default function TenantProfile() {
                       </div>
                       {item.done ? (
                         <i className="ri-checkbox-circle-fill text-green-500 text-base" />
+                      ) : item.label === 'Aadhaar Verified' ? (
+                        <Link to="/aadhaar-verify" className="text-xs text-amber-600 font-semibold hover:text-amber-700 whitespace-nowrap">Verify</Link>
+                      ) : item.label === 'Phone Verified' ? (
+                        user.phone ? (
+                          <button onClick={() => setShowPhoneVerify(true)} className="text-xs text-amber-600 font-semibold hover:text-amber-700 whitespace-nowrap cursor-pointer">Verify</button>
+                        ) : (
+                          <span className="text-xs text-charcoal/40 font-medium whitespace-nowrap">Add phone</span>
+                        )
                       ) : (
                         <span className="text-xs text-charcoal/40 font-medium whitespace-nowrap">Pending</span>
                       )}
@@ -800,7 +814,7 @@ export default function TenantProfile() {
 
         {activeTab === 'messages' && <TenantChatTab initialRequestId={activeChatRequestId} />}
 
-        {activeTab === 'rentManagement' && <RentManagementTab />}
+        {activeTab === 'rentManagement' && <RentManagementTab initialSubTab={subParam === 'documents' || subParam === 'payments' ? subParam : undefined} />}
 
         {activeTab === 'reviews' && <MyReviewsTab />}
 

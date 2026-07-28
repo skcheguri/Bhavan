@@ -8,6 +8,8 @@ import { useCreateConnectionRequest, useTenantConnectionRequests } from '@/hooks
 import { useContactRateLimit, getContactLimitStatus } from '@/hooks/useContactRateLimit';
 import { useBrokerReport } from '@/hooks/useBrokerReport';
 import { useListingReservedDates, useCreateVacationBooking } from '@/hooks/useVacationBookings';
+import { useTenantPropertyVisits, useCreatePropertyVisit } from '@/hooks/usePropertyVisits';
+import { isValidIndianPhone, formatIndianPhoneInput } from '@/lib/validation';
 import VacationCalendar from './components/VacationCalendar';
 import SoftBlockModal from './components/SoftBlockModal';
 
@@ -46,12 +48,16 @@ export default function ListingDetail() {
   const [visitNote, setVisitNote] = useState('');
   const [visitSubmitting, setVisitSubmitting] = useState(false);
   const [visitError, setVisitError] = useState('');
+  const [visitPhoneError, setVisitPhoneError] = useState('');
+  const [reqPhoneError, setReqPhoneError] = useState('');
   // Rate limit state
   const [rateLimitError, setRateLimitError] = useState('');
   const contactRate = useContactRateLimit(user?.id);
   const brokerReport = useBrokerReport(user?.id);
   const { create: createConnectionRequest, submitting: submittingRequest } = useCreateConnectionRequest();
   const { requests: tenantRequests, refresh: refreshTenantRequests } = useTenantConnectionRequests(user?.id);
+  const { visits: tenantVisits, refresh: refreshTenantVisits } = useTenantPropertyVisits(user?.id);
+  const { create: createPropertyVisit } = useCreatePropertyVisit();
   const { listings: allListings } = useListings();
   const [softBlockModalOpen, setSoftBlockModalOpen] = useState(false);
   // Vacation booking state
@@ -73,23 +79,45 @@ export default function ListingDetail() {
 
   const handleVisitSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!visitDate || !visitTime || !visitName || !visitPhone || !visitEmail) {
+    if (!visitDate || !visitTime || !visitName || !visitPhone || !visitEmail || !user || !listing) {
       setVisitError('Please fill in all required fields.');
       return;
     }
+    if (!isValidIndianPhone(visitPhone)) {
+      setVisitPhoneError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+    setVisitPhoneError('');
     setVisitError('');
     setVisitSubmitting(true);
-    // Visit scheduling has no backing table yet -- this confirms client-side
-    // only for now. TODO: persist to a property_visits table once designed.
+
+    const { error: visitCreateError } = await createPropertyVisit({
+      tenantId: user.id,
+      listingId: listing.id,
+      visitDate,
+      visitTime,
+      visitorName: visitName,
+      visitorPhone: visitPhone,
+      visitorEmail: visitEmail,
+      note: visitNote,
+    });
+
+    setVisitSubmitting(false);
+
+    if (visitCreateError) {
+      setVisitError(visitCreateError);
+      return;
+    }
+
+    await refreshTenantVisits();
     setVisitSubmitted(true);
     setVisitOpen(false);
     setTimeout(() => setVisitSubmitted(false), 5000);
-    setVisitSubmitting(false);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 flex items-center justify-center mx-auto mb-4">
             <i className="ri-loader-4-line animate-spin text-brand text-3xl" />
@@ -102,7 +130,7 @@ export default function ListingDetail() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-red-50 rounded-full">
             <i className="ri-error-warning-line text-2xl text-red-400" />
@@ -119,7 +147,7 @@ export default function ListingDetail() {
 
   if (!listing) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
             <i className="ri-home-line text-2xl text-charcoal/40" />
@@ -190,6 +218,11 @@ export default function ListingDetail() {
 
   const handleSendRequest = async () => {
     if (!reqName.trim() || !reqPhone.trim() || !listing) return;
+    if (!isValidIndianPhone(reqPhone)) {
+      setReqPhoneError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+    setReqPhoneError('');
     if (brokerReport.isSoftBlocked) {
       setSoftBlockModalOpen(true);
       return;
@@ -234,12 +267,17 @@ export default function ListingDetail() {
   const hasPendingRequest = userRequest?.status === 'pending';
   const hasDeclinedRequest = userRequest?.status === 'declined';
 
+  const existingVisit = user
+    ? tenantVisits.find((v) => v.listing_id === listing.id && (v.status === 'requested' || v.status === 'confirmed'))
+    : undefined;
+  const hasActiveVisitRequest = Boolean(existingVisit);
+
   const similarListings = listing
     ? allListings.filter((l) => l.id !== listing.id && l.property_type === listing.property_type).slice(0, 3)
     : [];
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       {/* Rate limit toast */}
       {rateLimitError && (
         <div className="fixed top-24 right-6 z-50 bg-red-600 text-white px-5 py-3 rounded-xl text-sm font-medium flex items-start gap-2 max-w-sm">
@@ -347,9 +385,10 @@ export default function ListingDetail() {
                     name="phone"
                     placeholder="+91 XXXXX XXXXX"
                     value={visitPhone}
-                    onChange={(e) => setVisitPhone(e.target.value)}
-                    className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    onChange={(e) => { setVisitPhone(formatIndianPhoneInput(e.target.value)); setVisitPhoneError(''); }}
+                    className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${visitPhoneError ? 'ring-2 ring-red-300' : 'focus:ring-brand/30'}`}
                   />
+                  {visitPhoneError && <p className="text-xs text-red-500 mt-1">{visitPhoneError}</p>}
                 </div>
               </div>
               <div>
@@ -472,10 +511,11 @@ export default function ListingDetail() {
                   id="req-phone"
                   type="tel"
                   value={reqPhone}
-                  onChange={(e) => setReqPhone(e.target.value)}
-                  className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
-                  placeholder="Enter your phone number"
+                  onChange={(e) => { setReqPhone(formatIndianPhoneInput(e.target.value)); setReqPhoneError(''); }}
+                  className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${reqPhoneError ? 'ring-2 ring-red-300' : 'focus:ring-brand/30'}`}
+                  placeholder="+91 98765 43210"
                 />
+                {reqPhoneError && <p className="text-xs text-red-500 mt-1">{reqPhoneError}</p>}
               </div>
               <div>
                 <label htmlFor="req-occupation" className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Occupation</label>
@@ -908,132 +948,7 @@ export default function ListingDetail() {
                   </form>
                 )}
               </div>
-            ) : user?.role === 'owner' ? null : (
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-brand/10 flex-shrink-0">
-                  <i className="ri-calendar-schedule-line text-xl text-brand" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-charcoal">Schedule a Visit</h2>
-                  <p className="text-xs text-charcoal/40 mt-0.5">Book a time to tour this property in person</p>
-                </div>
-              </div>
-
-              {/* How it works steps */}
-              <div className="grid grid-cols-3 gap-3 mb-5">
-                {[
-                  { step: '1', icon: 'ri-calendar-line', label: 'Pick a date & time', color: 'bg-brand/10 text-brand' },
-                  { step: '2', icon: 'ri-user-line', label: 'Share your details', color: 'bg-teal-50 text-teal-600' },
-                  { step: '3', icon: 'ri-home-smile-line', label: 'Tour the property', color: 'bg-green-50 text-green-600' },
-                ].map((s) => (
-                  <div key={s.step} className="flex flex-col items-center text-center gap-2.5 p-4 bg-offwhite rounded-2xl">
-                    <div className={`w-11 h-11 flex items-center justify-center rounded-xl ${s.color}`}>
-                      <i className={`${s.icon} text-lg`} />
-                    </div>
-                    <p className="text-xs text-charcoal/60 leading-snug">{s.label}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Availability chips */}
-              <div className="mb-5">
-                <p className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-2">Available this week</p>
-                <div className="flex flex-wrap gap-2">
-                  {['Mon, Apr 28', 'Tue, Apr 29', 'Wed, Apr 30', 'Thu, May 1', 'Sat, May 3'].map((day) => (
-                    <span key={day} className="px-3 py-1.5 bg-brand/10 text-brand text-xs font-semibold rounded-full">
-                      {day}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Landlord note */}
-              <div className="flex items-center gap-3 p-3 bg-offwhite rounded-xl mb-5">
-                <img src={listing.landlord_avatar} alt={listing.landlord_name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-charcoal">{listing.landlord_name}</p>
-                  <p className="text-xs text-charcoal/40 mt-0.5">Usually responds within 2 hours</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-green-600 font-semibold flex-shrink-0">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  Active
-                </div>
-              </div>
-
-              {hasApprovedRequest ? (
-                <>
-                  <button
-                    onClick={() => setVisitOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 bg-brand text-white text-sm font-semibold px-4 py-3 rounded-full hover:bg-brand-dark transition-colors cursor-pointer whitespace-nowrap"
-                  >
-                    <i className="ri-calendar-check-line" />
-                    Book a Visit
-                  </button>
-                  <p className="text-xs text-center text-charcoal/40 mt-2">Free · No commitment required</p>
-                </>
-              ) : hasPendingRequest ? (
-                <div className="space-y-2">
-                  <div className="w-full flex items-center justify-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm font-semibold px-4 py-3 rounded-full whitespace-nowrap">
-                    <i className="ri-time-line" />
-                    Request Pending — Visit Locked
-                  </div>
-                  <p className="text-xs text-center text-charcoal/40">Owner will review your request. Once approved, you can schedule a visit.</p>
-                </div>
-              ) : hasDeclinedRequest ? (
-                <div className="space-y-2">
-                  <div className="w-full flex items-center justify-center gap-2 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold px-4 py-3 rounded-full whitespace-nowrap">
-                    <i className="ri-close-circle-line" />
-                    Request Declined
-                  </div>
-                  <p className="text-xs text-center text-charcoal/40">This owner did not approve your request. Browse other listings.</p>
-                </div>
-              ) : user ? (
-                <div className="space-y-2">
-                  <button
-                    onClick={() => {
-                      if (brokerReport.isSoftBlocked) {
-                        setSoftBlockModalOpen(true);
-                        return;
-                      }
-                      if (!contactRate.canSend) {
-                        setRateLimitError(contactRate.limitReason || 'Contact limit reached.');
-                        return;
-                      }
-                      setRequestOpen(true);
-                    }}
-                    className={`w-full flex items-center justify-center gap-2 text-sm font-semibold px-4 py-3 rounded-full transition-colors cursor-pointer whitespace-nowrap ${
-                      brokerReport.isSoftBlocked || !contactRate.canSend
-                        ? 'bg-lightgray text-charcoal/40 cursor-not-allowed'
-                        : 'bg-brand text-white hover:bg-brand-dark'
-                    }`}
-                    disabled={brokerReport.isSoftBlocked || !contactRate.canSend}
-                  >
-                    <i className="ri-user-add-line mr-2" />
-                    {brokerReport.isSoftBlocked ? 'Account Restricted' : contactRate.canSend ? 'Request to Connect First' : 'Limit Reached'}
-                  </button>
-                  <p className="text-xs text-center text-charcoal/40">
-                    {brokerReport.isSoftBlocked
-                      ? 'Your account has been restricted. Open Account Restricted to resolve.'
-                      : contactRate.canSend
-                        ? 'Send a request. Once approved, you can book a visit.'
-                        : contactRate.limitReason}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Link
-                    to="/login"
-                    className="w-full flex items-center justify-center gap-2 bg-brand text-white text-sm font-semibold px-4 py-3 rounded-full hover:bg-brand-dark transition-colors whitespace-nowrap"
-                  >
-                    <i className="ri-login-circle-line" />
-                    Sign In to Connect
-                  </Link>
-                  <p className="text-xs text-center text-charcoal/40">Create an account to send requests and book visits</p>
-                </div>
-              )}
-            </div>
-            )}
+            ) : null}
 
             {/* Similar Listings */}
             {similarListings.length > 0 && (
@@ -1166,6 +1081,33 @@ export default function ListingDetail() {
                     Sign In to Book
                   </Link>
                 )
+              ) : hasApprovedRequest ? (
+                <button
+                  disabled
+                  className="w-full flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm font-semibold px-4 py-3 rounded-full cursor-not-allowed whitespace-nowrap"
+                >
+                  <i className="ri-checkbox-circle-line" />
+                  Request Approved
+                </button>
+              ) : hasPendingRequest ? (
+                <div className="space-y-1.5">
+                  <button
+                    disabled
+                    className="w-full flex items-center justify-center gap-2 bg-lightgray text-charcoal/40 text-sm font-semibold px-4 py-3 rounded-full cursor-not-allowed whitespace-nowrap"
+                  >
+                    <i className="ri-time-line" />
+                    Request Sent
+                  </button>
+                  <p className="text-xs text-center text-charcoal/40">Waiting for the owner to respond.</p>
+                </div>
+              ) : hasDeclinedRequest ? (
+                <button
+                  disabled
+                  className="w-full flex items-center justify-center gap-2 bg-lightgray text-charcoal/40 text-sm font-semibold px-4 py-3 rounded-full cursor-not-allowed whitespace-nowrap"
+                >
+                  <i className="ri-close-circle-line" />
+                  Request Declined
+                </button>
               ) : (
                 user ? (
                   <button
@@ -1220,7 +1162,15 @@ export default function ListingDetail() {
 
               <div className="mt-4 pt-4 border-t border-black/5 space-y-2">
                 {!isVacation && user?.role !== 'owner' && (
-                  hasApprovedRequest ? (
+                  hasActiveVisitRequest ? (
+                    <div className="space-y-1">
+                      <div className="w-full flex items-center justify-center gap-2 bg-lightgray text-charcoal/40 text-sm font-semibold px-4 py-2.5 rounded-full whitespace-nowrap cursor-not-allowed">
+                        <i className="ri-calendar-check-line text-sm" />
+                        Visit Requested
+                      </div>
+                      <p className="text-xs text-center text-charcoal/40">Waiting for the owner to confirm your visit.</p>
+                    </div>
+                  ) : hasApprovedRequest ? (
                     <button
                       onClick={() => setVisitOpen(true)}
                       className="w-full flex items-center justify-center gap-2 bg-brand/10 text-brand text-sm font-semibold px-4 py-2.5 rounded-full hover:bg-brand/20 transition-colors cursor-pointer whitespace-nowrap"

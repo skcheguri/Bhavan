@@ -3,6 +3,8 @@ import {
   isValidName,
   isValidEmail,
   isValidIndianPhone,
+  isValidRawIndianMobile,
+  hasFakeDigitPattern,
   formatIndianPhoneInput,
   isValidAadhaarFormat,
   isValidAadhaarChecksum,
@@ -41,12 +43,57 @@ describe("isValidEmail", () => {
 
 describe("isValidIndianPhone", () => {
   it("accepts the exact '+91 XXXXX XXXXX' format", () => {
-    expect(isValidIndianPhone("+91 98765 43210")).toBe(true);
+    expect(isValidIndianPhone("+91 98234 51670")).toBe(true);
   });
 
   it("rejects unformatted or partial numbers", () => {
     expect(isValidIndianPhone("9876543210")).toBe(false);
     expect(isValidIndianPhone("+919876543210")).toBe(false);
+  });
+
+  it("rejects a number where every digit is the same", () => {
+    expect(isValidIndianPhone("+91 99999 99999")).toBe(false);
+  });
+
+  it("rejects an ascending or descending sequence", () => {
+    expect(isValidIndianPhone("+91 91234 56789")).toBe(false);
+    expect(isValidIndianPhone("+91 98765 43210")).toBe(false);
+  });
+
+  it("rejects a number with 5+ repeated digits in a row", () => {
+    expect(isValidIndianPhone("+91 98111 11234")).toBe(false);
+  });
+
+  it("rejects numbers that don't start with 6-9 (not a real Indian mobile prefix)", () => {
+    expect(isValidIndianPhone("+91 12345 67890")).toBe(false);
+  });
+});
+
+describe("isValidRawIndianMobile", () => {
+  it("accepts a genuine 10-digit mobile number", () => {
+    expect(isValidRawIndianMobile("9823451670")).toBe(true);
+  });
+
+  it("rejects fake patterns and wrong-length input", () => {
+    expect(isValidRawIndianMobile("1111111111")).toBe(false);
+    expect(isValidRawIndianMobile("1234567890")).toBe(false);
+    expect(isValidRawIndianMobile("987654321")).toBe(false); // only 9 digits
+    expect(isValidRawIndianMobile("5198234516")).toBe(false); // doesn't start 6-9
+  });
+});
+
+describe("hasFakeDigitPattern", () => {
+  it("flags all-identical digits", () => {
+    expect(hasFakeDigitPattern("1111111111")).toBe(true);
+  });
+
+  it("flags a full ascending or descending run", () => {
+    expect(hasFakeDigitPattern("1234567890")).toBe(true);
+    expect(hasFakeDigitPattern("9876543210")).toBe(true);
+  });
+
+  it("does not flag a genuinely mixed number", () => {
+    expect(hasFakeDigitPattern("9823451670")).toBe(false);
   });
 });
 

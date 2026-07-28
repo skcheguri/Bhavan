@@ -144,7 +144,7 @@ export default function AadhaarVerify() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center">
         <i className="ri-loader-4-line animate-spin text-3xl text-brand" />
       </div>
     );
@@ -152,7 +152,7 @@ export default function AadhaarVerify() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20 px-4">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl p-8 border border-black/5 max-w-sm w-full text-center">
           <div className="w-14 h-14 flex items-center justify-center rounded-full bg-brand/10 mx-auto mb-4">
             <i className="ri-shield-user-line text-2xl text-brand" />
@@ -172,7 +172,7 @@ export default function AadhaarVerify() {
 
   if (user.verified) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20 px-4">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl p-8 border border-black/5 max-w-sm w-full text-center">
           <div className="w-16 h-16 flex items-center justify-center rounded-full bg-green-50 mx-auto mb-4">
             <i className="ri-checkbox-circle-fill text-4xl text-green-500" />
@@ -193,7 +193,7 @@ export default function AadhaarVerify() {
   }
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       {/* Breadcrumb */}
       <div className="w-full px-4 md:px-8 lg:px-12 pt-6">
         <div className="max-w-5xl mx-auto">

@@ -7,17 +7,10 @@ import { useRentalAgreements, generateAgreementNumber } from '@/hooks/useRentalA
 import { buildRentalAgreementHtml, type RentalAgreementData } from '@/lib/documents/rentalAgreementDocument';
 import { RENTAL_AGREEMENT_CLAUSES } from '@/lib/content/rentalAgreementClauses';
 import { useToast } from '@/hooks/useToast';
+import { viewDocument } from '@/lib/viewDocument';
+import { isValidIndianPhone, formatIndianPhoneInput } from '@/lib/validation';
 
 const PAYMENT_MODES = ['Bank Transfer (NEFT/IMPS)', 'UPI', 'Cheque', 'Cash'];
-
-function printHtml(html: string) {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return;
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => printWindow.print(), 300);
-}
 
 export default function RentalAgreementsPage() {
   const { user } = useAuth();
@@ -35,6 +28,7 @@ export default function RentalAgreementsPage() {
   const [selectedClauses, setSelectedClauses] = useState<Set<number>>(new Set(RENTAL_AGREEMENT_CLAUSES.map((_, i) => i)));
   const [submitting, setSubmitting] = useState(false);
   const [viewingAgreementId, setViewingAgreementId] = useState<string | null>(null);
+  const [tenantPhoneError, setTenantPhoneError] = useState('');
 
   const [form, setForm] = useState({
     tenantName: '', tenantAddress: '', tenantPhone: '', tenantEmail: '', tenantPan: '', tenantAadhaarMasked: '',
@@ -101,7 +95,10 @@ export default function RentalAgreementsPage() {
 
   const previewHtml = useMemo(() => buildRentalAgreementHtml(previewData), [previewData]);
 
-  const canGenerate = Boolean(selectedListingId && form.tenantName.trim() && form.leaseStartDate && form.leaseEndDate);
+  const canGenerate = Boolean(
+    selectedListingId && form.tenantName.trim() && form.leaseStartDate && form.leaseEndDate &&
+    (!form.tenantPhone || isValidIndianPhone(form.tenantPhone))
+  );
 
   const handleGenerate = async () => {
     if (!user || !canGenerate) return;
@@ -126,7 +123,7 @@ export default function RentalAgreementsPage() {
 
   if (!isOwner) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-bold text-charcoal mb-2">Owners only</h2>
           <p className="text-charcoal/60 text-sm mb-6">The rental agreement generator is available to property owners.</p>
@@ -137,7 +134,7 @@ export default function RentalAgreementsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-[1440px] mx-auto px-4 md:px-8">
         <div className="mb-6">
           <Link to="/owner-profile" className="text-xs text-charcoal/40 hover:text-charcoal transition-colors">← Owner Profile</Link>
@@ -219,7 +216,15 @@ export default function RentalAgreementsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">Phone</label>
-                    <input type="tel" value={form.tenantPhone} onChange={(e) => setField('tenantPhone', e.target.value)} className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                    <input
+                      type="tel"
+                      value={form.tenantPhone}
+                      onChange={(e) => { setField('tenantPhone', formatIndianPhoneInput(e.target.value)); setTenantPhoneError(''); }}
+                      onBlur={() => setTenantPhoneError(form.tenantPhone && !isValidIndianPhone(form.tenantPhone) ? 'Enter a valid 10-digit Indian mobile number.' : '')}
+                      placeholder="+91 98765 43210"
+                      className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${tenantPhoneError ? 'ring-2 ring-red-300' : 'focus:ring-amber-300'}`}
+                    />
+                    {tenantPhoneError && <p className="text-xs text-red-500 mt-1">{tenantPhoneError}</p>}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">Email</label>
@@ -337,7 +342,7 @@ export default function RentalAgreementsPage() {
               <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
                 <div className="p-4 border-b border-black/5 flex items-center justify-between">
                   <h2 className="text-sm font-bold text-charcoal">Live Preview</h2>
-                  <button onClick={() => printHtml(previewHtml)} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
+                  <button onClick={() => viewDocument(previewHtml)} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
                     <i className="ri-printer-line" /> Print
                   </button>
                 </div>
@@ -398,7 +403,7 @@ export default function RentalAgreementsPage() {
               <div className="p-4 border-b border-black/5 flex items-center justify-between flex-shrink-0">
                 <h3 className="text-sm font-bold text-charcoal">{viewingAgreement.agreementNumber}</h3>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => printHtml(buildRentalAgreementHtml(viewingAgreement))} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
+                  <button onClick={() => viewDocument(buildRentalAgreementHtml(viewingAgreement))} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
                     <i className="ri-printer-line" /> Print
                   </button>
                   <button onClick={() => setViewingAgreementId(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-lightgray transition-colors cursor-pointer">

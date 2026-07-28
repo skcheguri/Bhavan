@@ -6,22 +6,18 @@ import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 import { useTenantRentReceipts } from '@/hooks/useRentReceipts';
 import { buildRentalAgreementHtml } from '@/lib/documents/rentalAgreementDocument';
 import { buildRentReceiptHtml } from '@/lib/documents/rentReceiptDocument';
+import { viewDocument } from '@/lib/viewDocument';
 import RequestsTab from './RequestsTab';
 
 type SubTab = 'requests' | 'documents' | 'payments';
 
-function printHtml(html: string) {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return;
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => printWindow.print(), 300);
+interface Props {
+  initialSubTab?: SubTab;
 }
 
-export default function RentManagementTab() {
+export default function RentManagementTab({ initialSubTab }: Props) {
   const { user } = useAuth();
-  const [subTab, setSubTab] = useState<SubTab>('requests');
+  const [subTab, setSubTab] = useState<SubTab>(initialSubTab ?? 'requests');
 
   const { tenantPayments, mandates: userMandates, getMandateForTenant } = useRentPayment();
   const { agreements, loading: agreementsLoading } = useTenantRentalAgreements(user?.id);
@@ -89,7 +85,7 @@ export default function RentManagementTab() {
                       <p className="text-xs text-charcoal/40 mt-0.5">{a.leaseStartDate} to {a.leaseEndDate} · ₹{a.monthlyRent.toLocaleString('en-IN')}/mo</p>
                     </div>
                     <button
-                      onClick={() => printHtml(buildRentalAgreementHtml(a))}
+                      onClick={() => viewDocument(buildRentalAgreementHtml(a))}
                       className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-brand/40 hover:text-brand transition-colors cursor-pointer whitespace-nowrap"
                     >
                       <i className="ri-eye-line text-xs" /> View
@@ -124,7 +120,7 @@ export default function RentManagementTab() {
                       <p className="text-xs text-charcoal/40 mt-0.5">₹{r.rentAmount.toLocaleString('en-IN')}</p>
                     </div>
                     <button
-                      onClick={() => printHtml(buildRentReceiptHtml(r))}
+                      onClick={() => viewDocument(buildRentReceiptHtml(r))}
                       className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-brand/40 hover:text-brand transition-colors cursor-pointer whitespace-nowrap"
                     >
                       <i className="ri-eye-line text-xs" /> View

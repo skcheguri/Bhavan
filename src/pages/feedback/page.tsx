@@ -1,6 +1,4 @@
 import { useState, useMemo } from 'react';
-import Navbar from '@/components/feature/Navbar';
-import Footer from '@/components/feature/Footer';
 import { useReviews } from '@/hooks/useReviews';
 import ReviewCard from './components/ReviewCard';
 import FeedbackModal from './components/FeedbackModal';
@@ -43,10 +41,8 @@ export default function FeedbackPage() {
 
   return (
     <div className="min-h-screen bg-offwhite">
-      <Navbar />
-
       {/* Hero */}
-      <section className="relative pt-24 pb-16 md:pt-32 md:pb-20 overflow-hidden">
+      <section className="relative pt-8 pb-16 md:pt-12 md:pb-20 overflow-hidden">
         <div className="absolute inset-0">
           <img
             src="/placeholders/photo.svg"
@@ -281,8 +277,6 @@ export default function FeedbackPage() {
           </div>
         </div>
       </section>
-
-      <Footer />
 
       {modalRole && (
         <FeedbackModal

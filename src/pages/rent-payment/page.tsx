@@ -2,21 +2,19 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useRentPayment } from '@/hooks/useRentPayment';
+import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 import { useToast } from '@/hooks/useToast';
-import UPIQRModal from './components/UPIQRModal';
-import AutoPaySetupModal from './components/AutoPaySetupModal';
+import { getSupabase, functionErrorMessage } from '@/lib/supabase';
+import { loadRazorpayScript } from '@/lib/razorpay';
 import FailureBanner from './components/FailureBanner';
 import ReconciliationPanel from './components/ReconciliationPanel';
 
-type PaymentTab = 'autopay' | 'upiqr' | 'bank' | 'offline' | 'history' | 'reconcile';
+type PaymentTab = 'pay' | 'autopay' | 'offline' | 'history' | 'reconcile';
 
 const paymentModeLabels: Record<string, string> = {
   upi_autopay: 'UPI AutoPay',
-  upi_qr: 'UPI QR',
-  bank_transfer: 'Bank Transfer',
+  razorpay: 'Online Payment',
   cash: 'Cash',
-  cheque: 'Cheque',
-  razorpay_recurring: 'Razorpay Recurring',
 };
 
 const statusBadges: Record<string, string> = {
@@ -37,28 +35,29 @@ const statusLabels: Record<string, string> = {
 
 export default function RentPayment() {
   const { user } = useAuth();
-  const { payments, mandates, tenantPayments, hasFailedPayment, getMandateForTenant, retryPayment, createPayment, refresh } = useRentPayment();
+  const { payments, mandates, tenantPayments, hasFailedPayment, getMandateForTenant, createPayment, refresh } = useRentPayment();
   const { addToast } = useToast();
   const isTenant = user?.role === 'tenant';
   const isOwner = user?.role === 'owner';
   const profileLink = isTenant ? '/tenant-profile' : isOwner ? '/owner-profile' : '/';
   const profileLabel = isTenant ? 'Tenant Profile' : isOwner ? 'Owner Profile' : 'Home';
 
-  const [activeTab, setActiveTab] = useState<PaymentTab>('upiqr');
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [showAutoPayModal, setShowAutoPayModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<PaymentTab>('pay');
+  const [payStatus, setPayStatus] = useState<'idle' | 'opening' | 'verifying' | 'failed'>('idle');
+  const [payError, setPayError] = useState<string | null>(null);
   const [showReconcilePanel, setShowReconcilePanel] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [monthFilter, setMonthFilter] = useState<string>('all');
   const [offlineReceipt, setOfflineReceipt] = useState('');
   const [offlineDate, setOfflineDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Mock tenant data (in real app, from tenant record)
-  const rentAmount = 2200000; // ₹22,000 in paise
-  const propertyName = 'Prestige Towers';
-  const flatNumber = 'B-204';
-  const landlordVpa = 'suresh.patel@okaxis';
-  const dueDay = 1;
+  const { agreements: rentalAgreements } = useTenantRentalAgreements(user?.id);
+  const activeAgreement = rentalAgreements[0] ?? null;
+  const rentAmount = activeAgreement?.monthlyRent ?? 0; // rupees
+  const propertyName = activeAgreement?.propertyAddress || 'Your property';
+  const flatNumber = activeAgreement?.flatNumber ?? '';
+  const landlordName = activeAgreement?.landlordName || 'Your landlord';
+  const dueDay = activeAgreement?.rentDueDay || 5;
   const today = new Date();
   const daysUntilDue = dueDay - today.getDate() > 0 ? dueDay - today.getDate() : 30 + dueDay - today.getDate();
 
@@ -75,29 +74,21 @@ export default function RentPayment() {
     return true;
   });
 
-  const handleRetry = async (paymentId: string) => {
-    const { data, error } = await retryPayment(paymentId);
-    if (error) {
-      addToast(error, 'error');
-      return;
-    }
-    if (data) {
-      addToast('Payment retry initiated', 'success');
-      await refresh();
-    }
-  };
-
   const handleLogOffline = async () => {
     if (!offlineReceipt.trim()) {
       addToast('Please enter a receipt or reference number', 'error');
       return;
     }
     if (!user) return;
+    if (!activeAgreement) {
+      addToast('No rental agreement found for your account yet.', 'error');
+      return;
+    }
     const { data, error } = await createPayment({
       tenant_id: user.id,
-      property_id: 'p1',
-      owner_id: 'mock-owner-001',
-      amount: rentAmount,
+      owner_id: activeAgreement.ownerId,
+      agreement_id: activeAgreement.id,
+      amount: Math.round(rentAmount * 100),
       month: formatMonthKey(new Date(offlineDate)),
       payment_mode: 'cash',
       transaction_ref: offlineReceipt,
@@ -111,43 +102,89 @@ export default function RentPayment() {
     await refresh();
   };
 
-  const handleQRPaid = async () => {
-    if (!user) return;
-    const { data, error } = await createPayment({
-      tenant_id: user.id,
-      property_id: 'p1',
-      owner_id: 'mock-owner-001',
-      amount: rentAmount,
-      month: formatMonthKey(new Date()),
-      payment_mode: 'upi_qr',
-      transaction_ref: `UPI/QR/${Date.now()}`,
-    });
-    if (error) {
-      addToast(error, 'error');
+  const handlePayNow = async (monthOverride?: string) => {
+    if (!activeAgreement) return;
+    const supabase = getSupabase();
+    if (!supabase) {
+      setPayStatus('failed');
+      setPayError('Payments are not available right now.');
       return;
     }
-    addToast('Rent payment successful!', 'success');
-    setShowQRModal(false);
-    await refresh();
+
+    setPayStatus('opening');
+    setPayError(null);
+
+    const month = monthOverride || formatMonthKey(new Date());
+    const { data: orderData, error: orderError } = await supabase.functions.invoke('create-rent-payment-order', {
+      body: { agreementId: activeAgreement.id, month },
+    });
+
+    if (orderError || !orderData?.orderId) {
+      setPayStatus('failed');
+      setPayError((await functionErrorMessage(orderError)) || 'Could not start this payment. Please try again.');
+      return;
+    }
+
+    const scriptLoaded = await loadRazorpayScript();
+    if (!scriptLoaded || !window.Razorpay) {
+      setPayStatus('failed');
+      setPayError('Could not load the payment window. Check your connection and try again.');
+      return;
+    }
+
+    const razorpay = new window.Razorpay({
+      key: orderData.keyId,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      order_id: orderData.orderId,
+      name: 'Bhavan',
+      description: `Rent — ${month}`,
+      prefill: {
+        name: orderData.tenantName,
+        email: orderData.tenantEmail,
+      },
+      theme: { color: '#f59e0b' },
+      handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+        setPayStatus('verifying');
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-rent-payment', {
+          body: {
+            paymentRowId: orderData.paymentRowId,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          },
+        });
+        if (verifyError || !verifyData?.success) {
+          setPayStatus('failed');
+          setPayError((await functionErrorMessage(verifyError)) || 'We could not confirm this payment. If money was deducted, it will reconcile shortly — contact your landlord if it does not.');
+          return;
+        }
+        setPayStatus('idle');
+        addToast('Rent payment successful!', 'success');
+        await refresh();
+      },
+      modal: {
+        ondismiss: () => setPayStatus('idle'),
+      },
+    });
+    razorpay.open();
   };
 
-  const handleAutoPaySetup = async (upiId: string, bank: string) => {
-    setShowAutoPayModal(false);
-    addToast(`UPI AutoPay activated with ${upiId}`, 'success');
-    await refresh();
+  const handleRetryPayment = (month: string) => {
+    setActiveTab('pay');
+    handlePayNow(month);
   };
 
   const tabs: { id: PaymentTab; label: string; icon: string; show: boolean }[] = [
-    { id: 'upiqr', label: 'UPI QR', icon: 'ri-qr-code-line', show: true },
+    { id: 'pay', label: 'Pay Rent', icon: 'ri-bank-card-line', show: true },
     { id: 'autopay', label: 'UPI AutoPay', icon: 'ri-repeat-line', show: true },
-    { id: 'bank', label: 'Bank Transfer', icon: 'ri-exchange-line', show: true },
-    { id: 'offline', label: 'Offline', icon: 'ri-money-rupee-circle-line', show: true },
+    { id: 'offline', label: 'Cash Payment', icon: 'ri-money-rupee-circle-line', show: true },
     { id: 'history', label: 'History', icon: 'ri-history-line', show: true },
     { id: 'reconcile', label: 'Reconcile', icon: 'ri-bank-line', show: isOwner },
   ];
 
   return (
-    <div className="min-h-screen bg-offwhite pt-20 pb-16">
+    <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-5xl mx-auto px-4 md:px-8">
 
         {/* Breadcrumb */}
@@ -164,13 +201,13 @@ export default function RentPayment() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-charcoal">Rent Payment</h1>
-              <p className="text-sm text-charcoal/60 mt-1">Pay your rent securely via UPI, bank transfer, or offline methods</p>
+              <p className="text-sm text-charcoal/60 mt-1">Pay your rent online, set up AutoPay, or log a cash payment</p>
             </div>
             {isTenant && (
               <div className="flex items-center gap-3">
                 <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-100">
                   <p className="text-xs text-charcoal/40 uppercase tracking-wide">Due in {daysUntilDue} days</p>
-                  <p className="text-xl font-black text-charcoal">₹{(rentAmount / 100).toLocaleString('en-IN')}</p>
+                  <p className="text-xl font-black text-charcoal">₹{rentAmount.toLocaleString('en-IN')}</p>
                 </div>
               </div>
             )}
@@ -191,8 +228,8 @@ export default function RentPayment() {
             <div className="mt-5">
               <FailureBanner
                 failureReason={latestFailed.failure_reason ?? 'UPI_TIMEOUT'}
-                onRetry={() => handleRetry(latestFailed.id)}
-                onAlternative={() => setActiveTab('bank')}
+                onRetry={() => handleRetryPayment(latestFailed.month)}
+                onAlternative={() => setActiveTab('pay')}
               />
             </div>
           )}
@@ -210,85 +247,50 @@ export default function RentPayment() {
             >
               <i className={`${tab.icon} text-sm`} />
               {tab.label}
+              {tab.id === 'autopay' && (
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-600'}`}>
+                  SOON
+                </span>
+              )}
             </button>
           ))}
         </div>
 
-        {/* UPI QR Tab */}
-        {activeTab === 'upiqr' && (
+        {/* Pay Rent Tab */}
+        {activeTab === 'pay' && (
           <div className="bg-white rounded-3xl border border-black/5 p-6">
-            <div className="flex flex-col lg:flex-row gap-8">
-              <div className="flex-1">
-                <h2 className="text-base font-bold text-charcoal mb-1">UPI QR Payment</h2>
-                <p className="text-sm text-charcoal/60 mb-5">Scan the QR code with any UPI app to pay instantly</p>
+            <div className="max-w-md mx-auto">
+              <h2 className="text-base font-bold text-charcoal mb-1 text-center">Pay Rent</h2>
+              <p className="text-sm text-charcoal/60 mb-5 text-center">Card, UPI, or netbanking — pick whatever's easiest on the next screen</p>
 
-                <div className="bg-offwhite rounded-2xl p-6 border border-black/5 mb-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-xs text-charcoal/40 uppercase tracking-wide">Property</p>
-                      <p className="text-sm font-bold text-charcoal">{propertyName} · {flatNumber}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-charcoal/40 uppercase tracking-wide">Amount</p>
-                      <p className="text-xl font-black text-charcoal">₹{(rentAmount / 100).toLocaleString('en-IN')}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-charcoal/60">
-                    <span className="flex items-center gap-1"><i className="ri-user-line" /> {isTenant ? user?.name : 'Tenant'}</span>
-                    <span className="flex items-center gap-1"><i className="ri-home-4-line" /> {landlordVpa}</span>
-                  </div>
+              <div className="bg-offwhite rounded-2xl p-6 border border-black/5 mb-5 text-center">
+                <p className="text-xs text-charcoal/40 uppercase tracking-wide mb-1">Amount Due</p>
+                <p className="text-3xl font-black text-charcoal">₹{rentAmount.toLocaleString('en-IN')}</p>
+                <p className="text-xs text-charcoal/60 mt-2">{propertyName}{flatNumber ? ` · ${flatNumber}` : ''}</p>
+                <p className="text-xs text-charcoal/40 mt-0.5">to {landlordName} · due in {daysUntilDue} days</p>
+              </div>
+
+              {payStatus === 'failed' && payError && (
+                <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex items-start gap-2 mb-4">
+                  <i className="ri-error-warning-line text-red-500 text-sm flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-700 leading-relaxed">{payError}</p>
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-3 mb-5">
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-100">
-                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-100">
-                      <i className="ri-shield-check-line text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-charcoal">Instant</p>
-                      <p className="text-[10px] text-charcoal/60">Payment reflects in minutes</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
-                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-100">
-                      <i className="ri-secure-payment-line text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-charcoal">Secure</p>
-                      <p className="text-[10px] text-charcoal/60">Razorpay-encrypted link</p>
-                    </div>
-                  </div>
-                </div>
-
+              {isTenant && !activeAgreement ? (
+                <p className="text-xs text-charcoal/40 text-center py-2">No rental agreement found for your account yet — ask your landlord to share one before paying rent.</p>
+              ) : (
                 <button
-                  onClick={() => setShowQRModal(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer whitespace-nowrap"
+                  onClick={() => handlePayNow()}
+                  disabled={!activeAgreement || payStatus === 'opening' || payStatus === 'verifying'}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark disabled:opacity-50 transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  <i className="ri-qr-code-line text-sm" /> Generate QR Code
+                  {payStatus === 'opening' && <><i className="ri-loader-4-line animate-spin" /> Opening payment window…</>}
+                  {payStatus === 'verifying' && <><i className="ri-loader-4-line animate-spin" /> Confirming payment…</>}
+                  {(payStatus === 'idle' || payStatus === 'failed') && <><i className="ri-secure-payment-line" /> Pay Rent Now</>}
                 </button>
-              </div>
-
-              <div className="lg:w-72">
-                <div className="bg-offwhite rounded-2xl p-5 border border-black/5 h-full">
-                  <h3 className="text-sm font-bold text-charcoal mb-4">Supported UPI Apps</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Google Pay', 'PhonePe', 'Paytm', 'BHIM', 'Amazon Pay', 'Samsung Pay'].map((app) => (
-                      <div key={app} className="flex items-center gap-2 p-2 rounded-lg bg-white border border-black/5">
-                        <div className="w-6 h-6 flex items-center justify-center">
-                          <i className="ri-smartphone-line text-sm text-charcoal/60" />
-                        </div>
-                        <span className="text-xs font-medium text-charcoal">{app}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-5 bg-amber-50 rounded-xl p-3 flex items-start gap-2">
-                    <i className="ri-information-line text-amber-500 text-sm flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-700 leading-relaxed">
-                      QR codes expire after 24 hours for security. You can generate a new one anytime.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              )}
+              <p className="text-xs text-charcoal/40 text-center mt-3">Secured by Razorpay</p>
             </div>
           </div>
         )}
@@ -350,41 +352,19 @@ export default function RentPayment() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="bg-offwhite rounded-2xl p-6 border border-black/5 text-center">
-                      <div className="w-16 h-16 mx-auto rounded-full bg-brand/10 flex items-center justify-center mb-4">
-                        <i className="ri-repeat-line text-brand text-2xl" />
-                      </div>
-                      <h3 className="text-base font-bold text-charcoal mb-1">No AutoPay Set Up</h3>
-                      <p className="text-sm text-charcoal/60 mb-5">Activate UPI AutoPay to never miss a rent payment again.</p>
-                      <button
-                        onClick={() => setShowAutoPayModal(true)}
-                        className="px-6 py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer whitespace-nowrap"
-                      >
-                        Setup UPI AutoPay
-                      </button>
+                  <div className="bg-offwhite rounded-2xl p-6 border border-black/5 text-center">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-brand/10 flex items-center justify-center mb-4">
+                      <i className="ri-repeat-line text-brand text-2xl" />
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { icon: 'ri-calendar-check-line', label: 'Auto-debit on 1st', color: 'text-brand' },
-                        { icon: 'ri-notification-off-line', label: 'No reminders needed', color: 'text-amber-600' },
-                        { icon: 'ri-shield-check-line', label: 'Bank-grade security', color: 'text-green-600' },
-                      ].map((item) => (
-                        <div key={item.label} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-lightgray">
-                          <div className="w-8 h-8 flex items-center justify-center">
-                            <i className={`${item.icon} text-lg ${item.color}`} />
-                          </div>
-                          <p className="text-xs text-center text-charcoal/70 leading-tight">{item.label}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <h3 className="text-base font-bold text-charcoal mb-1">Coming Soon</h3>
+                    <p className="text-sm text-charcoal/60">UPI AutoPay isn't available yet — for now, pay each month from the Pay Rent tab. We'll let you know when automatic monthly debit is ready.</p>
                   </div>
                 )}
               </div>
 
               <div className="lg:w-72">
                 <div className="bg-offwhite rounded-2xl p-5 border border-black/5">
-                  <h3 className="text-sm font-bold text-charcoal mb-3">How It Works</h3>
+                  <h3 className="text-sm font-bold text-charcoal mb-3">How It Will Work</h3>
                   <div className="space-y-3">
                     {[
                       { step: '1', text: 'Enter your UPI ID and select bank' },
@@ -405,135 +385,43 @@ export default function RentPayment() {
           </div>
         )}
 
-        {/* Bank Transfer Tab */}
-        {activeTab === 'bank' && (
-          <div className="bg-white rounded-3xl border border-black/5 p-6">
-            <div className="flex flex-col lg:flex-row gap-8">
-              <div className="flex-1">
-                <h2 className="text-base font-bold text-charcoal mb-1">Bank Transfer</h2>
-                <p className="text-sm text-charcoal/60 mb-5">Transfer rent via NEFT, RTGS, or IMPS to your landlord's account</p>
-
-                <div className="bg-offwhite rounded-2xl p-6 border border-black/5 space-y-4">
-                  <div className="flex items-center justify-between pb-4 border-b border-black/5">
-                    <span className="text-xs text-charcoal/40 uppercase tracking-wide">Account Holder</span>
-                    <span className="text-sm font-semibold text-charcoal">Suresh Patel</span>
-                  </div>
-                  <div className="flex items-center justify-between pb-4 border-b border-black/5">
-                    <span className="text-xs text-charcoal/40 uppercase tracking-wide">Bank Name</span>
-                    <span className="text-sm font-semibold text-charcoal">Axis Bank</span>
-                  </div>
-                  <div className="flex items-center justify-between pb-4 border-b border-black/5">
-                    <span className="text-xs text-charcoal/40 uppercase tracking-wide">Account Number</span>
-                    <span className="text-sm font-semibold text-charcoal">XXXX XXXX 4521</span>
-                  </div>
-                  <div className="flex items-center justify-between pb-4 border-b border-black/5">
-                    <span className="text-xs text-charcoal/40 uppercase tracking-wide">IFSC Code</span>
-                    <span className="text-sm font-semibold text-charcoal">UTIB0001234</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-charcoal/40 uppercase tracking-wide">Branch</span>
-                    <span className="text-sm font-semibold text-charcoal">Koramangala, Bangalore</span>
-                  </div>
-                </div>
-
-                <div className="mt-5 bg-amber-50 rounded-xl p-4 flex items-start gap-3 border border-amber-100">
-                  <i className="ri-lightbulb-line text-amber-500 text-sm flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-semibold text-amber-800 mb-1">Transfer Tips</p>
-                    <ul className="space-y-1">
-                      {['Use your flat number as reference (e.g., B-204)', 'NEFT/IMPS usually clears within 30 minutes', 'Keep the transaction screenshot for records'].map((tip) => (
-                        <li key={tip} className="text-xs text-amber-700 leading-relaxed">• {tip}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="lg:w-72">
-                <div className="bg-offwhite rounded-2xl p-5 border border-black/5">
-                  <h3 className="text-sm font-bold text-charcoal mb-3">Transfer Methods</h3>
-                  <div className="space-y-3">
-                    {[
-                      { name: 'NEFT', desc: '2-4 hours, any amount', icon: 'ri-bank-line' },
-                      { name: 'IMPS', desc: 'Instant, up to ₹5L', icon: 'ri-flashlight-line' },
-                      { name: 'RTGS', desc: 'Instant, ₹2L+ only', icon: 'ri-arrow-right-up-line' },
-                    ].map((method) => (
-                      <div key={method.name} className="flex items-center gap-3 p-3 rounded-xl bg-white border border-black/5">
-                        <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-brand/10">
-                          <i className={`${method.icon} text-sm text-brand`} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-charcoal">{method.name}</p>
-                          <p className="text-[10px] text-charcoal/60">{method.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Offline Tab */}
         {activeTab === 'offline' && (
           <div className="bg-white rounded-3xl border border-black/5 p-6">
-            <h2 className="text-base font-bold text-charcoal mb-1">Offline Payment</h2>
-            <p className="text-sm text-charcoal/60 mb-5">Log cash or cheque payments for record-keeping</p>
+            <h2 className="text-base font-bold text-charcoal mb-1">Log a Cash Payment</h2>
+            <p className="text-sm text-charcoal/60 mb-5">Record rent paid in person so it shows up in your payment history</p>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div className="bg-offwhite rounded-2xl p-5 border border-black/5">
-                  <div className="mb-4">
-                    <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Payment Mode</label>
-                    <div className="flex gap-2">
-                      <button className="flex-1 py-2.5 rounded-xl bg-brand text-white text-sm font-medium cursor-pointer whitespace-nowrap">Cash</button>
-                      <button className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-medium text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap">Cheque</button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Receipt / Reference Number</label>
-                    <input
-                      type="text"
-                      value={offlineReceipt}
-                      onChange={(e) => setOfflineReceipt(e.target.value)}
-                      placeholder="e.g., CASH/RECPT/001 or CHQ/ICIC/001234"
-                      className="w-full px-4 py-3 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 border border-black/5"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Payment Date</label>
-                  <input
-                    type="date"
-                    value={offlineDate}
-                    onChange={(e) => setOfflineDate(e.target.value)}
-                    className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 border border-black/5"
-                  />
-                </div>
-                <button
-                  onClick={handleLogOffline}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <i className="ri-save-line text-sm" /> Log Payment
-                </button>
-              </div>
-
+            <div className="max-w-md space-y-4">
               <div className="bg-offwhite rounded-2xl p-5 border border-black/5">
-                <h3 className="text-sm font-bold text-charcoal mb-3">Offline Guidelines</h3>
-                <div className="space-y-3">
-                  {[
-                    { title: 'Cash', desc: 'Get a signed receipt from your landlord with date, amount, and property details.' },
-                    { title: 'Cheque', desc: 'Write the flat number on the back of the cheque. Allow 2-3 working days for clearance.' },
-                    { title: 'Record Keeping', desc: 'Always upload a photo of the receipt or cheque for your rent payment history.' },
-                  ].map((g) => (
-                    <div key={g.title} className="bg-white rounded-xl p-3 border border-black/5">
-                      <p className="text-xs font-bold text-charcoal mb-0.5">{g.title}</p>
-                      <p className="text-xs text-charcoal/60 leading-relaxed">{g.desc}</p>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs text-charcoal/40 uppercase tracking-wide">Amount</span>
+                  <span className="text-lg font-black text-charcoal">₹{rentAmount.toLocaleString('en-IN')}</span>
                 </div>
+                <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Receipt / Reference Number</label>
+                <input
+                  type="text"
+                  value={offlineReceipt}
+                  onChange={(e) => setOfflineReceipt(e.target.value)}
+                  placeholder="e.g., CASH/RECPT/001"
+                  className="w-full px-4 py-3 bg-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 border border-black/5"
+                />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Payment Date</label>
+                <input
+                  type="date"
+                  value={offlineDate}
+                  onChange={(e) => setOfflineDate(e.target.value)}
+                  className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 border border-black/5"
+                />
+              </div>
+              <button
+                onClick={handleLogOffline}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <i className="ri-save-line text-sm" /> Log Payment
+              </button>
+              <p className="text-xs text-charcoal/40 leading-relaxed">Get a signed receipt from your landlord with the date, amount, and property details for your own records.</p>
             </div>
           </div>
         )}
@@ -609,7 +497,7 @@ export default function RentPayment() {
                           <div className="flex items-center gap-2">
                             {p.status === 'failed' && (
                               <button
-                                onClick={() => handleRetry(p.id)}
+                                onClick={() => handleRetryPayment(p.month)}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
                               >
                                 <i className="ri-refresh-line text-sm" /> Retry
@@ -645,23 +533,6 @@ export default function RentPayment() {
         )}
       </div>
 
-      {/* Modals */}
-      {showQRModal && (
-        <UPIQRModal
-          amount={rentAmount}
-          tenantName={user?.name ?? 'Tenant'}
-          landlordVpa={landlordVpa}
-          onClose={() => setShowQRModal(false)}
-          onPaid={handleQRPaid}
-        />
-      )}
-      {showAutoPayModal && (
-        <AutoPaySetupModal
-          rentAmount={rentAmount}
-          onClose={() => setShowAutoPayModal(false)}
-          onSetup={handleAutoPaySetup}
-        />
-      )}
     </div>
   );
 }

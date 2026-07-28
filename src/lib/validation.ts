@@ -11,8 +11,38 @@ export function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email.trim());
 }
 
+// Catches keyboard-mashed/placeholder-style "numbers" that pass a plain
+// digit-count check but obviously aren't a real phone number: every
+// digit the same (1111111111), or 5+ digits in a row that just count
+// up or down (912345xxxx, xxxx987650).
+export function hasFakeDigitPattern(digits: string): boolean {
+  if (/^(\d)\1{9}$/.test(digits)) return true;
+  if (/(\d)\1{4,}/.test(digits)) return true;
+  for (let i = 0; i <= digits.length - 5; i++) {
+    let ascending = true;
+    let descending = true;
+    for (let j = i + 1; j < i + 5; j++) {
+      if (Number(digits[j]) !== Number(digits[j - 1]) + 1) ascending = false;
+      if (Number(digits[j]) !== Number(digits[j - 1]) - 1) descending = false;
+    }
+    if (ascending || descending) return true;
+  }
+  return false;
+}
+
 export function isValidIndianPhone(phone: string): boolean {
-  return INDIA_PHONE_REGEX.test(phone.trim());
+  const trimmed = phone.trim();
+  if (!INDIA_PHONE_REGEX.test(trimmed)) return false;
+  const digits = trimmed.replace(/\D/g, '').slice(2); // strip "+91 " and spaces, then the "91" country code
+  if (!/^[6-9]/.test(digits)) return false; // Indian mobile numbers only ever start 6-9
+  return !hasFakeDigitPattern(digits);
+}
+
+// Same checks as isValidIndianPhone, but for a bare 10-digit string with
+// no "+91 " formatting -- the shape mobile-OTP fields (signup/login) use.
+export function isValidRawIndianMobile(digits: string): boolean {
+  if (!/^[6-9]\d{9}$/.test(digits)) return false;
+  return !hasFakeDigitPattern(digits);
 }
 
 // Formats free-typed digits into "+91 98377 17379" as the user types.

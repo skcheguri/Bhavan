@@ -6,9 +6,8 @@ import { getSupabase } from '@/lib/supabase';
 const FRESH_ACCOUNT_WINDOW_MS = 2 * 60 * 1000;
 
 function profilePathForRole(role: UserRole): string {
-  if (role === 'owner') return '/owner-profile';
   if (role === 'admin') return '/admin';
-  return '/tenant-profile';
+  return '/listings';
 }
 
 export default function AuthCallback() {
@@ -64,7 +63,7 @@ export default function AuthCallback() {
 
   if (oauthError) {
     return (
-      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20 px-4">
+      <div className="min-h-screen bg-offwhite flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl p-8 border border-black/5 max-w-sm w-full text-center">
           <div className="w-14 h-14 flex items-center justify-center rounded-full bg-red-50 mx-auto mb-4">
             <i className="ri-error-warning-line text-2xl text-red-500" />
@@ -83,7 +82,7 @@ export default function AuthCallback() {
   }
 
   return (
-    <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+    <div className="min-h-screen bg-offwhite flex items-center justify-center">
       <div className="text-center">
         <i className="ri-loader-4-line animate-spin text-3xl text-brand" />
         <p className="mt-3 text-sm text-charcoal/60">Finishing Google sign-in&hellip;</p>

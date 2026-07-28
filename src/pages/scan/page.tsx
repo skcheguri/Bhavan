@@ -6,6 +6,8 @@ import { recordScan, recordConversion } from '@/hooks/useQrAnalytics';
 import { useCreateConnectionRequest, useTenantConnectionRequests } from '@/hooks/useConnectionRequests';
 import { useContactRateLimit, getContactLimitStatus } from '@/hooks/useContactRateLimit';
 import { useBrokerReport } from '@/hooks/useBrokerReport';
+import { useTenantPropertyVisits, useCreatePropertyVisit } from '@/hooks/usePropertyVisits';
+import { isValidIndianPhone, formatIndianPhoneInput } from '@/lib/validation';
 import SoftBlockModal from '@/pages/listing-detail/components/SoftBlockModal';
 
 export default function ScanLanding() {
@@ -34,10 +36,14 @@ export default function ScanLanding() {
   const [visitNote, setVisitNote] = useState('');
   const [visitSubmitting, setVisitSubmitting] = useState(false);
   const [visitError, setVisitError] = useState('');
+  const [visitPhoneError, setVisitPhoneError] = useState('');
+  const [formPhoneError, setFormPhoneError] = useState('');
 
   const { listing, loading: listingLoading } = useListingDetail(id);
   const { create: createConnectionRequest } = useCreateConnectionRequest();
   const { requests: tenantRequests, refresh: refreshTenantRequests } = useTenantConnectionRequests(user?.id);
+  const { visits: tenantVisits, refresh: refreshTenantVisits } = useTenantPropertyVisits(user?.id);
+  const { create: createPropertyVisit } = useCreatePropertyVisit();
 
   // Check if user has a request for this listing
   const userRequest = user && listing
@@ -46,6 +52,11 @@ export default function ScanLanding() {
   const hasApprovedRequest = userRequest?.status === 'approved';
   const hasPendingRequest = userRequest?.status === 'pending';
   const hasDeclinedRequest = userRequest?.status === 'declined';
+
+  const existingVisit = user && listing
+    ? tenantVisits.find((v) => v.listing_id === listing.id && (v.status === 'requested' || v.status === 'confirmed'))
+    : undefined;
+  const hasActiveVisitRequest = Boolean(existingVisit);
 
   const timeSlots = [
     '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
@@ -90,6 +101,11 @@ export default function ScanLanding() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValidIndianPhone(formPhone)) {
+      setFormPhoneError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+    setFormPhoneError('');
     if (brokerReport.isSoftBlocked) {
       setSoftBlockModalOpen(true);
       return;
@@ -130,18 +146,40 @@ export default function ScanLanding() {
 
   const handleVisitSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!visitDate || !visitTime || !visitName || !visitPhone || !visitEmail) {
+    if (!visitDate || !visitTime || !visitName || !visitPhone || !visitEmail || !user || !listing) {
       setVisitError('Please fill in all required fields.');
       return;
     }
+    if (!isValidIndianPhone(visitPhone)) {
+      setVisitPhoneError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+    setVisitPhoneError('');
     setVisitError('');
     setVisitSubmitting(true);
-    // Visit scheduling has no backing table yet -- client-side only for now.
-    // TODO: persist to a property_visits table once designed.
+
+    const { error: visitCreateError } = await createPropertyVisit({
+      tenantId: user.id,
+      listingId: listing.id,
+      visitDate,
+      visitTime,
+      visitorName: visitName,
+      visitorPhone: visitPhone,
+      visitorEmail: visitEmail,
+      note: visitNote,
+    });
+
+    setVisitSubmitting(false);
+
+    if (visitCreateError) {
+      setVisitError(visitCreateError);
+      return;
+    }
+
+    await refreshTenantVisits();
     setVisitSubmitted(true);
     setVisitOpen(false);
     setTimeout(() => setVisitSubmitted(false), 5000);
-    setVisitSubmitting(false);
   };
 
   const nextImage = () => setCurrentImage((prev) => (prev + 1) % listing.images.length);
@@ -205,8 +243,9 @@ export default function ScanLanding() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Phone <span className="text-red-400">*</span></label>
-                  <input type="tel" name="phone" placeholder="+91 XXXXX XXXXX" value={visitPhone} onChange={(e) => setVisitPhone(e.target.value)}
-                    className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                  <input type="tel" name="phone" placeholder="+91 XXXXX XXXXX" value={visitPhone} onChange={(e) => { setVisitPhone(formatIndianPhoneInput(e.target.value)); setVisitPhoneError(''); }}
+                    className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${visitPhoneError ? 'ring-2 ring-red-300' : 'focus:ring-brand/30'}`} />
+                  {visitPhoneError && <p className="text-xs text-red-500 mt-1">{visitPhoneError}</p>}
                 </div>
               </div>
               <div>
@@ -402,7 +441,18 @@ export default function ScanLanding() {
         )}
 
         {/* Request to Connect CTA */}
-        {!submitted ? (
+        {userRequest ? (
+          <div className="bg-white rounded-3xl border border-black/5 p-5 text-center">
+            <button
+              disabled
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full text-sm font-semibold bg-lightgray text-charcoal/40 cursor-not-allowed whitespace-nowrap"
+            >
+              <i className="ri-user-add-line text-sm" />
+              {hasApprovedRequest ? 'Request Approved' : hasDeclinedRequest ? 'Request Declined' : 'Request Sent'}
+            </button>
+            {hasPendingRequest && <p className="text-xs text-charcoal/40 mt-2">Waiting for the owner to respond.</p>}
+          </div>
+        ) : !submitted ? (
           <div className="bg-white rounded-3xl border border-black/5 p-5">
             {!showRequestForm ? (
               <div className="text-center">
@@ -480,11 +530,12 @@ export default function ScanLanding() {
                   <input
                     type="tel"
                     value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
+                    onChange={(e) => { setFormPhone(formatIndianPhoneInput(e.target.value)); setFormPhoneError(''); }}
                     required
-                    className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
-                    placeholder="Enter your phone number"
+                    className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${formPhoneError ? 'ring-2 ring-red-300' : 'focus:ring-amber-300'}`}
+                    placeholder="+91 98765 43210"
                   />
+                  {formPhoneError && <p className="text-xs text-red-500 mt-1">{formPhoneError}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Occupation</label>
@@ -572,15 +623,23 @@ export default function ScanLanding() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-green-800">Owner Approved Your Request!</h3>
-                <p className="text-xs text-green-600 mt-0.5">You can now schedule a visit to tour this property.</p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  {hasActiveVisitRequest ? 'Your visit request is waiting for the owner to confirm.' : 'You can now schedule a visit to tour this property.'}
+                </p>
               </div>
             </div>
-            <button
-              onClick={() => setVisitOpen(true)}
-              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <i className="ri-calendar-check-line text-sm" /> Schedule a Visit
-            </button>
+            {hasActiveVisitRequest ? (
+              <div className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-white border border-green-200 text-green-700 text-sm font-semibold whitespace-nowrap cursor-not-allowed">
+                <i className="ri-calendar-check-line text-sm" /> Visit Requested
+              </div>
+            ) : (
+              <button
+                onClick={() => setVisitOpen(true)}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <i className="ri-calendar-check-line text-sm" /> Schedule a Visit
+              </button>
+            )}
           </div>
         )}
 

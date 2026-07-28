@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRentPayment } from '@/hooks/useRentPayment';
+import { useRentalAgreements } from '@/hooks/useRentalAgreements';
 import { useToast } from '@/hooks/useToast';
 
 interface BankEntry {
@@ -15,26 +16,37 @@ interface Props {
   onClose: () => void;
 }
 
-const mockBankEntries: BankEntry[] = [
-  { id: 'be-001', date: '2026-04-01', amount: 2200000, description: 'UPI/123456789012/RENT - Arjun Mehta', matched: true },
-  { id: 'be-002', date: '2026-04-01', amount: 2000000, description: 'UPI/223344556677/RENT - Priya Sharma', matched: false },
-  { id: 'be-003', date: '2026-04-02', amount: 2200000, description: 'NEFT/SBI/9988776655 - Sneha Iyer', matched: true },
-  { id: 'be-004', date: '2026-04-05', amount: 2400000, description: 'CASH DEPOSIT - Rahul Nair', matched: true },
-  { id: 'be-005', date: '2026-04-07', amount: 1800000, description: 'CHQ CLEARANCE - Vikram Singh', matched: true },
-  { id: 'be-006', date: '2026-04-10', amount: 2200000, description: 'UPI/UNKNOWN/RENT', matched: false },
-];
-
 export default function ReconciliationPanel({ ownerId, onClose }: Props) {
   const { payments, reconcilePayment, refresh } = useRentPayment();
+  const { agreements } = useRentalAgreements(ownerId);
   const { addToast } = useToast();
-  const [entries, setEntries] = useState<BankEntry[]>(mockBankEntries);
+
+  // No bank-feed integration exists yet -- entries are typed in by the
+  // owner from their own real bank statement, not auto-imported.
+  const [entries, setEntries] = useState<BankEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [showMatchModal, setShowMatchModal] = useState(false);
+  const [showAddEntryModal, setShowAddEntryModal] = useState(false);
+  const [newEntry, setNewEntry] = useState({ date: '', amount: '', description: '' });
+
+  const tenantNameByAgreementId = new Map(agreements.map((a) => [a.id, a.tenantName || 'Unknown tenant']));
 
   const ownerPayments = payments.filter((p) => p.owner_id === ownerId && p.status !== 'reconciled');
   const unmatchedEntries = entries.filter((e) => !e.matched);
+
+  const handleAddEntry = () => {
+    if (!newEntry.date || !newEntry.amount || !newEntry.description.trim()) return;
+    const amountPaise = Math.round(parseFloat(newEntry.amount) * 100);
+    if (isNaN(amountPaise) || amountPaise <= 0) return;
+    setEntries((prev) => [
+      ...prev,
+      { id: `be-${Date.now()}`, date: newEntry.date, amount: amountPaise, description: newEntry.description.trim(), matched: false },
+    ]);
+    setNewEntry({ date: '', amount: '', description: '' });
+    setShowAddEntryModal(false);
+  };
 
   const handleMatch = async () => {
     if (!selectedEntry || !selectedPayment) return;
@@ -74,11 +86,20 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
 
       {/* Unmatched Entries */}
       <div>
-        <h3 className="text-sm font-bold text-charcoal mb-3">Unmatched Bank Entries</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-charcoal">Unmatched Bank Entries</h3>
+          <button
+            onClick={() => setShowAddEntryModal(true)}
+            className="text-xs font-semibold text-brand hover:text-brand-dark flex items-center gap-1 cursor-pointer whitespace-nowrap"
+          >
+            <i className="ri-add-line" /> Add Entry
+          </button>
+        </div>
         {unmatchedEntries.length === 0 ? (
-          <div className="bg-green-50 border border-green-100 rounded-xl p-4 text-center">
-            <i className="ri-checkbox-circle-line text-green-500 text-xl mb-2" />
-            <p className="text-sm font-medium text-green-700">All entries matched!</p>
+          <div className="bg-lightgray border border-black/5 rounded-xl p-4 text-center">
+            <i className="ri-bank-line text-charcoal/30 text-xl mb-2" />
+            <p className="text-sm font-medium text-charcoal/60">No bank entries added yet</p>
+            <p className="text-xs text-charcoal/40 mt-0.5">Add a line from your real bank statement to match it against a rent payment.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -104,23 +125,79 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
       </div>
 
       {/* Matched Entries */}
-      <div>
-        <h3 className="text-sm font-bold text-charcoal mb-3">Matched Entries</h3>
-        <div className="space-y-2">
-          {entries.filter((e) => e.matched).map((entry) => (
-            <div key={entry.id} className="bg-lightgray border border-black/5 rounded-xl p-4 flex items-center gap-4 opacity-70">
-              <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-green-50 flex-shrink-0">
-                <i className="ri-checkbox-circle-line text-green-600" />
+      {entries.some((e) => e.matched) && (
+        <div>
+          <h3 className="text-sm font-bold text-charcoal mb-3">Matched Entries</h3>
+          <div className="space-y-2">
+            {entries.filter((e) => e.matched).map((entry) => (
+              <div key={entry.id} className="bg-lightgray border border-black/5 rounded-xl p-4 flex items-center gap-4 opacity-70">
+                <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-green-50 flex-shrink-0">
+                  <i className="ri-checkbox-circle-line text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-charcoal">{entry.description}</p>
+                  <p className="text-xs text-charcoal/60">{new Date(entry.date).toLocaleDateString('en-IN')} · ₹{(entry.amount / 100).toLocaleString('en-IN')}</p>
+                </div>
+                <span className="text-xs font-semibold text-green-600">Reconciled</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-charcoal">{entry.description}</p>
-                <p className="text-xs text-charcoal/60">{new Date(entry.date).toLocaleDateString('en-IN')} · ₹{(entry.amount / 100).toLocaleString('en-IN')}</p>
-              </div>
-              <span className="text-xs font-semibold text-green-600">Reconciled</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Add Bank Entry Modal */}
+      {showAddEntryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowAddEntryModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-amber-50 px-6 py-4 border-b border-amber-100">
+              <h3 className="text-base font-bold text-charcoal">Add Bank Entry</h3>
+              <p className="text-xs text-charcoal/60 mt-0.5">Type in a line from your own bank statement</p>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Date</label>
+                <input
+                  type="date"
+                  value={newEntry.date}
+                  onChange={(e) => setNewEntry((prev) => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newEntry.amount}
+                  onChange={(e) => setNewEntry((prev) => ({ ...prev, amount: e.target.value }))}
+                  placeholder="22000"
+                  className="w-full px-4 py-2.5 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Description</label>
+                <input
+                  type="text"
+                  value={newEntry.description}
+                  onChange={(e) => setNewEntry((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="e.g., UPI/123456789012/RENT"
+                  className="w-full px-4 py-2.5 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-black/5 flex gap-3">
+              <button onClick={() => setShowAddEntryModal(false)} className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-medium text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
+              <button
+                onClick={handleAddEntry}
+                disabled={!newEntry.date || !newEntry.amount || !newEntry.description.trim()}
+                className="flex-1 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add Entry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Match Modal */}
       {showMatchModal && (
@@ -144,7 +221,7 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-semibold text-charcoal">{p.month} · {p.tenant_id === 'mock-tenant-001' ? 'Arjun Mehta' : p.tenant_id === 'mock-tenant-002' ? 'Priya Sharma' : p.tenant_id === 'mock-tenant-003' ? 'Rahul Nair' : p.tenant_id === 'mock-tenant-004' ? 'Sneha Iyer' : 'Vikram Singh'}</p>
+                        <p className="text-sm font-semibold text-charcoal">{p.month} · {(p.agreement_id && tenantNameByAgreementId.get(p.agreement_id)) || 'Unknown tenant'}</p>
                         <p className="text-xs text-charcoal/60">{p.payment_mode.replace(/_/g, ' ').toUpperCase()} · {p.transaction_ref}</p>
                       </div>
                       <span className="text-sm font-bold text-charcoal">₹{(p.amount / 100).toLocaleString('en-IN')}</span>

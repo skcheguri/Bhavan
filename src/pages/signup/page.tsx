@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { isValidName } from '@/lib/validation';
+import { isValidName, isValidRawIndianMobile } from '@/lib/validation';
 
 type AuthTab = 'email' | 'mobile';
 type ForgotStep = 'email' | 'sent';
@@ -70,6 +70,10 @@ export default function Signup() {
 
   const handleSendOtp = async () => {
     if (mobile.length < 10 || !mobileName.trim()) return;
+    if (!isValidRawIndianMobile(mobile)) {
+      setSignupError('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
     setSignupError('');
     setSendingOtp(true);
     const mappedRole = role === 'renter' ? 'tenant' : 'owner';
@@ -129,8 +133,7 @@ export default function Signup() {
   // Redirect when logged in
   useEffect(() => {
     if (user) {
-      if (user.role === 'admin') navigate('/admin');
-      else navigate(user.role === 'owner' ? '/owner-profile' : '/tenant-profile');
+      navigate(user.role === 'admin' ? '/admin' : '/listings');
     }
   }, [user, navigate]);
 
@@ -168,7 +171,7 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20 pb-10">
+    <div className="min-h-screen bg-offwhite flex items-center justify-center pb-10">
       <div className="w-full max-w-md px-4">
         <div className="bg-white rounded-3xl p-8 border border-black/5">
           {/* Header */}

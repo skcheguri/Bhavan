@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase, functionErrorMessage } from '@/lib/supabase';
 import { PRO_FEATURE_KEYS } from '@/lib/subscriptionConfig';
 
 export type SubscriptionPlan = 'free' | 'pro_monthly' | 'pro_annual';
@@ -172,7 +172,7 @@ export function useSubscriptionProvider(ownerId: string | undefined): Subscripti
     const { error } = await supabase.functions.invoke('create-razorpay-subscription', {
       body: { owner_id: ownerId, plan: selectedPlan },
     });
-    if (error) return { error: error.message };
+    if (error) return { error: (await functionErrorMessage(error)) || error.message };
     await refresh();
     return { error: null };
   };
@@ -184,7 +184,7 @@ export function useSubscriptionProvider(ownerId: string | undefined): Subscripti
     const { error } = await supabase.functions.invoke('cancel-razorpay-subscription', {
       body: { subscription_id: subscription.razorpay_subscription_id },
     });
-    if (error) return { error: error.message };
+    if (error) return { error: (await functionErrorMessage(error)) || error.message };
     await refresh();
     return { error: null };
   };
