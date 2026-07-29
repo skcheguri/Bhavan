@@ -44,7 +44,7 @@ export default function Accessibility() {
       </LegalSection>
 
       <LegalSection id="contact" title="5. Contact">
-        <LegalContactNote email="accessibility@bhavan.in" />
+        <LegalContactNote email="support@mybhavan.com" />
       </LegalSection>
     </LegalPageLayout>
   );

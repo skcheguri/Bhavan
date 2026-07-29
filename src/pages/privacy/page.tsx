@@ -102,7 +102,7 @@ export default function Privacy() {
       </LegalSection>
 
       <LegalSection id="contact" title="9. Contact">
-        <LegalContactNote email="privacy@bhavan.in" />
+        <LegalContactNote email="support@mybhavan.com" />
       </LegalSection>
     </LegalPageLayout>
   );

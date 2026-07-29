@@ -111,7 +111,7 @@ export default function Cookies() {
       </LegalSection>
 
       <LegalSection id="contact" title="6. Contact">
-        <LegalContactNote email="privacy@bhavan.in" />
+        <LegalContactNote email="support@mybhavan.com" />
       </LegalSection>
     </LegalPageLayout>
   );

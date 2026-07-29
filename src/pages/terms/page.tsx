@@ -126,7 +126,7 @@ export default function Terms() {
       </LegalSection>
 
       <LegalSection id="contact" title="11. Contact">
-        <LegalContactNote email="legal@bhavan.in" />
+        <LegalContactNote email="support@mybhavan.com" />
       </LegalSection>
     </LegalPageLayout>
   );

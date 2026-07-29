@@ -224,7 +224,7 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
                  3. Laminate or use a waterproof sleeve for outdoor use.<br/>
                  4. Tape or mount near the entrance of your property.</p>
             </div>
-            <p class="print-footer">Bhavan · bhavan.in</p>
+            <p class="print-footer">Bhavan · mybhavan.com</p>
           </div>
         </body>
       </html>
