@@ -77,6 +77,7 @@ export function useListingDetail(id: string | undefined): {
     if (dbError) {
       setError(dbError.message);
       setListing(null);
+      setLoading(false);
     } else if (data) {
       const db = data as Record<string, unknown>;
       const owner = (db.owner ?? {}) as Record<string, unknown>;
@@ -120,15 +121,21 @@ export function useListingDetail(id: string | undefined): {
         saves_count: Number(db.saves_count ?? 0),
       };
       setListing(mapped);
+      setLoading(false);
       // supabase-js query/RPC builders are "thenable" -- the actual fetch
-      // only fires once something awaits/then()s them. A bare call with
-      // no await is a silent no-op: built but never sent, no error either.
-      await supabase.rpc('increment_listing_counter', { p_listing_id: id, p_counter: 'views_count', p_delta: 1 });
+      // only fires once something awaits/then()s them, so this still
+      // needs a .then() to actually go out. It's just a view counter,
+      // not something the page needs before it can render -- awaiting
+      // it here would add a second full network round-trip in front of
+      // every listing view for no reason the user can see.
+      supabase.rpc('increment_listing_counter', { p_listing_id: id, p_counter: 'views_count', p_delta: 1 })
+        .then(({ error: rpcError }) => {
+          if (rpcError) console.warn('Failed to increment listing view count:', rpcError.message);
+        });
     } else {
       setListing(null);
+      setLoading(false);
     }
-
-    setLoading(false);
   }, [id]);
 
   useEffect(() => {
