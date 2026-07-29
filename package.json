@@ -47,6 +47,11 @@
   },
   "name": "react",
   "private": true,
+  "overrides": {
+    "eslint-plugin-react-hooks": {
+      "eslint": "$eslint"
+    }
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite",
