@@ -42,6 +42,22 @@ function isValidUUID(str: string | undefined): boolean {
   return uuidRegex.test(str);
 }
 
+const VIEWED_LISTINGS_KEY = 'bhavan_viewed_listings';
+
+// Caps the view count at one per listing per browser session, so a page
+// refresh or revisiting the same listing doesn't inflate it -- only a
+// genuinely new visit (tile click, QR scan, shared link) counts.
+function hasCountedViewThisSession(id: string): boolean {
+  try {
+    const viewed = JSON.parse(sessionStorage.getItem(VIEWED_LISTINGS_KEY) ?? '[]') as string[];
+    if (viewed.includes(id)) return true;
+    sessionStorage.setItem(VIEWED_LISTINGS_KEY, JSON.stringify([...viewed, id]));
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export function useListingDetail(id: string | undefined): {
   listing: Listing | null;
   loading: boolean;
@@ -128,10 +144,12 @@ export function useListingDetail(id: string | undefined): {
       // not something the page needs before it can render -- awaiting
       // it here would add a second full network round-trip in front of
       // every listing view for no reason the user can see.
-      supabase.rpc('increment_listing_counter', { p_listing_id: id, p_counter: 'views_count', p_delta: 1 })
-        .then(({ error: rpcError }) => {
-          if (rpcError) console.warn('Failed to increment listing view count:', rpcError.message);
-        });
+      if (!hasCountedViewThisSession(id)) {
+        supabase.rpc('increment_listing_counter', { p_listing_id: id, p_counter: 'views_count', p_delta: 1 })
+          .then(({ error: rpcError }) => {
+            if (rpcError) console.warn('Failed to increment listing view count:', rpcError.message);
+          });
+      }
     } else {
       setListing(null);
       setLoading(false);

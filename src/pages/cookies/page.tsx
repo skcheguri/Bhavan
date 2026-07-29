@@ -26,6 +26,12 @@ const essentialStorage: StorageRow[] = [
     purpose: 'Remembers your selected display language.',
     duration: 'Until you change it or clear browser storage',
   },
+  {
+    name: 'bhavan_viewed_listings',
+    type: 'sessionStorage',
+    purpose: 'Tracks which listings you have already viewed in this session, so a page refresh or repeat visit does not inflate a listing’s public view count.',
+    duration: 'Current browser tab session',
+  },
 ];
 
 const securityStorage: StorageRow[] = [
