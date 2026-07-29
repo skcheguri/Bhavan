@@ -28,3 +28,11 @@ test-results/
 # tokens used for testing), so it must never be committed.
 .claude/
 
+# Supabase CLI local session cache -- reflects whichever project you
+# currently have linked locally (ref, service versions, pooler URL) and
+# is not something to share; every teammate links their own target
+# project, and this was previously committed, which meant re-linking
+# to a different project always showed as a spurious diff.
+supabase/.temp/
+supabase/supabase/
+

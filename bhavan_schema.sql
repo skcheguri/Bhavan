@@ -18,6 +18,13 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- Required for vacation_bookings' GiST exclusion constraint (prevents
+-- overlapping confirmed date ranges per listing) -- GiST doesn't have
+-- a default operator class for uuid equality without this extension.
+-- Missed in the original regeneration because the dev project already
+-- had it installed database-wide, silently masking the dependency;
+-- surfaced when applying this file to a genuinely fresh project.
+CREATE EXTENSION IF NOT EXISTS "btree_gist";
 
 -- ============================================================
 -- TABLES
