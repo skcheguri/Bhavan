@@ -158,7 +158,7 @@ export default function Community() {
                   {filteredPosts.map((post) => (
                     <div
                       key={post.id}
-                      className="bg-white rounded-2xl p-6 border border-black/5 hover:shadow-md transition-all duration-300"
+                      className="bg-white rounded-2xl p-6 border border-black/5 hover:shadow-md transition duration-300"
                     >
                       <div className="flex items-start gap-4">
                         <img
@@ -228,7 +228,7 @@ export default function Community() {
                     </div>
                     <div className="w-full bg-lightgray rounded-full h-2">
                       <div
-                        className={`h-2 rounded-full transition-all ${communityLimit.dailyRemaining === 0 ? 'bg-red-500' : 'bg-brand'}`}
+                        className={`h-2 rounded-full transition ${communityLimit.dailyRemaining === 0 ? 'bg-red-500' : 'bg-brand'}`}
                         style={{ width: `${communityLimit.dailyCount + communityLimit.dailyRemaining > 0 ? (communityLimit.dailyRemaining / (communityLimit.dailyRemaining + communityLimit.dailyCount)) * 100 : 0}%` }}
                       />
                     </div>
@@ -240,7 +240,7 @@ export default function Community() {
                     </div>
                     <div className="w-full bg-lightgray rounded-full h-2">
                       <div
-                        className={`h-2 rounded-full transition-all ${communityLimit.weeklyRemaining === 0 ? 'bg-red-500' : 'bg-brand'}`}
+                        className={`h-2 rounded-full transition ${communityLimit.weeklyRemaining === 0 ? 'bg-red-500' : 'bg-brand'}`}
                         style={{ width: `${communityLimit.weeklyCount + communityLimit.weeklyRemaining > 0 ? (communityLimit.weeklyRemaining / (communityLimit.weeklyRemaining + communityLimit.weeklyCount)) * 100 : 0}%` }}
                       />
                     </div>

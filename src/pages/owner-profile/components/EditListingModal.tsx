@@ -371,7 +371,7 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
                     key={a.key}
                     type="button"
                     onClick={() => toggleAmenity(a.key)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition cursor-pointer ${
                       active
                         ? 'bg-amber-500 text-white'
                         : 'bg-lightgray text-charcoal/60 hover:bg-gray-200'

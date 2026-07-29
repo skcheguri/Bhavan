@@ -223,7 +223,7 @@ export default function Login() {
                 {/* Tenant card */}
                 <button
                   onClick={() => setSelectedRole('tenant')}
-                  className="group flex flex-col items-center gap-3 p-4 rounded-3xl border-2 border-black/5 hover:border-brand hover:bg-brand/5 transition-all cursor-pointer"
+                  className="group flex flex-col items-center gap-3 p-4 rounded-3xl border-2 border-black/5 hover:border-brand hover:bg-brand/5 transition cursor-pointer"
                 >
                   <div className="w-14 h-14 flex items-center justify-center rounded-2xl bg-brand/10 group-hover:bg-brand/20 transition-colors">
                     <i className="ri-home-heart-line text-2xl text-brand" />
@@ -241,7 +241,7 @@ export default function Login() {
                 {/* Owner card */}
                 <button
                   onClick={() => setSelectedRole('owner')}
-                  className="group flex flex-col items-center gap-3 p-4 rounded-3xl border-2 border-black/5 hover:border-amber-400 hover:bg-amber-50/50 transition-all cursor-pointer"
+                  className="group flex flex-col items-center gap-3 p-4 rounded-3xl border-2 border-black/5 hover:border-amber-400 hover:bg-amber-50/50 transition cursor-pointer"
                 >
                   <div className="w-14 h-14 flex items-center justify-center rounded-2xl bg-amber-50 group-hover:bg-amber-100 transition-colors">
                     <i className="ri-building-4-line text-2xl text-amber-600" />

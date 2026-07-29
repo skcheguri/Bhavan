@@ -202,7 +202,7 @@ export default function RequestsTab({ tenantId }: Props) {
           <button
             key={s.key}
             onClick={() => setMaintFilter(s.key)}
-            className={`text-left p-4 rounded-xl border transition-all cursor-pointer ${
+            className={`text-left p-4 rounded-xl border transition cursor-pointer ${
               maintFilter === s.key ? 'border-brand bg-brand/5' : 'border-black/5 bg-white hover:border-brand/30'
             }`}
           >
@@ -242,7 +242,7 @@ export default function RequestsTab({ tenantId }: Props) {
                   <button
                     key={req.id}
                     onClick={() => setSelectedMaintId(req.id)}
-                    className={`w-full text-left bg-white rounded-2xl p-4 border transition-all cursor-pointer ${
+                    className={`w-full text-left bg-white rounded-2xl p-4 border transition cursor-pointer ${
                       selectedMaintId === req.id ? 'border-brand ring-1 ring-brand/20' : 'border-black/5 hover:border-brand/30'
                     }`}
                   >
@@ -269,7 +269,7 @@ export default function RequestsTab({ tenantId }: Props) {
                     <div className="mt-3">
                       <div className="h-1.5 bg-lightgray rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${
+                          className={`h-full rounded-full transition ${
                             req.status === 'resolved' ? 'bg-green-500 w-full' :
                             req.status === 'in_progress' ? 'bg-brand w-3/4' :
                             req.status === 'acknowledged' ? 'bg-amber-400 w-2/5' :
@@ -338,7 +338,7 @@ export default function RequestsTab({ tenantId }: Props) {
                       {buildTimeline(selectedMaint).map((step, idx, arr) => (
                         <div key={idx} className="flex gap-4">
                           <div className="flex flex-col items-center">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${step.done ? 'bg-brand border-brand' : 'bg-white border-black/10'}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition ${step.done ? 'bg-brand border-brand' : 'bg-white border-black/10'}`}>
                               {step.done ? <i className="ri-check-line text-white text-sm" /> : <div className="w-2 h-2 rounded-full bg-gray-300" />}
                             </div>
                             {idx < arr.length - 1 && (
@@ -418,7 +418,7 @@ export default function RequestsTab({ tenantId }: Props) {
                       <button
                         key={a.id}
                         onClick={() => setSelectedAgreementId(a.id)}
-                        className="w-full flex items-center gap-3 p-4 rounded-xl border border-black/5 hover:border-brand/40 hover:bg-brand/5 transition-all cursor-pointer text-left"
+                        className="w-full flex items-center gap-3 p-4 rounded-xl border border-black/5 hover:border-brand/40 hover:bg-brand/5 transition cursor-pointer text-left"
                       >
                         <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-brand/10 flex-shrink-0">
                           <i className="ri-home-4-line text-brand" />
@@ -440,7 +440,7 @@ export default function RequestsTab({ tenantId }: Props) {
                       <button
                         key={cat.id}
                         onClick={() => setSelectedCategory(cat.id)}
-                        className="flex items-start gap-3 p-4 rounded-xl border border-black/5 hover:border-brand/40 hover:bg-brand/5 transition-all cursor-pointer text-left group"
+                        className="flex items-start gap-3 p-4 rounded-xl border border-black/5 hover:border-brand/40 hover:bg-brand/5 transition cursor-pointer text-left group"
                       >
                         <div className={`w-10 h-10 flex items-center justify-center rounded-xl flex-shrink-0 ${cat.color}`}>
                           <i className={`${cat.icon} text-lg`} />

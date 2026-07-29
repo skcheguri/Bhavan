@@ -152,7 +152,7 @@ export default function FeedbackPage() {
                       <i className="ri-star-fill text-amber-400 text-xs" />
                       <div className="flex-1 h-1.5 bg-lightgray rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                          className="h-full bg-amber-400 rounded-full transition duration-500"
                           style={{ width: `${r.pct}%` }}
                         />
                       </div>

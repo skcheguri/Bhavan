@@ -43,13 +43,13 @@ function RequestCard({ request, onOpenChat }: RequestCardProps) {
 
   return (
     <>
-      <div className={`bg-white rounded-2xl border transition-all ${request.status === 'pending' ? 'border-amber-200' : 'border-black/5'}`}>
+      <div className={`bg-white rounded-2xl border transition ${request.status === 'pending' ? 'border-amber-200' : 'border-black/5'}`}>
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <button
                 onClick={() => setProfileOpen(true)}
-                className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-brand/30 transition-all overflow-hidden"
+                className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-brand/30 transition overflow-hidden"
                 title="View owner profile"
               >
                 {request.ownerAvatar ? (

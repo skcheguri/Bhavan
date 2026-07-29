@@ -108,7 +108,7 @@ export default function Navbar({ sticky = false }: Props) {
   }
 
   return (
-    <nav className={`${sticky ? 'fixed top-0 left-0 right-0' : 'relative'} z-50 transition-all duration-300 ${navBg}`}>
+    <nav className={`${sticky ? 'fixed top-0 left-0 right-0' : 'relative'} z-50 transition duration-300 ${navBg}`}>
       <div className="w-full px-4 md:px-8 lg:px-12">
         <div className="flex items-center justify-between h-16 md:h-20">
 
@@ -163,7 +163,7 @@ export default function Navbar({ sticky = false }: Props) {
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setProfileOpen((v) => !v)}
-                  className="flex items-center gap-2.5 pl-3 pr-2 py-2 rounded-full border border-black/10 hover:border-brand/40 bg-white transition-all cursor-pointer"
+                  className="flex items-center gap-2.5 pl-3 pr-2 py-2 rounded-full border border-black/10 hover:border-brand/40 bg-white transition cursor-pointer"
                 >
                   <div className="w-7 h-7 rounded-full bg-brand/20 flex items-center justify-center flex-shrink-0">
                     {user.avatar ? (

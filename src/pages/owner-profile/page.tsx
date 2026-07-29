@@ -716,7 +716,7 @@ export default function OwnerProfile() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {myListings.map((listing) => (
-                <div key={listing.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden hover:border-amber-200 transition-all group">
+                <div key={listing.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden hover:border-amber-200 transition group">
                   <div className="relative h-44 overflow-hidden">
                     <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -906,7 +906,7 @@ export default function OwnerProfile() {
                   { to: '/rent-receipts', icon: 'ri-file-text-line', label: 'Rent Receipt Generator', desc: 'Generate formatted rent receipts instantly', color: 'bg-amber-50 text-amber-600' },
                   { to: '/tax-forms', icon: 'ri-government-line', label: 'Tax & Legal Forms', desc: 'Income tax, TDS & HRA declaration forms', color: 'bg-teal-50 text-teal-600' },
                 ].map((tool) => (
-                  <Link key={tool.to} to={tool.to} className="bg-white rounded-3xl border border-black/5 p-5 hover:border-amber-200 transition-all group">
+                  <Link key={tool.to} to={tool.to} className="bg-white rounded-3xl border border-black/5 p-5 hover:border-amber-200 transition group">
                     <div className={`w-10 h-10 flex items-center justify-center rounded-xl mb-3 ${tool.color}`}>
                       <i className={`${tool.icon} text-lg`} />
                     </div>
@@ -1220,7 +1220,7 @@ export default function OwnerProfile() {
                   </div>
                   <div className="w-full bg-lightgray rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full transition-all ${inquiry.dailyRemaining === 0 ? 'bg-red-500' : 'bg-blue-500'}`}
+                      className={`h-2 rounded-full transition ${inquiry.dailyRemaining === 0 ? 'bg-red-500' : 'bg-blue-500'}`}
                       style={{ width: `${inquiry.dailyCount + inquiry.dailyRemaining > 0 ? (inquiry.dailyRemaining / (inquiry.dailyRemaining + inquiry.dailyCount)) * 100 : 0}%` }}
                     />
                   </div>
@@ -1245,7 +1245,7 @@ export default function OwnerProfile() {
                   </div>
                   <div className="w-full bg-lightgray rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full transition-all ${community.dailyRemaining === 0 ? 'bg-red-500' : 'bg-purple-500'}`}
+                      className={`h-2 rounded-full transition ${community.dailyRemaining === 0 ? 'bg-red-500' : 'bg-purple-500'}`}
                       style={{ width: `${community.dailyCount + community.dailyRemaining > 0 ? (community.dailyRemaining / (community.dailyRemaining + community.dailyCount)) * 100 : 0}%` }}
                     />
                   </div>

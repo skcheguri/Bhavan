@@ -722,7 +722,7 @@ export default function TenantProfile() {
             ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {savedListingsFromDB.map((listing) => (
-                <div key={listing.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden hover:border-brand/30 transition-all group">
+                <div key={listing.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden hover:border-brand/30 transition group">
                   <div className="relative h-44 overflow-hidden">
                     <img
                       src={listing.images[0]}

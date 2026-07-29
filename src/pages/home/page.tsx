@@ -143,7 +143,7 @@ export default function Home() {
                     <Link
                       key={listing.id}
                       to={`/listings/${listing.id}`}
-                      className="group bg-white rounded-3xl overflow-hidden border border-black/5 hover:border-brand/30 hover:-translate-y-0.5 transition-all duration-300"
+                      className="group bg-white rounded-3xl overflow-hidden border border-black/5 hover:border-brand/30 hover:-translate-y-0.5 transition duration-300"
                       data-product-shop
                     >
                       <div className="relative aspect-[4/3] overflow-hidden">
@@ -203,7 +203,7 @@ export default function Home() {
             <div className="mt-10 text-center">
               <Link
                 to="/listings"
-                className="inline-flex items-center gap-2 text-brand font-semibold hover:gap-3 transition-all"
+                className="inline-flex items-center gap-2 text-brand font-semibold hover:gap-3 transition-[gap]"
               >
                 View all listings
                 <i className="ri-arrow-right-line" />
@@ -233,7 +233,7 @@ export default function Home() {
               </div>
               <Link
                 to="/listings?category=vacation"
-                className="flex-shrink-0 inline-flex items-center gap-2 text-sage-dark font-semibold hover:gap-3 transition-all whitespace-nowrap"
+                className="flex-shrink-0 inline-flex items-center gap-2 text-sage-dark font-semibold hover:gap-3 transition-[gap] whitespace-nowrap"
               >
                 View all vacation rentals
                 <i className="ri-arrow-right-line" />
@@ -259,7 +259,7 @@ export default function Home() {
                     <Link
                       key={listing.id}
                       to={`/listings/${listing.id}`}
-                      className="group bg-white rounded-3xl overflow-hidden border border-black/5 hover:border-sage/40 hover:-translate-y-0.5 transition-all duration-300"
+                      className="group bg-white rounded-3xl overflow-hidden border border-black/5 hover:border-sage/40 hover:-translate-y-0.5 transition duration-300"
                       data-product-shop
                     >
                       <div className="relative h-52 overflow-hidden">
@@ -367,7 +367,7 @@ export default function Home() {
                 {featuredPosts.map((post) => (
                   <div
                     key={post.id}
-                    className="bg-white border border-black/5 rounded-3xl p-6 hover:-translate-y-0.5 hover:border-brand/20 transition-all duration-300"
+                    className="bg-white border border-black/5 rounded-3xl p-6 hover:-translate-y-0.5 hover:border-brand/20 transition duration-300"
                   >
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center">
@@ -391,7 +391,7 @@ export default function Home() {
             <div className="mt-10 text-center">
               <Link
                 to="/community"
-                className="inline-flex items-center gap-2 text-brand font-semibold hover:gap-3 transition-all"
+                className="inline-flex items-center gap-2 text-brand font-semibold hover:gap-3 transition-[gap]"
               >
                 Explore community
                 <i className="ri-arrow-right-line" />

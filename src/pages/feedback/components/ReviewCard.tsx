@@ -31,7 +31,7 @@ export default function ReviewCard({ entry }: ReviewCardProps) {
   };
 
   return (
-    <div className={`rounded-2xl border p-6 transition-all duration-300 ${ratingColors[entry.overall_rating]}`}>
+    <div className={`rounded-2xl border p-6 transition duration-300 ${ratingColors[entry.overall_rating]}`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
         {/* Reviewer */}

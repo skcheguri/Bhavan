@@ -163,7 +163,7 @@ export default function AdminDashboard() {
               <Link
                 key={card.title}
                 to={card.to}
-                className="bg-white rounded-3xl border border-black/5 p-5 hover:border-amber-200 transition-all group cursor-pointer"
+                className="bg-white rounded-3xl border border-black/5 p-5 hover:border-amber-200 transition group cursor-pointer"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className={`w-10 h-10 flex items-center justify-center rounded-xl ${card.color}`}>

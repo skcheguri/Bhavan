@@ -624,7 +624,7 @@ export default function ListingDetail() {
                   <button
                     key={idx}
                     onClick={() => setActiveImage(idx)}
-                    className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                    className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition cursor-pointer ${
                       activeImage === idx ? 'border-brand' : 'border-transparent opacity-60 hover:opacity-100'
                     }`}
                   >
@@ -960,7 +960,7 @@ export default function ListingDetail() {
                     <Link
                       key={sim.id}
                       to={`/listings/${sim.id}`}
-                      className="group block rounded-xl overflow-hidden border border-black/5 hover:border-brand/30 transition-all"
+                      className="group block rounded-xl overflow-hidden border border-black/5 hover:border-brand/30 transition"
                     >
                       <div className="relative h-32 overflow-hidden">
                         <img
@@ -1016,7 +1016,7 @@ export default function ListingDetail() {
                     }
                   }}
                   disabled={savingBookmark}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full border transition-all cursor-pointer ${
+                  className={`w-10 h-10 flex items-center justify-center rounded-full border transition cursor-pointer ${
                     saved ? 'bg-brand/10 border-brand/30 text-brand' : 'border-black/10 text-charcoal/40 hover:border-brand/30 hover:text-brand'
                   }`}
                 >

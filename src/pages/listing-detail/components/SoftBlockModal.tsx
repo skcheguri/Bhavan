@@ -80,7 +80,7 @@ export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: 
               </p>
 
               {/* Step 1: Aadhaar */}
-              <div className={`rounded-xl border p-4 transition-all ${broker.softBlockState.aadhaar_re_verified ? 'border-green-200 bg-green-50' : 'border-black/5 bg-white'}`}>
+              <div className={`rounded-xl border p-4 transition ${broker.softBlockState.aadhaar_re_verified ? 'border-green-200 bg-green-50' : 'border-black/5 bg-white'}`}>
                 <div className="flex items-center gap-2.5">
                   <div className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0 ${broker.softBlockState.aadhaar_re_verified ? 'bg-green-500 text-white' : 'bg-red-100 text-red-600'}`}>
                     {broker.softBlockState.aadhaar_re_verified ? <i className="ri-check-line text-sm" /> : '1'}
@@ -101,7 +101,7 @@ export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: 
               </div>
 
               {/* Step 2: Additional Details */}
-              <div className={`rounded-xl border p-4 transition-all ${broker.softBlockState.additional_details_provided ? 'border-green-200 bg-green-50' : 'border-black/5 bg-white'}`}>
+              <div className={`rounded-xl border p-4 transition ${broker.softBlockState.additional_details_provided ? 'border-green-200 bg-green-50' : 'border-black/5 bg-white'}`}>
                 <div className="flex items-center gap-2.5">
                   <div className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0 ${broker.softBlockState.additional_details_provided ? 'bg-green-500 text-white' : 'bg-red-100 text-red-600'}`}>
                     {broker.softBlockState.additional_details_provided ? <i className="ri-check-line text-sm" /> : '2'}

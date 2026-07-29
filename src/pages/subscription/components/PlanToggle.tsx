@@ -10,7 +10,7 @@ export default function PlanToggle({ value, onChange }: PlanToggleProps) {
     <div className="inline-flex items-center bg-lightgray rounded-full p-1.5">
       <button
         onClick={() => onChange('monthly')}
-        className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap cursor-pointer ${
+        className={`px-6 py-2.5 rounded-full text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
           value === 'monthly' ? 'bg-amber-500 text-white shadow-sm' : 'text-charcoal/60 hover:text-charcoal'
         }`}
       >
@@ -18,7 +18,7 @@ export default function PlanToggle({ value, onChange }: PlanToggleProps) {
       </button>
       <button
         onClick={() => onChange('annual')}
-        className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
+        className={`px-6 py-2.5 rounded-full text-sm font-semibold transition whitespace-nowrap cursor-pointer flex items-center gap-2 ${
           value === 'annual' ? 'bg-amber-500 text-white shadow-sm' : 'text-charcoal/60 hover:text-charcoal'
         }`}
       >

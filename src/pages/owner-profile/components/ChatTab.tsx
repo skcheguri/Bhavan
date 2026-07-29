@@ -161,7 +161,7 @@ export default function ChatTab({ initialRequestId }: ChatTabProps) {
             <div className="p-4 border-b border-black/5 flex items-center gap-3">
               <button
                 onClick={() => setProfileOpen(true)}
-                className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-amber-300 transition-all"
+                className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-amber-300 transition"
                 title="View profile"
               >
                 <span className="text-sm font-bold text-amber-600">{activeChat.prospectInitials}</span>

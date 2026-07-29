@@ -251,7 +251,7 @@ export default function HowItWorks() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {ownerSteps.map((step) => (
-                <div key={step.number} className="bg-white rounded-3xl border border-black/5 p-6 hover:border-brand/20 transition-all">
+                <div key={step.number} className="bg-white rounded-3xl border border-black/5 p-6 hover:border-brand/20 transition">
                   <div className="flex items-start justify-between mb-4">
                     <div className={`w-11 h-11 flex items-center justify-center rounded-xl flex-shrink-0 ${step.color}`}>
                       <i className={`${step.icon} text-xl`} />
@@ -308,7 +308,7 @@ export default function HowItWorks() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {tenantSteps.map((step) => (
-                <div key={step.number} className="bg-offwhite rounded-3xl border border-black/5 p-6 hover:border-brand/20 transition-all">
+                <div key={step.number} className="bg-offwhite rounded-3xl border border-black/5 p-6 hover:border-brand/20 transition">
                   <div className={`w-11 h-11 flex items-center justify-center rounded-xl flex-shrink-0 mb-4 ${step.color}`}>
                     <i className={`${step.icon} text-xl`} />
                   </div>

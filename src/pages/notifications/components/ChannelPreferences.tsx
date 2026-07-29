@@ -28,7 +28,7 @@ export default function ChannelPreferences() {
         return (
           <div
             key={pref.category}
-            className={`bg-white rounded-2xl border transition-all overflow-hidden ${isOpen ? 'border-amber-200' : 'border-black/5 hover:border-black/10'}`}
+            className={`bg-white rounded-2xl border transition overflow-hidden ${isOpen ? 'border-amber-200' : 'border-black/5 hover:border-black/10'}`}
           >
             {/* Header row */}
             <button

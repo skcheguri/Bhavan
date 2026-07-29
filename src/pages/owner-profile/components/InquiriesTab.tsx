@@ -60,13 +60,13 @@ function RequestCard({ request, onApprove, onDecline, onOpenChat }: RequestCardP
 
   return (
     <>
-      <div className={`bg-white rounded-2xl border transition-all ${request.status === 'pending' ? 'border-amber-200' : 'border-black/5'}`}>
+      <div className={`bg-white rounded-2xl border transition ${request.status === 'pending' ? 'border-amber-200' : 'border-black/5'}`}>
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <button
                 onClick={() => setProfileOpen(true)}
-                className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-amber-300 transition-all"
+                className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-amber-300 transition"
                 title="View profile"
               >
                 <span className="text-sm font-bold text-amber-600">{request.prospectInitials}</span>

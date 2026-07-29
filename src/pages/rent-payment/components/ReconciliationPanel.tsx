@@ -215,7 +215,7 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
                   <button
                     key={p.id}
                     onClick={() => setSelectedPayment(p.id)}
-                    className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                    className={`w-full text-left p-3 rounded-xl border transition cursor-pointer ${
                       selectedPayment === p.id ? 'border-brand bg-brand/5' : 'border-black/5 hover:border-black/10'
                     }`}
                   >

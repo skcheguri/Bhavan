@@ -196,7 +196,7 @@ export default function VacationCalendar({
             ? rangeOverlapsBlocked(checkIn, hoverDate, reservedDates)
             : false;
 
-          let cellClass = 'relative h-8 flex items-center justify-center text-xs font-medium transition-all ';
+          let cellClass = 'relative h-8 flex items-center justify-center text-xs font-medium transition ';
           let textClass = '';
 
           if (isPast || isBlocked) {

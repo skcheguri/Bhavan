@@ -148,7 +148,7 @@ export default function NotificationsPage() {
                 <button
                   key={notif.id}
                   onClick={() => handleClick(notif)}
-                  className={`w-full text-left bg-white rounded-2xl border p-4 sm:p-5 flex items-start gap-4 transition-all cursor-pointer ${
+                  className={`w-full text-left bg-white rounded-2xl border p-4 sm:p-5 flex items-start gap-4 transition cursor-pointer ${
                     notif.read
                       ? 'border-black/5 hover:border-black/10'
                       : 'border-amber-200 shadow-sm hover:shadow-md'

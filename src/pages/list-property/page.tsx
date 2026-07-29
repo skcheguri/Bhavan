@@ -317,7 +317,7 @@ export default function ListProperty() {
                     const isDone = i < stepIndex;
                     return (
                       <div key={s} className="flex items-center gap-2">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition ${
                           isDone ? 'bg-brand text-white' : isActive ? 'bg-brand text-white ring-4 ring-brand/20' : 'bg-gray-200 text-charcoal/40'
                         }`}>
                           {isDone ? <i className="ri-check-line text-sm" /> : i + 1}
@@ -432,7 +432,7 @@ export default function ListProperty() {
                         key={doc.value}
                         type="button"
                         onClick={() => setOwnershipDocType(doc.value)}
-                        className={`flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        className={`flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition cursor-pointer ${
                           ownershipDocType === doc.value
                             ? 'border-brand bg-brand/5'
                             : 'border-black/5 hover:border-brand/30 hover:bg-lightgray'
@@ -464,7 +464,7 @@ export default function ListProperty() {
                       <p className="text-sm font-semibold text-charcoal">Uploading...</p>
                     </div>
                   ) : !ownershipUploaded ? (
-                    <label className={`flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed border-black/10 rounded-xl transition-all ${
+                    <label className={`flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed border-black/10 rounded-xl transition ${
                       ownershipDocType ? 'cursor-pointer hover:border-brand/40 hover:bg-brand/5' : 'opacity-50 cursor-not-allowed'
                     }`}>
                       <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-lightgray">
@@ -638,7 +638,7 @@ export default function ListProperty() {
                   <button
                     type="button"
                     onClick={() => setPropertyCategory('residential')}
-                    className={`group relative rounded-2xl border-2 p-7 text-left transition-all cursor-pointer ${
+                    className={`group relative rounded-2xl border-2 p-7 text-left transition cursor-pointer ${
                       propertyCategory === 'residential'
                         ? 'border-brand bg-brand/5'
                         : 'border-black/10 hover:border-brand/40 hover:bg-lightgray'
@@ -665,7 +665,7 @@ export default function ListProperty() {
                   <button
                     type="button"
                     onClick={() => setPropertyCategory('commercial')}
-                    className={`group relative rounded-2xl border-2 p-7 text-left transition-all cursor-pointer ${
+                    className={`group relative rounded-2xl border-2 p-7 text-left transition cursor-pointer ${
                       propertyCategory === 'commercial'
                         ? 'border-brand bg-brand/5'
                         : 'border-black/10 hover:border-brand/40 hover:bg-lightgray'
@@ -692,7 +692,7 @@ export default function ListProperty() {
                   <button
                     type="button"
                     onClick={() => setPropertyCategory('vacation')}
-                    className={`group relative rounded-2xl border-2 p-7 text-left transition-all cursor-pointer ${
+                    className={`group relative rounded-2xl border-2 p-7 text-left transition cursor-pointer ${
                       propertyCategory === 'vacation'
                         ? 'border-rose-400 bg-sage-light/50'
                         : 'border-black/10 hover:border-sage/40 hover:bg-sage-light/30'

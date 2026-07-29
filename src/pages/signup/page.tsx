@@ -192,7 +192,7 @@ export default function Signup() {
               <button
                 type="button"
                 onClick={() => setRole('renter')}
-                className={`flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                className={`flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition cursor-pointer ${
                   role === 'renter'
                     ? 'border-brand bg-brand/5'
                     : 'border-black/5 hover:border-brand/30 bg-lightgray'
@@ -214,7 +214,7 @@ export default function Signup() {
               <button
                 type="button"
                 onClick={() => setRole('landlord')}
-                className={`flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                className={`flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition cursor-pointer ${
                   role === 'landlord'
                     ? 'border-amber-400 bg-amber-50'
                     : 'border-black/5 hover:border-amber-200 bg-lightgray'

@@ -156,7 +156,7 @@ export default function Listings() {
                   setDraft(reset);
                   setApplied(reset);
                 }}
-                className={`flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                className={`flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-semibold whitespace-nowrap transition cursor-pointer ${
                   activeCategory === tab.key
                     ? tab.key === 'vacation'
                       ? 'bg-sage text-white'
@@ -387,7 +387,7 @@ export default function Listings() {
                   <div
                     key={listing.id}
                     onClick={() => navigate(`/listings/${listing.id}`)}
-                    className={`group bg-white rounded-3xl overflow-hidden border border-black/5 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer ${
+                    className={`group bg-white rounded-3xl overflow-hidden border border-black/5 hover:-translate-y-0.5 transition duration-300 cursor-pointer ${
                       listing.category === 'vacation' ? 'hover:border-sage/40' : 'hover:border-brand/30'
                     }`}
                     data-product-shop

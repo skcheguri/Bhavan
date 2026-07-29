@@ -21,7 +21,7 @@ export default function VerificationSteps({ currentStep }: VerificationStepsProp
         <div key={step.number} className="flex items-center">
           <div className="flex flex-col items-center">
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition duration-300 ${
                 currentStep > step.number
                   ? 'bg-green-500 text-white'
                   : currentStep === step.number
@@ -45,7 +45,7 @@ export default function VerificationSteps({ currentStep }: VerificationStepsProp
           </div>
           {idx < steps.length - 1 && (
             <div
-              className={`w-16 md:w-24 h-0.5 mb-5 mx-1 transition-all duration-300 ${
+              className={`w-16 md:w-24 h-0.5 mb-5 mx-1 transition duration-300 ${
                 currentStep > step.number ? 'bg-green-400' : 'bg-gray-200'
               }`}
             />

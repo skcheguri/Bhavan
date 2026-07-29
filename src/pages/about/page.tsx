@@ -75,7 +75,7 @@ export default function About() {
               {values.map((value) => (
                 <div
                   key={value.title}
-                  className="bg-offwhite rounded-2xl p-6 text-center hover:shadow-md transition-all duration-300"
+                  className="bg-offwhite rounded-2xl p-6 text-center hover:shadow-md transition duration-300"
                 >
                   <div className="w-14 h-14 mx-auto rounded-full bg-brand/10 flex items-center justify-center mb-4">
                     <div className="w-7 h-7 flex items-center justify-center">

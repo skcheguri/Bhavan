@@ -111,7 +111,7 @@ export default function RequestsTab() {
           <button
             key={s.key}
             onClick={() => setFilter(s.key)}
-            className={`text-left p-4 rounded-xl border transition-all cursor-pointer ${filter === s.key ? 'border-amber-500 bg-amber-50/50' : 'border-black/5 bg-white hover:border-amber-300/50'}`}
+            className={`text-left p-4 rounded-xl border transition cursor-pointer ${filter === s.key ? 'border-amber-500 bg-amber-50/50' : 'border-black/5 bg-white hover:border-amber-300/50'}`}
           >
             <div className={`w-8 h-8 flex items-center justify-center rounded-lg mb-2 ${s.bg}`}>
               <i className={`${s.icon} ${s.color}`} />
@@ -146,7 +146,7 @@ export default function RequestsTab() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all cursor-pointer whitespace-nowrap ${
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition cursor-pointer whitespace-nowrap ${
                 filter === f ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-charcoal/60 border-black/10 hover:border-amber-300'
               }`}
             >
@@ -180,7 +180,7 @@ export default function RequestsTab() {
             const pc = priorityConfig[req.priority] || priorityConfig.low;
             const icon = getCategoryIcon(req.category);
             return (
-              <div key={req.id} className={`bg-white rounded-2xl border p-5 transition-all ${req.priority === 'high' && req.status !== 'resolved' ? 'border-red-100' : 'border-black/5'}`}>
+              <div key={req.id} className={`bg-white rounded-2xl border p-5 transition ${req.priority === 'high' && req.status !== 'resolved' ? 'border-red-100' : 'border-black/5'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className={`w-11 h-11 flex items-center justify-center rounded-xl flex-shrink-0 ${req.priority === 'high' ? 'bg-red-50' : 'bg-amber-50'}`}>
