@@ -30,7 +30,7 @@ const essentialStorage: StorageRow[] = [
 
 const securityStorage: StorageRow[] = [
   {
-    name: 'bungalow_fingerprint',
+    name: 'bhavan_fingerprint',
     type: 'sessionStorage',
     purpose: 'A device fingerprint (derived from screen size, timezone, browser and graphics-card characteristics) used to rate-limit actions like contact-form submissions and connection requests from signed-out or first-time visitors, to reduce spam and abuse.',
     duration: 'Current browser tab session',

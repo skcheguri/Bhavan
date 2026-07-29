@@ -97,7 +97,7 @@ function getRawComponents(): Record<string, string | number | boolean> {
  */
 export function getDeviceFingerprint(): string {
   try {
-    const cached = sessionStorage.getItem('bungalow_fingerprint');
+    const cached = sessionStorage.getItem('bhavan_fingerprint');
     if (cached) return cached;
   } catch {
     // sessionStorage blocked (e.g. incognito with strict settings)
@@ -110,7 +110,7 @@ export function getDeviceFingerprint(): string {
   const fingerprint = hashString(parts.join('||'));
 
   try {
-    sessionStorage.setItem('bungalow_fingerprint', fingerprint);
+    sessionStorage.setItem('bhavan_fingerprint', fingerprint);
   } catch {
     // ignore
   }

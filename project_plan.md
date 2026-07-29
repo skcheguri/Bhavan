@@ -91,7 +91,7 @@ Bhavan runs a **Freemium subscription model exclusively for Property Owners / La
 - Automated Rent Management (auto-reminders, lease expiry alerts, bulk receipt generation)
 - Priority listing placement in search results
 - "Verified Pro Landlord" badge on listings and profile
-- Custom branded listing URLs (`bungalow.app/l/[slug]`)
+- Custom branded listing URLs (`mybhavan.com/l/[slug]`)
 - Auto-filled Schedule HP + one-click ITR-2 generation
 - Priority email support (4-hour response)
 - Dedicated account manager for 5+ properties

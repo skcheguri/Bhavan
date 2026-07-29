@@ -436,13 +436,14 @@
 
 ### 4.3 Owner Rate Limits
 
-Owners are rate-limited on high-frequency actions to prevent spam and system abuse. These limits are enforced client-side via `localStorage` timestamps (server-side enforcement via Edge Functions when Supabase is connected).
+Owners are rate-limited on high-frequency actions to prevent spam and system abuse. These are now server-enforced via Postgres triggers (`rate_limit_events` table, see migration 045) — the `localStorage` prefixes below back a client-side usage counter for UI feedback only, not the actual enforcement.
 
 | Action | Daily Limit | Weekly Limit | Storage Key Prefix |
 |--------|-------------|--------------|-------------------|
-| Inquiry responses (approve/decline) | 50 | 200 | `bungalow_owner_inquiry_responses_` |
-| Chat messages sent | 100 | 500 | `bungalow_owner_chat_` |
-| Community posts created | 5 | 15 | `bungalow_owner_community_` |
+| Inquiry responses (approve/decline) | 50 | 200 | `bhavan_owner_inquiry_responses_` |
+| Community posts created | 5 | 15 | `bhavan_owner_community_` |
+
+> Chat message rate limiting was removed entirely (not renamed) — the chat rate-limit counter was found to be broken (a stale `useMemo` that never updated after sending a message) and the user chose to remove the limit rather than fix the display.
 
 **UI Behavior:**
 - **Banner Warning:** When owner approaches 80% of any daily limit, a yellow banner appears at the top of the relevant tab: "You are close to your daily message limit (X/100)."
@@ -1349,7 +1350,7 @@ Bhavan runs a **Freemium subscription model exclusively for Property Owners / La
 - **Priority Tools:**
   - Priority listing placement (Pro listings appear higher in search results)
   - "Verified Pro Landlord" badge on all listings and profile
-  - Custom branded listing URLs (`bungalow.app/l/[slug]`)
+  - Custom branded listing URLs (`mybhavan.com/l/[slug]`)
   - Listing performance insights and optimization suggestions
 - **Enhanced Tax & Legal Support:**
   - Auto-filled Schedule HP with data pulled from rent receipts

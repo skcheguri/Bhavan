@@ -6,12 +6,12 @@ const WEEK_MS = 7 * DAY_MS;
 /* ───────── Inquiry Response Limits ───────── */
 const INQUIRY_MAX_DAILY = 50;
 const INQUIRY_MAX_WEEKLY = 200;
-const INQUIRY_KEY_PREFIX = 'bungalow_owner_inquiry_responses_';
+const INQUIRY_KEY_PREFIX = 'bhavan_owner_inquiry_responses_';
 
 /* ───────── Community Post Limits ───────── */
 const COMMUNITY_MAX_DAILY = 5;
 const COMMUNITY_MAX_WEEKLY = 15;
-const COMMUNITY_KEY_PREFIX = 'bungalow_owner_community_';
+const COMMUNITY_KEY_PREFIX = 'bhavan_owner_community_';
 
 /* ───────── Shared helpers ───────── */
 function getKey(userId: string, prefix: string): string {

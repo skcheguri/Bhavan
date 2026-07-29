@@ -18,7 +18,7 @@ describe("getDeviceFingerprint", () => {
 
   it("caches the result in sessionStorage instead of recomputing", () => {
     const first = getDeviceFingerprint();
-    expect(sessionStorage.getItem("bungalow_fingerprint")).toBe(first);
+    expect(sessionStorage.getItem("bhavan_fingerprint")).toBe(first);
   });
 
   it("still returns a usable fingerprint if sessionStorage is unavailable", () => {

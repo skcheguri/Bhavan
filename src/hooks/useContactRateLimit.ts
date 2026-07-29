@@ -13,8 +13,8 @@ function getEdgeFunctionUrl(name: string): string {
   return `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/${name}`;
 }
 
-const STORAGE_KEY_PREFIX = 'bungalow_contacts_';
-const STORAGE_KEY_DEVICE = 'bungalow_device_contacts_';
+const STORAGE_KEY_PREFIX = 'bhavan_contacts_';
+const STORAGE_KEY_DEVICE = 'bhavan_device_contacts_';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 const MAX_DAILY = 5;
