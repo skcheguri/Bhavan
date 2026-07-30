@@ -659,8 +659,10 @@ export default function ListingDetail() {
                 </div>
               </div>
 
-              {/* Key specs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
+              {/* Key specs -- sized to match the Amenities list below
+                  (small icon + text row) rather than the old large
+                  centered-icon boxes. */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
                 {(isVacation ? [
                   { label: `${maxGuests} Guests`, sublabel: 'Max Capacity', icon: 'ri-group-line', color: 'text-sage bg-sage-light' },
                   { label: `${listing.bedrooms} Bed${listing.bedrooms > 1 ? 's' : ''}`, sublabel: 'Bedrooms', icon: 'ri-hotel-bed-line', color: 'text-brand bg-brand/10' },
@@ -672,12 +674,14 @@ export default function ListingDetail() {
                   { label: `${listing.area} sqft`, sublabel: 'Area', icon: 'ri-ruler-line', color: 'text-amber-600 bg-amber-50' },
                   { label: listing.furnished ? 'Furnished' : 'Unfurnished', sublabel: 'Furnishing', icon: 'ri-sofa-line', color: listing.furnished ? 'text-green-600 bg-green-50' : 'text-charcoal/60 bg-lightgray' },
                 ]).map((spec) => (
-                  <div key={spec.label} className="bg-offwhite rounded-2xl p-4 text-center">
-                    <div className={`w-12 h-12 flex items-center justify-center rounded-2xl mx-auto mb-2.5 ${spec.color}`}>
-                      <i className={`${spec.icon} text-xl`} />
+                  <div key={spec.label} className="flex items-center gap-2.5 p-3 bg-offwhite rounded-xl">
+                    <div className={`w-8 h-8 flex items-center justify-center rounded-lg flex-shrink-0 ${spec.color}`}>
+                      <i className={`${spec.icon} text-base`} />
                     </div>
-                    <p className="text-base font-bold text-charcoal">{spec.label}</p>
-                    <p className="text-xs text-charcoal/40 mt-0.5">{spec.sublabel}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-charcoal truncate">{spec.label}</p>
+                      <p className="text-[11px] text-charcoal/40 truncate">{spec.sublabel}</p>
+                    </div>
                   </div>
                 ))}
               </div>
