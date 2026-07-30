@@ -505,100 +505,43 @@ export default function Listings() {
                     }`}
                     data-product-shop
                   >
-                    <div className="relative aspect-[4/3] overflow-hidden">
+                    <div className="relative aspect-[3/2] overflow-hidden">
                       <img
                         src={listing.images[0]}
                         alt={listing.title}
                         className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                       />
                       {listing.verified && (
-                        <span className="absolute top-3 left-3 bg-brand text-white text-xs font-semibold px-3 py-1 rounded-full">
+                        <span className="absolute top-2 left-2 bg-brand text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
                           Verified
                         </span>
                       )}
-                      <span className="absolute top-3 right-3 bg-white/90 text-charcoal text-xs font-semibold px-3 py-1 rounded-full capitalize">
+                      <span className="absolute top-2 right-2 bg-white/90 text-charcoal text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize">
                         {listing.property_type}
                       </span>
                     </div>
-                    <div className="p-3 sm:p-4">
+                    <div className="p-2.5">
+                      <h3 className="text-xs font-semibold text-charcoal line-clamp-1">{listing.title}</h3>
+                      <div className="mt-0.5 flex items-center gap-1 text-charcoal/50 text-[11px] line-clamp-1">
+                        <i className="ri-map-pin-line text-[11px] flex-shrink-0" />
+                        <span className="truncate">
+                          {listing.location}
+                          {listing.distanceKm !== null && ` · ${listing.distanceKm < 1 ? '<1' : Math.round(listing.distanceKm)} km away`}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-charcoal/60">
+                        {listing.category === 'vacation'
+                          ? `${listing.bedrooms} bed · ${listing.bathrooms} bath${'max_guests' in listing && listing.max_guests ? ` · up to ${listing.max_guests} guests` : ''}`
+                          : `${listing.bedrooms} bed · ${listing.bathrooms} bath · ${listing.area} sq ft`}
+                      </div>
                       {listing.category === 'vacation' ? (
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-sage-dark font-bold text-lg sm:text-xl">₹{listing.price.toLocaleString('en-IN')}</span>
-                          <span className="text-charcoal/40 text-xs">/night</span>
+                        <div className="mt-1 flex items-baseline gap-1">
+                          <span className="text-sage-dark font-bold text-sm">₹{listing.price.toLocaleString('en-IN')}</span>
+                          <span className="text-charcoal/40 text-[10px]">/night</span>
                         </div>
                       ) : (
-                        <div className="text-brand font-bold text-lg sm:text-xl">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-medium text-charcoal/50">/mo</span></div>
+                        <div className="mt-1 text-brand font-bold text-sm">₹{listing.price.toLocaleString('en-IN')}<span className="text-[10px] font-medium text-charcoal/50">/mo</span></div>
                       )}
-                      <h3 className="mt-1 text-sm font-semibold text-charcoal line-clamp-1">{listing.title}</h3>
-                      <div className="mt-1 flex items-center gap-1 text-charcoal/50 text-xs">
-                        <i className="ri-map-pin-line text-xs" />
-                        {listing.location}
-                        {listing.distanceKm !== null && (
-                          <span className="ml-1 text-charcoal/40">&middot; {listing.distanceKm < 1 ? '<1' : Math.round(listing.distanceKm)} km away</span>
-                        )}
-                      </div>
-
-                      {listing.category === 'vacation' ? (
-                        <div className="mt-2 flex items-center gap-3 text-xs text-charcoal/60">
-                          <span className="flex items-center gap-1">
-                            <i className="ri-group-line text-xs" />
-                            {'max_guests' in listing && listing.max_guests ? `Up to ${listing.max_guests} guests` : ''}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <i className="ri-hotel-bed-line text-xs" />
-                            {listing.bedrooms} {listing.bedrooms === 1 ? 'Bed' : 'Beds'}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <i className="ri-drop-line text-xs" />
-                            {listing.bathrooms} Bath{listing.bathrooms > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="mt-2 flex items-center gap-3 text-xs text-charcoal/60">
-                          <span className="flex items-center gap-1">
-                            <i className="ri-hotel-bed-line text-xs" />
-                            {listing.bedrooms} {listing.bedrooms === 1 ? 'Bed' : 'Beds'}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <i className="ri-drop-line text-xs" />
-                            {listing.bathrooms} {listing.bathrooms === 1 ? 'Bath' : 'Baths'}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <i className="ri-ruler-line text-xs" />
-                            {listing.area} sq ft
-                          </span>
-                        </div>
-                      )}
-                      <div className="mt-3 pt-3 border-t border-black/5">
-                        {user ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/listings/${listing.id}`);
-                            }}
-                            className={`w-full text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-colors whitespace-nowrap cursor-pointer ${
-                              listing.category === 'vacation'
-                                ? 'bg-sage hover:bg-sage-dark'
-                                : 'bg-brand hover:bg-brand-dark'
-                            }`}
-                          >
-                            {listing.category === 'vacation' ? 'View stay' : 'View details'}
-                          </button>
-                        ) : (
-                          <Link
-                            to="/login"
-                            onClick={(e) => e.stopPropagation()}
-                            className={`w-full flex items-center justify-center gap-1.5 text-white text-xs font-semibold px-4 py-2.5 rounded-full transition-colors whitespace-nowrap ${
-                              listing.category === 'vacation'
-                                ? 'bg-sage hover:bg-sage-dark'
-                                : 'bg-brand hover:bg-brand-dark'
-                            }`}
-                          >
-                            <i className="ri-login-circle-line" />
-                            Sign in to connect
-                          </Link>
-                        )}
-                      </div>
                     </div>
                   </div>
                 ))}
