@@ -10,7 +10,8 @@ export interface RentPayment {
   amount: number;
   month: string;
   payment_mode: 'upi_autopay' | 'razorpay' | 'cash';
-  status: 'pending' | 'paid' | 'failed' | 'reconciled';
+  status: 'pending' | 'paid' | 'failed' | 'refunded' | 'reconciled';
+  transaction_ref: string | null;
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   failure_reason: string | null;
@@ -258,6 +259,7 @@ export function useRentPayment(): UseRentPaymentReturn {
         month: input.month,
         payment_mode: input.payment_mode,
         status: 'pending',
+        transaction_ref: input.transaction_ref,
         razorpay_order_id: null,
         razorpay_payment_id: null,
         failure_reason: null,

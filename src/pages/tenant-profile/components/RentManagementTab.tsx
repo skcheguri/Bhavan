@@ -246,8 +246,7 @@ export default function RentManagementTab({ initialSubTab }: Props) {
                       }`}>
                         <i className={`${
                           payment.payment_mode === 'upi_autopay' ? 'ri-refresh-line' :
-                          payment.payment_mode === 'upi_qr' ? 'ri-qr-code-line' :
-                          payment.payment_mode === 'bank_transfer' ? 'ri-bank-line' :
+                          payment.payment_mode === 'razorpay' ? 'ri-secure-payment-line' :
                           'ri-hand-coin-line'
                         } text-sm ${
                           payment.status === 'paid' ? 'text-green-600' :
@@ -262,9 +261,8 @@ export default function RentManagementTab({ initialSubTab }: Props) {
                           {new Date(payment.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                           {' · '}
                           {payment.payment_mode === 'upi_autopay' ? 'UPI AutoPay' :
-                           payment.payment_mode === 'upi_qr' ? 'UPI QR' :
-                           payment.payment_mode === 'bank_transfer' ? 'Bank Transfer' :
-                           'Offline'}
+                           payment.payment_mode === 'razorpay' ? 'Online Payment' :
+                           'Cash'}
                         </p>
                       </div>
                     </div>
