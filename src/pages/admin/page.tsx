@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminBrokerReports } from '@/hooks/useBrokerReport';
 import { useAdminPropertyVerification } from '@/hooks/useAdminPropertyVerification';
+import { useAdminListingReports } from '@/hooks/useListingReports';
 import { useAdminCommunityModeration } from '@/hooks/useCommunity';
 import { useAdminUserStats } from '@/hooks/useAdminUsers';
 import { useAdminOverviewCounts } from '@/hooks/useAdminOverview';
@@ -20,6 +21,7 @@ interface AdminCard {
 export default function AdminDashboard() {
   const { reports, activeSoftBlockCount } = useAdminBrokerReports();
   const { requests: propertyVerificationRequests } = useAdminPropertyVerification();
+  const { reports: listingReports } = useAdminListingReports();
   const { posts: communityPosts } = useAdminCommunityModeration();
   const { stats: userStats } = useAdminUserStats();
   const { counts: overviewCounts } = useAdminOverviewCounts();
@@ -29,6 +31,7 @@ export default function AdminDashboard() {
 
   const pendingReports = reports.filter((r) => r.status === 'pending').length;
   const pendingPropertyVerifications = propertyVerificationRequests.filter((r) => r.status === 'pending').length;
+  const pendingListingReports = listingReports.filter((r) => r.status === 'pending').length;
   const flaggedPosts = communityPosts.filter((p) => p.report_count > 0 && !p.hidden).length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
   const recentErrors = errorLogs.filter((l) => Date.now() - new Date(l.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000).length;
@@ -89,6 +92,14 @@ export default function AdminDashboard() {
       color: 'bg-green-50 text-green-600',
       to: '/admin/property-verification',
       description: 'Review ownership documents submitted by landlords.',
+    },
+    {
+      title: 'Listing Reports',
+      count: pendingListingReports,
+      icon: 'ri-flag-2-line',
+      color: 'bg-orange-50 text-orange-600',
+      to: '/admin/listing-reports',
+      description: 'Tenant-flagged listings — mismatched photos, inaccurate details, or unavailable properties.',
     },
     {
       title: 'Community Moderation',

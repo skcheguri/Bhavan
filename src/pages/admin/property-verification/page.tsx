@@ -134,6 +134,29 @@ export default function AdminPropertyVerificationPage() {
                       >
                         {viewingId === r.id ? 'Loading document…' : 'View submitted document ↗'}
                       </button>
+
+                      {/* Listing photos -- spot-check that they plausibly
+                          match the property, not just that ownership docs
+                          check out. No automated detection, just surfacing
+                          them where an admin is already reviewing. */}
+                      {r.listingImages.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-[10px] font-semibold text-charcoal/40 uppercase tracking-wide mb-1.5">Listing Photos</p>
+                          <div className="flex gap-2 overflow-x-auto">
+                            {r.listingImages.map((url, i) => (
+                              <a
+                                key={i}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-black/10 hover:border-amber-400 transition-colors"
+                              >
+                                <img src={url} alt={`Listing photo ${i + 1}`} className="w-full h-full object-cover" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => {

@@ -42,6 +42,7 @@ const AdminDashboard = lazy(() => import("../pages/admin/page"));
 const AdminBrokerReports = lazy(() => import("../pages/admin/broker-reports/page"));
 const AdminVerification = lazy(() => import("../pages/admin/verification/page"));
 const AdminPropertyVerification = lazy(() => import("../pages/admin/property-verification/page"));
+const AdminListingReports = lazy(() => import("../pages/admin/listing-reports/page"));
 const AdminCommunity = lazy(() => import("../pages/admin/community/page"));
 const AdminUsers = lazy(() => import("../pages/admin/users/page"));
 const AdminListings = lazy(() => import("../pages/admin/listings/page"));
@@ -177,6 +178,10 @@ const routes: RouteObject[] = [
   {
     path: "/admin/property-verification",
     element: <RequireAdmin><AdminPropertyVerification /></RequireAdmin>,
+  },
+  {
+    path: "/admin/listing-reports",
+    element: <RequireAdmin><AdminListingReports /></RequireAdmin>,
   },
   {
     path: "/admin/community",

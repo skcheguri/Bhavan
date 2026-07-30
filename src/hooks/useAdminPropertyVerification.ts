@@ -11,6 +11,7 @@ export interface PropertyVerificationRequest {
   address: string;
   city: string;
   verificationDocPath: string;
+  listingImages: string[];
   status: PropertyVerificationStatus;
   rejectionReason: string | null;
   createdAt: string;
@@ -40,7 +41,7 @@ export function useAdminPropertyVerification() {
     // gone through the "prove ownership" step at all yet.
     const { data, error } = await supabase
       .from('properties')
-      .select('id, owner_id, name, address, city, verification_doc_url, verified, verification_rejection_reason, verification_reviewed_at, created_at, owner:users_public!properties_owner_id_fkey(name)')
+      .select('id, owner_id, name, address, city, verification_doc_url, verified, verification_rejection_reason, verification_reviewed_at, created_at, owner:users_public!properties_owner_id_fkey(name), listings!listings_property_id_fkey(images)')
       .not('verification_doc_url', 'is', null)
       .order('created_at', { ascending: false });
 
@@ -60,6 +61,7 @@ export function useAdminPropertyVerification() {
         address: String(row.address ?? ''),
         city: String(row.city ?? ''),
         verificationDocPath: String(row.verification_doc_url ?? ''),
+        listingImages: ((row.listings as { images?: string[] }[] | null)?.[0]?.images ?? []) as string[],
         status: deriveStatus(row),
         rejectionReason: (row.verification_rejection_reason as string | null) ?? null,
         createdAt: String(row.created_at),

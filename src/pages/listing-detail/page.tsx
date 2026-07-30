@@ -12,6 +12,7 @@ import { useTenantPropertyVisits, useCreatePropertyVisit } from '@/hooks/useProp
 import { isValidIndianPhone, formatIndianPhoneInput } from '@/lib/validation';
 import VacationCalendar from './components/VacationCalendar';
 import SoftBlockModal from './components/SoftBlockModal';
+import ReportListingModal from './components/ReportListingModal';
 
 function formatListedDate(iso: string) {
   const d = new Date(iso);
@@ -61,6 +62,7 @@ export default function ListingDetail() {
   const { create: createPropertyVisit } = useCreatePropertyVisit();
   const { listings: allListings } = useListings();
   const [softBlockModalOpen, setSoftBlockModalOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
   // Vacation booking state
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
@@ -1010,6 +1012,16 @@ export default function ListingDetail() {
                 </div>
               </div>
             )}
+
+            {user && listing.owner_id !== user.id && (
+              <button
+                type="button"
+                onClick={() => setReportModalOpen(true)}
+                className="flex items-center gap-1.5 text-xs text-charcoal/40 hover:text-red-600 transition-colors cursor-pointer"
+              >
+                <i className="ri-flag-2-line" /> Report this listing
+              </button>
+            )}
           </div>
 
           {/* Right: Sticky sidebar */}
@@ -1289,6 +1301,12 @@ export default function ListingDetail() {
         onClose={() => setSoftBlockModalOpen(false)}
         tenantId={user?.id ?? ''}
         tenantName={user?.name ?? ''}
+      />
+      <ReportListingModal
+        open={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        listingId={listing.id}
+        reporterId={user?.id ?? ''}
       />
       {lightboxOpen && (
         <div
