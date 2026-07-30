@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useListingDetail } from '@/hooks/useListingDetail';
@@ -29,6 +29,7 @@ export default function ListingDetail() {
 
   // All state hooks MUST be declared before any conditional returns
   const [activeImage, setActiveImage] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const { savedIds, save, unsave, saving: savingBookmark } = useSaveListing(user?.id);
   const saved = savedIds.includes(id ?? '');
   const [requestOpen, setRequestOpen] = useState(false);
@@ -69,6 +70,21 @@ export default function ListingDetail() {
   const { reservedDates, refresh: refreshReservedDates } = useListingReservedDates(id);
   const { create: createVacationBooking, creating: bookingSubmitting } = useCreateVacationBooking();
 
+  // Keyboard nav for the photo lightbox -- declared unconditionally
+  // (before the loading/error/not-found early returns below) since hooks
+  // can't be called conditionally; it just no-ops until both a listing
+  // and the lightbox are actually open.
+  useEffect(() => {
+    if (!lightboxOpen || !listing) return;
+    const total = listing.images.length > 0 ? listing.images.length : 1;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxOpen(false);
+      else if (e.key === 'ArrowLeft') setActiveImage((prev) => (prev - 1 + total) % total);
+      else if (e.key === 'ArrowRight') setActiveImage((prev) => (prev + 1) % total);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [lightboxOpen, listing]);
 
   const timeSlots = [
     '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
@@ -587,8 +603,12 @@ export default function ListingDetail() {
                 <img
                   src={allImages[activeImage]}
                   alt={listing.title}
-                  className="w-full h-full object-cover object-top transition-opacity duration-300"
+                  onClick={() => setLightboxOpen(true)}
+                  className="w-full h-full object-cover object-top transition-opacity duration-300 cursor-zoom-in"
                 />
+                <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white text-xs px-2.5 py-1 rounded-full pointer-events-none">
+                  <i className="ri-zoom-in-line" /> Tap to view
+                </div>
                 {listing.verified && (
                   <span className="absolute top-4 left-4 flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-green-500 text-white">
                     <i className="ri-shield-check-fill text-sm" /> Verified
@@ -1270,6 +1290,56 @@ export default function ListingDetail() {
         tenantId={user?.id ?? ''}
         tenantName={user?.name ?? ''}
       />
+      {lightboxOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <button
+            onClick={() => setLightboxOpen(false)}
+            aria-label="Close"
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+          >
+            <i className="ri-close-line text-xl" />
+          </button>
+
+          {allImages.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveImage((prev) => (prev - 1 + allImages.length) % allImages.length);
+                }}
+                aria-label="Previous photo"
+                className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              >
+                <i className="ri-arrow-left-s-line text-2xl" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveImage((prev) => (prev + 1) % allImages.length);
+                }}
+                aria-label="Next photo"
+                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              >
+                <i className="ri-arrow-right-s-line text-2xl" />
+              </button>
+            </>
+          )}
+
+          <img
+            src={allImages[activeImage]}
+            alt={listing.title}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-[92vw] max-h-[85vh] object-contain"
+          />
+
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/10 text-white text-xs px-3 py-1 rounded-full">
+            {activeImage + 1} / {allImages.length}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
