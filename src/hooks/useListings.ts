@@ -30,11 +30,16 @@ export interface ListingFromDB {
   saves_count: number | null;
   created_at: string;
   category: string | null;
+  latitude: number | null;
+  longitude: number | null;
   owner?: {
     name: string | null;
     avatar_url: string | null;
     verified_aadhaar: boolean | null;
   };
+  property?: {
+    address: string | null;
+  } | null;
 }
 
 interface UseListingsReturn {
@@ -110,7 +115,7 @@ export function useOwnerListings(ownerId: string | undefined): UseListingsReturn
     setLoading(true);
     const { data, error: dbError } = await supabase
       .from('listings')
-      .select('*, owner:users_public!listings_owner_id_fkey(name, avatar_url, verified_aadhaar)')
+      .select('*, owner:users_public!listings_owner_id_fkey(name, avatar_url, verified_aadhaar), property:properties(address)')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
 

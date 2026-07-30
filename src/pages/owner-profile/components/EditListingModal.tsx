@@ -3,6 +3,7 @@ import { getSupabase } from '@/lib/supabase';
 import type { ListingFromDB } from '@/hooks/useListings';
 import { uploadListingImages, deleteListingImage } from '@/hooks/useListingImages';
 import { useToast } from '@/hooks/useToast';
+import { geocodeAddress } from '@/lib/geocode';
 
 interface EditListingModalProps {
   listing: ListingFromDB | null;
@@ -46,6 +47,8 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
     bathrooms: '',
     area: '',
     location: '',
+    locality: '',
+    fullAddress: '',
     description: '',
     furnished: false,
     parking: 'none',
@@ -62,6 +65,8 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
         bathrooms: String(listing.bathrooms ?? 1),
         area: String(listing.area_sqft ?? 0),
         location: listing.city ?? '',
+        locality: listing.location ?? '',
+        fullAddress: listing.property?.address ?? '',
         description: listing.description ?? '',
         furnished: listing.furnished ?? false,
         parking: listing.parking ?? 'none',
@@ -140,6 +145,32 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
       return;
     }
 
+    const addressChanged =
+      form.locality !== (listing.location ?? '') ||
+      form.fullAddress !== (listing.property?.address ?? '') ||
+      form.location !== (listing.city ?? '');
+
+    // Re-resolve coordinates whenever the address changed, so "nearby"
+    // and current-location search stay accurate -- best-effort, a failed
+    // lookup shouldn't block saving the rest of the listing. Locality-level
+    // only: Nominatim reliably resolves "Kompally, Hyderabad" but returns
+    // zero matches once a flat/building number is mixed into the query.
+    const coords = addressChanged
+      ? await geocodeAddress(`${form.locality}, ${form.location}, India`)
+      : null;
+
+    if (listing.property_id && form.fullAddress !== (listing.property?.address ?? '')) {
+      const { error: propError } = await supabase
+        .from('properties')
+        .update({ address: form.fullAddress })
+        .eq('id', listing.property_id);
+      if (propError) {
+        addToast(`Failed to update address: ${propError.message}`, 'error');
+        setSaving(false);
+        return;
+      }
+    }
+
     const updates = {
       title: form.title,
       price: Number(form.price) || listing.price,
@@ -147,19 +178,21 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
       bathrooms: Number(form.bathrooms),
       area_sqft: Number(form.area),
       city: form.location,
+      location: form.locality,
       description: form.description,
       furnished: form.furnished,
       parking: form.parking,
       amenities: form.amenities,
       nearby_places: form.nearbyPlaces.filter((p) => p.label.trim() && p.distance.trim()),
       images,
+      ...(addressChanged ? { latitude: coords?.latitude ?? null, longitude: coords?.longitude ?? null } : {}),
     };
 
     const { data, error } = await supabase
       .from('listings')
       .update(updates)
       .eq('id', listing.id)
-      .select('*, owner:users_public!listings_owner_id_fkey(name, avatar_url, verified_aadhaar)')
+      .select('*, owner:users_public!listings_owner_id_fkey(name, avatar_url, verified_aadhaar), property:properties(address)')
       .single();
 
     setSaving(false);
@@ -283,6 +316,37 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Locality + Full address -- shown here so an owner can actually
+              see and correct what they entered at listing creation, which
+              previously wasn't displayed anywhere after submission. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">Locality / Area</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Koramangala, HSR Layout"
+                value={form.locality}
+                onChange={(e) => handleChange('locality', e.target.value)}
+                className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">Full Address</label>
+            <textarea
+              required
+              rows={3}
+              placeholder="Flat/House no., building or society name, street, landmark"
+              value={form.fullAddress}
+              onChange={(e) => handleChange('fullAddress', e.target.value)}
+              className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none"
+            />
+            <p className="text-xs text-charcoal/40 mt-1.5">
+              Private to you — never shown to tenants or in search results, only your locality and city are public.
+            </p>
           </div>
 
           {/* Bedrooms + Bathrooms + Area */}

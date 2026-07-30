@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getSupabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/useToast';
 import { INDIA_STATES, CITIES_BY_STATE, OTHER_CITY_OPTION } from '@/content/indiaLocations';
+import { geocodeAddress } from '@/lib/geocode';
 
 type Step = 'gate' | 'ownership' | 'landing' | 'property-type' | 'form';
 type PropertyCategory = 'residential' | 'commercial' | 'vacation' | '';
@@ -154,6 +155,14 @@ export default function ListProperty() {
 
     setSubmitting(true);
 
+    // Best-effort geocode so the listing can show up in "nearby" and
+    // current-location searches -- a failed/slow lookup should never block
+    // listing creation, so the listing still saves with null coordinates.
+    // Deliberately locality-level, not the full street address: Nominatim's
+    // free-text parser reliably resolves "Kompally, Hyderabad" but returns
+    // zero matches once a flat/building number is mixed into the query.
+    const coords = await geocodeAddress(`${location}, ${city}, ${state}, India`);
+
     const supabase = getSupabase();
     if (!supabase) {
       addToast('Database connection unavailable', 'error');
@@ -207,6 +216,8 @@ export default function ListProperty() {
         status: 'active',
         verified: false,
         category: propertyCategory || 'residential',
+        latitude: coords?.latitude ?? null,
+        longitude: coords?.longitude ?? null,
       });
 
     setSubmitting(false);

@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useListings, type ListingCategory } from '@/hooks/useListings';
+import { useToast } from '@/hooks/useToast';
+import { geocodeAddress } from '@/lib/geocode';
+import { haversineDistanceKm, matchesSearchTerms, type Coordinates } from '@/lib/geo';
+
+// How far a "nearby" text search (e.g. "Suchitra, Hyderabad") or a
+// current-location search reaches before a listing is excluded, in km.
+// Wide enough to cover neighboring suburbs within the same metro.
+const NEARBY_RADIUS_KM = 20;
 
 interface SearchFilters {
   searchQuery: string;
@@ -36,10 +44,20 @@ export default function Listings() {
   const [draft, setDraft] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [applied, setApplied] = useState<SearchFilters>(DEFAULT_FILTERS);
 
+  // Coordinates a "nearby" or current-location search is centered on --
+  // independent of the text query so a listing whose locality doesn't
+  // literally match the typed text can still surface if it's physically
+  // close by (e.g. searching "Suchitra" should also find a "Kompally"
+  // listing a few km away, the way Google Maps does).
+  const [searchOrigin, setSearchOrigin] = useState<Coordinates | null>(null);
+  const [searchOriginLabel, setSearchOriginLabel] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+
   const { searchQuery, propertyType, priceRange, bedrooms, furnished, parking, maxGuests, verifiedOnly } = applied;
 
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { addToast } = useToast();
   const { listings: dbListings, loading: dbLoading } = useListings(
     activeCategory === 'all' ? undefined : activeCategory
   );
@@ -48,6 +66,50 @@ export default function Listings() {
   const applySearch = (e?: React.FormEvent) => {
     e?.preventDefault();
     setApplied(draft);
+
+    const query = draft.searchQuery.trim();
+    if (!query) {
+      setSearchOrigin(null);
+      setSearchOriginLabel(null);
+      return;
+    }
+    // Fire-and-forget: text-only matches already show immediately from
+    // setApplied above, this just adds nearby-by-distance results in once
+    // the geocode resolves, without blocking the search submit.
+    geocodeAddress(`${query}, India`).then((coords) => {
+      setSearchOrigin(coords);
+      setSearchOriginLabel(coords ? query : null);
+    });
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      addToast('Your browser does not support location search', 'error');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSearchOrigin({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        setSearchOriginLabel('your current location');
+        setLocating(false);
+      },
+      (err) => {
+        setLocating(false);
+        addToast(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location access was denied — enable it in your browser settings to search nearby'
+            : 'Could not determine your location',
+          'error'
+        );
+      },
+      { enableHighAccuracy: false, timeout: 10000 }
+    );
+  };
+
+  const clearSearchOrigin = () => {
+    setSearchOrigin(null);
+    setSearchOriginLabel(null);
   };
 
   useEffect(() => {
@@ -65,7 +127,9 @@ export default function Listings() {
     title: l.title,
     description: l.description ?? '',
     price: l.price,
-    location: l.location ?? l.city ?? 'Unknown',
+    location: l.location && l.city ? `${l.location}, ${l.city}` : l.location ?? l.city ?? 'Unknown',
+    latitude: l.latitude,
+    longitude: l.longitude,
     bedrooms: l.bedrooms ?? 0,
     bathrooms: l.bathrooms ?? 1,
     area: l.area_sqft ?? 0,
@@ -83,13 +147,27 @@ export default function Listings() {
     created_at: l.created_at,
   }));
 
-  const filteredListings = displayListings.filter((listing) => {
+  // Distance from the active search origin (typed place, once geocoded, or
+  // "current location") -- null when there's no origin yet or this listing
+  // has no coordinates on file.
+  const listingsWithDistance = displayListings.map((listing) => ({
+    ...listing,
+    distanceKm:
+      searchOrigin && listing.latitude != null && listing.longitude != null
+        ? haversineDistanceKm(searchOrigin, { latitude: listing.latitude, longitude: listing.longitude })
+        : null,
+  }));
+
+  const filteredListings = listingsWithDistance.filter((listing) => {
     const matchesCategory = activeCategory === 'all' || listing.category === activeCategory;
 
-    const matchesSearch =
-      searchQuery === '' ||
-      listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      listing.location.toLowerCase().includes(searchQuery.toLowerCase());
+    const hasTextQuery = searchQuery.trim() !== '';
+    const matchesText = !hasTextQuery || matchesSearchTerms(searchQuery, `${listing.title} ${listing.location}`);
+    const withinRadius = listing.distanceKm !== null && listing.distanceKm <= NEARBY_RADIUS_KM;
+    // With text typed: a literal match OR a nearby listing (covers "Suchitra"
+    // finding a Kompally listing a few km away). With no text: only the
+    // radius filter applies when a "near me"-style origin is active.
+    const matchesSearch = hasTextQuery ? matchesText || withinRadius : !searchOrigin || withinRadius;
 
     const matchesType = propertyType === 'all' || listing.property_type === propertyType;
 
@@ -134,6 +212,12 @@ export default function Listings() {
     const matchesVerified = verifiedOnly === 'all' || listing.verified;
 
     return matchesCategory && matchesSearch && matchesType && matchesPrice && matchesBedrooms && matchesFurnished && matchesParking && matchesGuests && matchesVerified;
+  }).sort((a, b) => {
+    // Stable no-op when there's no active origin (both sides null).
+    if (a.distanceKm === null && b.distanceKm === null) return 0;
+    if (a.distanceKm === null) return 1;
+    if (b.distanceKm === null) return -1;
+    return a.distanceKm - b.distanceKm;
   });
 
   return (
@@ -236,11 +320,40 @@ export default function Listings() {
                 placeholder={isVacation ? 'Search by destination or property name...' : 'Search by location or property name...'}
                 value={draft.searchQuery}
                 onChange={(e) => setDraft({ ...draft, searchQuery: e.target.value })}
-                className={`w-full pl-10 pr-4 py-3 bg-lightgray rounded-xl text-sm focus:outline-none transition-colors ${
+                className={`w-full pl-10 pr-12 py-3 bg-lightgray rounded-xl text-sm focus:outline-none transition-colors ${
                   isVacation ? 'focus:ring-2 focus:ring-sage/40' : 'focus:ring-2 focus:ring-brand/30'
                 }`}
               />
+              <button
+                type="button"
+                onClick={useCurrentLocation}
+                disabled={locating}
+                aria-label="Search near my current location"
+                title="Search near my current location"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-charcoal/40 hover:text-brand hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <i className={locating ? 'ri-loader-4-line animate-spin' : 'ri-crosshair-2-line'} />
+              </button>
             </div>
+
+            {searchOriginLabel && (
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-medium ${
+                  isVacation ? 'bg-sage/10 text-sage-dark' : 'bg-brand/10 text-brand-dark'
+                }`}>
+                  <i className="ri-map-pin-2-line" />
+                  Showing results near {searchOriginLabel}
+                  <button
+                    type="button"
+                    onClick={clearSearchOrigin}
+                    aria-label="Clear location search"
+                    className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-black/10 cursor-pointer"
+                  >
+                    <i className="ri-close-line text-[10px]" />
+                  </button>
+                </span>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-3">
               <select
@@ -420,6 +533,9 @@ export default function Listings() {
                       <div className="mt-1 flex items-center gap-1 text-charcoal/50 text-xs">
                         <i className="ri-map-pin-line text-xs" />
                         {listing.location}
+                        {listing.distanceKm !== null && (
+                          <span className="ml-1 text-charcoal/40">&middot; {listing.distanceKm < 1 ? '<1' : Math.round(listing.distanceKm)} km away</span>
+                        )}
                       </div>
 
                       {listing.category === 'vacation' ? (
