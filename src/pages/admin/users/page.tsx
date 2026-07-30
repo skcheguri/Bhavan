@@ -115,6 +115,14 @@ export default function AdminUsersPage() {
                         {u.suspended && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">Suspended</span>
                         )}
+                        {!u.verifiedEmail && (
+                          <span
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-lightgray text-charcoal/50"
+                            title="Never confirmed their email -- likely an abandoned or unreachable signup"
+                          >
+                            Unconfirmed
+                          </span>
+                        )}
                         {u.verifiedAadhaar && (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600 flex items-center gap-0.5">
                             <i className="ri-shield-check-fill text-[10px]" /> Aadhaar

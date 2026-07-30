@@ -89,6 +89,14 @@ export default function AdminUserDetailModal({ user, onClose, onSuspend, onReact
                 {user.suspended && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">Suspended</span>
                 )}
+                {!user.verifiedEmail && (
+                  <span
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-lightgray text-charcoal/50"
+                    title="Never confirmed their email -- likely an abandoned or unreachable signup"
+                  >
+                    Unconfirmed
+                  </span>
+                )}
                 {user.verifiedAadhaar && (
                   <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">
                     <i className="ri-shield-check-fill text-xs" /> Aadhaar
