@@ -37,6 +37,7 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
   const [uploading, setUploading] = useState(false);
   const [removingUrl, setRemovingUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const MAX_NEARBY_PLACES = 6;
 
@@ -107,6 +108,7 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
     }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   const handleRemoveImage = async (url: string) => {
@@ -272,8 +274,23 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
                   <i className="ri-loader-4-line animate-spin text-lg" />
                 ) : (
                   <>
-                    <i className="ri-add-line text-lg" />
+                    <i className="ri-image-add-line text-lg" />
                     <span className="text-[10px] font-medium">Add Photos</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={uploading}
+                className="aspect-square rounded-xl border-2 border-dashed border-black/10 flex flex-col items-center justify-center gap-1 text-charcoal/40 hover:border-amber-300 hover:text-amber-600 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {uploading ? (
+                  <i className="ri-loader-4-line animate-spin text-lg" />
+                ) : (
+                  <>
+                    <i className="ri-camera-line text-lg" />
+                    <span className="text-[10px] font-medium">Take Photo</span>
                   </>
                 )}
               </button>
@@ -283,6 +300,14 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
               type="file"
               accept="image/jpeg,image/png,image/webp"
               multiple
+              className="hidden"
+              onChange={(e) => handleFilesSelected(e.target.files)}
+            />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
               className="hidden"
               onChange={(e) => handleFilesSelected(e.target.files)}
             />
