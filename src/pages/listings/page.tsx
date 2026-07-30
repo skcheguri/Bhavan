@@ -495,7 +495,7 @@ export default function Listings() {
                 <p className="text-charcoal/50 mt-1">Try adjusting your filters</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-7">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
                 {filteredListings.map((listing) => (
                   <div
                     key={listing.id}
