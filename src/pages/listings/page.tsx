@@ -320,7 +320,7 @@ export default function Listings() {
                 placeholder={isVacation ? 'Search by destination or property name...' : 'Search by location or property name...'}
                 value={draft.searchQuery}
                 onChange={(e) => setDraft({ ...draft, searchQuery: e.target.value })}
-                className={`w-full pl-10 pr-12 py-3 bg-lightgray rounded-xl text-sm focus:outline-none transition-colors ${
+                className={`w-full pl-10 pr-12 py-2.5 sm:py-3 bg-lightgray rounded-xl text-sm focus:outline-none transition-colors ${
                   isVacation ? 'focus:ring-2 focus:ring-sage/40' : 'focus:ring-2 focus:ring-brand/30'
                 }`}
               />
@@ -355,11 +355,11 @@ export default function Listings() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
               <select
                 value={draft.propertyType}
                 onChange={(e) => setDraft({ ...draft, propertyType: e.target.value })}
-                className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
+                className="px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm bg-white border border-black/10 rounded-xl focus:outline-none cursor-pointer min-w-0"
               >
                 <option value="all">All Types</option>
                 {isVacation ? (
@@ -381,7 +381,7 @@ export default function Listings() {
               <select
                 value={draft.priceRange}
                 onChange={(e) => setDraft({ ...draft, priceRange: e.target.value })}
-                className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
+                className="px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm bg-white border border-black/10 rounded-xl focus:outline-none cursor-pointer min-w-0"
               >
                 <option value="all">{isVacation ? 'Any Nightly Rate' : 'Any Price'}</option>
                 {isVacation ? (
@@ -404,7 +404,7 @@ export default function Listings() {
                 <select
                   value={draft.maxGuests}
                   onChange={(e) => setDraft({ ...draft, maxGuests: e.target.value })}
-                  className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
+                  className="px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm bg-white border border-black/10 rounded-xl focus:outline-none cursor-pointer min-w-0"
                 >
                   <option value="all">Any Guests</option>
                   <option value="2">Up to 2 Guests</option>
@@ -416,7 +416,7 @@ export default function Listings() {
                 <select
                   value={draft.bedrooms}
                   onChange={(e) => setDraft({ ...draft, bedrooms: e.target.value })}
-                  className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
+                  className="px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm bg-white border border-black/10 rounded-xl focus:outline-none cursor-pointer min-w-0"
                 >
                   <option value="all">Any Beds</option>
                   <option value="0">Studio</option>
@@ -430,7 +430,7 @@ export default function Listings() {
                 <select
                   value={draft.furnished}
                   onChange={(e) => setDraft({ ...draft, furnished: e.target.value })}
-                  className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
+                  className="px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm bg-white border border-black/10 rounded-xl focus:outline-none cursor-pointer min-w-0"
                 >
                   <option value="all">Furnishing</option>
                   <option value="yes">Furnished</option>
@@ -442,7 +442,7 @@ export default function Listings() {
                 <select
                   value={draft.parking}
                   onChange={(e) => setDraft({ ...draft, parking: e.target.value })}
-                  className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
+                  className="px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm bg-white border border-black/10 rounded-xl focus:outline-none cursor-pointer min-w-0"
                 >
                   <option value="all">Parking</option>
                   <option value="2-wheeler">2-Wheeler</option>
@@ -454,7 +454,7 @@ export default function Listings() {
               <select
                 value={draft.verifiedOnly}
                 onChange={(e) => setDraft({ ...draft, verifiedOnly: e.target.value })}
-                className="px-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm focus:outline-none cursor-pointer"
+                className="px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm bg-white border border-black/10 rounded-xl focus:outline-none cursor-pointer min-w-0"
               >
                 <option value="all">All Verification</option>
                 <option value="verified">Verified Only</option>
@@ -462,7 +462,7 @@ export default function Listings() {
 
               <button
                 type="submit"
-                className={`ml-auto flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors cursor-pointer whitespace-nowrap ${
+                className={`col-span-2 sm:col-span-1 sm:ml-auto flex items-center justify-center gap-2 px-4 py-2 text-xs sm:px-6 sm:py-2.5 sm:text-sm rounded-xl font-semibold text-white transition-colors cursor-pointer whitespace-nowrap ${
                   isVacation ? 'bg-sage hover:bg-sage-dark' : 'bg-brand hover:bg-brand-dark'
                 }`}
               >
@@ -495,12 +495,12 @@ export default function Listings() {
                 <p className="text-charcoal/50 mt-1">Try adjusting your filters</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-7">
                 {filteredListings.map((listing) => (
                   <div
                     key={listing.id}
                     onClick={() => navigate(`/listings/${listing.id}`)}
-                    className={`group bg-white rounded-3xl overflow-hidden border border-black/5 hover:-translate-y-0.5 transition duration-300 cursor-pointer ${
+                    className={`group bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-black/5 hover:-translate-y-0.5 transition duration-300 cursor-pointer ${
                       listing.category === 'vacation' ? 'hover:border-sage/40' : 'hover:border-brand/30'
                     }`}
                     data-product-shop
@@ -520,14 +520,14 @@ export default function Listings() {
                         {listing.property_type}
                       </span>
                     </div>
-                    <div className="p-4">
+                    <div className="p-3 sm:p-4">
                       {listing.category === 'vacation' ? (
                         <div className="flex items-baseline gap-1">
-                          <span className="text-sage-dark font-bold text-xl">₹{listing.price.toLocaleString('en-IN')}</span>
+                          <span className="text-sage-dark font-bold text-lg sm:text-xl">₹{listing.price.toLocaleString('en-IN')}</span>
                           <span className="text-charcoal/40 text-xs">/night</span>
                         </div>
                       ) : (
-                        <div className="text-brand font-bold text-xl">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-medium text-charcoal/50">/mo</span></div>
+                        <div className="text-brand font-bold text-lg sm:text-xl">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-medium text-charcoal/50">/mo</span></div>
                       )}
                       <h3 className="mt-1 text-sm font-semibold text-charcoal line-clamp-1">{listing.title}</h3>
                       <div className="mt-1 flex items-center gap-1 text-charcoal/50 text-xs">
