@@ -43,6 +43,7 @@ const AdminBrokerReports = lazy(() => import("../pages/admin/broker-reports/page
 const AdminVerification = lazy(() => import("../pages/admin/verification/page"));
 const AdminPropertyVerification = lazy(() => import("../pages/admin/property-verification/page"));
 const AdminListingReports = lazy(() => import("../pages/admin/listing-reports/page"));
+const AdminPurgedAccounts = lazy(() => import("../pages/admin/purged-accounts/page"));
 const AdminCommunity = lazy(() => import("../pages/admin/community/page"));
 const AdminUsers = lazy(() => import("../pages/admin/users/page"));
 const AdminListings = lazy(() => import("../pages/admin/listings/page"));
@@ -182,6 +183,10 @@ const routes: RouteObject[] = [
   {
     path: "/admin/listing-reports",
     element: <RequireAdmin><AdminListingReports /></RequireAdmin>,
+  },
+  {
+    path: "/admin/purged-accounts",
+    element: <RequireAdmin><AdminPurgedAccounts /></RequireAdmin>,
   },
   {
     path: "/admin/community",

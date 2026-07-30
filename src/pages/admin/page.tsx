@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAdminBrokerReports } from '@/hooks/useBrokerReport';
 import { useAdminPropertyVerification } from '@/hooks/useAdminPropertyVerification';
 import { useAdminListingReports } from '@/hooks/useListingReports';
+import { useAdminPurgedAccounts } from '@/hooks/useAdminPurgedAccounts';
 import { useAdminCommunityModeration } from '@/hooks/useCommunity';
 import { useAdminUserStats } from '@/hooks/useAdminUsers';
 import { useAdminOverviewCounts } from '@/hooks/useAdminOverview';
@@ -22,6 +23,7 @@ export default function AdminDashboard() {
   const { reports, activeSoftBlockCount } = useAdminBrokerReports();
   const { requests: propertyVerificationRequests } = useAdminPropertyVerification();
   const { reports: listingReports } = useAdminListingReports();
+  const { accounts: purgedAccounts } = useAdminPurgedAccounts();
   const { posts: communityPosts } = useAdminCommunityModeration();
   const { stats: userStats } = useAdminUserStats();
   const { counts: overviewCounts } = useAdminOverviewCounts();
@@ -100,6 +102,14 @@ export default function AdminDashboard() {
       color: 'bg-orange-50 text-orange-600',
       to: '/admin/listing-reports',
       description: 'Tenant-flagged listings — mismatched photos, inaccurate details, or unavailable properties.',
+    },
+    {
+      title: 'Purged Accounts',
+      count: purgedAccounts.length,
+      icon: 'ri-delete-bin-line',
+      color: 'bg-lightgray text-charcoal/60',
+      to: '/admin/purged-accounts',
+      description: 'Record of unconfirmed signups auto-removed after 30 days by the daily cleanup job.',
     },
     {
       title: 'Community Moderation',
