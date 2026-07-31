@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useListingDetail } from '@/hooks/useListingDetail';
+import { applySeo } from '@/lib/seo';
 import { useSaveListing } from '@/hooks/useSaveListing';
 import { useListings } from '@/hooks/useListings';
 import { useCreateConnectionRequest, useTenantConnectionRequests } from '@/hooks/useConnectionRequests';
@@ -27,6 +28,39 @@ export default function ListingDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { listing, loading, error } = useListingDetail(id);
+
+  // Real per-listing SEO once the data is in: descriptive title, listing
+  // photo for og:image, and RealEstateListing structured data. Runs after
+  // the route-level default in App.tsx, so it wins.
+  useEffect(() => {
+    if (!listing) return;
+    applySeo({
+      title: `${listing.title} — ₹${listing.price.toLocaleString('en-IN')}/mo in ${listing.location}`,
+      description:
+        (listing.description || `${listing.title}, available for rent in ${listing.location}.`).slice(0, 160) +
+        ' Broker-free on Bhavan.',
+      image: listing.images?.[0] ?? null,
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'RealEstateListing',
+        name: listing.title,
+        description: listing.description || undefined,
+        url: window.location.origin + `/listings/${listing.id}`,
+        image: listing.images?.length ? listing.images : undefined,
+        offers: {
+          '@type': 'Offer',
+          price: listing.price,
+          priceCurrency: 'INR',
+          availability: 'https://schema.org/InStock',
+        },
+        address: {
+          '@type': 'PostalAddress',
+          addressLocality: listing.location,
+          addressCountry: 'IN',
+        },
+      },
+    });
+  }, [listing]);
 
   // All state hooks MUST be declared before any conditional returns
   const [activeImage, setActiveImage] = useState(0);

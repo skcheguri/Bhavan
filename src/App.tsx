@@ -10,11 +10,23 @@ import SubscriptionProvider from "./components/feature/SubscriptionProvider";
 import { ToastProvider } from "./hooks/useToast";
 import ToastContainer from "./components/feature/ToastContainer";
 import ErrorBoundary from "./components/feature/ErrorBoundary";
+import { applyRouteSeo } from "./lib/seo";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
+// Route-level titles/descriptions/canonicals -- runs on every
+// navigation. Data-driven pages (listing detail) call applySeo again
+// once their content loads, which happens after this and wins.
+function RouteSeo() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    applyRouteSeo(pathname);
   }, [pathname]);
   return null;
 }
@@ -73,6 +85,7 @@ function App() {
           <ToastProvider>
             <BrowserRouter basename={__BASE_PATH__}>
               <ScrollToTop />
+              <RouteSeo />
               <AppShell />
             </BrowserRouter>
           </ToastProvider>

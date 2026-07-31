@@ -1,0 +1,19 @@
+# Bhavan -- broker-free rental marketplace
+User-agent: *
+Allow: /
+
+# Private / authenticated surfaces (also carry noindex meta)
+Disallow: /admin
+Disallow: /tenant-profile
+Disallow: /owner-profile
+Disallow: /rent-payment
+Disallow: /rent-receipts
+Disallow: /rental-agreements
+Disallow: /tax-forms
+Disallow: /notifications
+Disallow: /auth/
+Disallow: /reset-password
+Disallow: /aadhaar-verify
+Disallow: /scan/
+
+Sitemap: https://mybhavan.com/sitemap.xml
