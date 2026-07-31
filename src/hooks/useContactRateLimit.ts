@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getDeviceFingerprint } from '@/lib/fingerprint';
+import { getSupabase } from '@/lib/supabase';
 const SUPABASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_PUBLIC_SUPABASE_URL) || '';
 const SUPABASE_ANON_KEY =
@@ -11,6 +12,16 @@ function isSupabaseConnected(): boolean {
 
 function getEdgeFunctionUrl(name: string): string {
   return `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/${name}`;
+}
+
+// The edge functions derive the caller's identity from the JWT, so a
+// signed-in user must send their real access token -- sending the anon key
+// would make them look anonymous and get the (stricter) device limits.
+async function getAuthToken(): Promise<string> {
+  const supabase = getSupabase();
+  if (!supabase) return SUPABASE_ANON_KEY;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token || SUPABASE_ANON_KEY;
 }
 
 const STORAGE_KEY_PREFIX = 'bhavan_contacts_';
@@ -178,14 +189,15 @@ export function useContactRateLimit(userId: string | undefined) {
       setServerLoading(true);
       try {
         const fingerprint = getDeviceFingerprint();
+        const token = await getAuthToken();
         const response = await fetch(getEdgeFunctionUrl('check-contact-limit'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Authorization: `Bearer ${token}`,
+            apikey: SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({
-            userId: userId || undefined,
             deviceFingerprint: fingerprint,
           }),
         });
@@ -239,14 +251,15 @@ export function useContactRateLimit(userId: string | undefined) {
     if (isSupabaseConnected() && SUPABASE_URL && SUPABASE_ANON_KEY) {
       try {
         const fingerprint = getDeviceFingerprint();
+        const token = await getAuthToken();
         await fetch(getEdgeFunctionUrl('record-contact'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Authorization: `Bearer ${token}`,
+            apikey: SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({
-            userId: userId || undefined,
             deviceFingerprint: fingerprint,
             listingId,
           }),

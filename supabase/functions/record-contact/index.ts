@@ -17,26 +17,39 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-    );
+    // Identity comes from the caller's JWT, never from the request body --
+    // the previous version recorded a body-supplied userId, letting an
+    // attacker either dodge their own counters (random id per call) or
+    // burn a victim's quota by recording attempts against their id.
+    let userId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      const callerClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data } = await callerClient.auth.getUser();
+      userId = data?.user?.id ?? null;
+    }
 
     const body = await req.json().catch(() => ({}));
-    const { userId, deviceFingerprint, listingId } = body;
+    const { deviceFingerprint, listingId } = body;
 
-    // Get client IP
-    const ip = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown";
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("cf-connecting-ip") || "unknown";
 
-    // No .select() here -- contact_attempts intentionally has no SELECT
-    // policy for anon/authenticated (only admins can read it, since it
-    // holds IP addresses and device fingerprints). PostgREST's
-    // insert-with-return re-reads the row under the SELECT policy, so
-    // chaining .select() after this insert would fail RLS even though
-    // the insert itself is allowed. The caller doesn't need the row back.
-    const { error } = await supabase.from("contact_attempts").insert({
-      user_id: userId || null,
-      device_fingerprint: deviceFingerprint || "unknown",
+    // Service-role insert: contact_attempts is admin-read-only by design,
+    // and writes should not depend on a permissive anon INSERT policy now
+    // that this function is the only legitimate writer.
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const { error } = await serviceClient.from("contact_attempts").insert({
+      user_id: userId,
+      device_fingerprint: typeof deviceFingerprint === "string" && deviceFingerprint ? deviceFingerprint : "unknown",
       ip_address: ip,
       listing_id: isValidUUID(listingId) ? listingId : null,
     });
