@@ -257,7 +257,7 @@ RLS regression scripts in `supabase/tests/` follow the same pattern and are mean
 
 ## Data Model Summary
 
-> This list reflects the live schema as of migration 053. It's generated from `information_schema` against the linked project, not hand-maintained — if it drifts, trust the migrations directory and the database over this file. `bhavan_schema.sql` at the repo root is a one-time DDL snapshot from 2026-05-07 and is now missing everything below (tables 25 onward) as well as the tenant-signature/immutable-fields triggers from migrations 047–053; regenerating it needs `pg_dump`/Docker, neither of which is available in this environment.
+> The authoritative schema is `supabase/migrations/001_baseline.sql` — a complete DDL baseline generated 2026-07-31 from the live database's system catalogs (tables, constraints, indexes, functions, views, triggers including the four on `auth.users`, RLS policies, storage buckets/policies, the realtime publication, and all pg_cron jobs). A fresh Supabase project can be stood up from it with `supabase db push`. The historical migrations 002–063 are preserved for reference in `supabase/migrations_archive/`; the old `bhavan_schema.sql` snapshot has been removed as superseded. New migrations continue from `064_` upward. If this list drifts, trust the baseline and the database over this file.
 
 1. `users` — accounts with role (tenant/owner/admin)
 2. `properties` — owner properties with derived unit counts
