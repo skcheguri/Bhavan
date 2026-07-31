@@ -187,7 +187,7 @@ export default function SubscriptionPage() {
             { icon: 'ri-shield-check-line', label: '7-Day Money-Back Guarantee' },
             { icon: 'ri-lock-line', label: 'Secure Razorpay Payments' },
             { icon: 'ri-close-circle-line', label: 'No Hidden Fees' },
-            { icon: 'ri-time-line', label: 'Cancel Anytime' },
+            { icon: 'ri-time-line', label: 'No Auto-Charges' },
           ].map((badge) => (
             <div key={badge.label} className="flex items-center gap-2 text-sm text-charcoal/60">
               <div className="w-5 h-5 flex items-center justify-center">

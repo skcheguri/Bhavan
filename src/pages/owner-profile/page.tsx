@@ -43,7 +43,7 @@ function formatINR(num: number): string {
 
 export default function OwnerProfile() {
   const { user, updateProfile, sendPasswordResetEmail } = useAuth();
-  const { isPro, plan, status, nextBillingDate, isInGracePeriod, isInTrial, trialDaysLeft, totalSpent, billingHistory, cancelSubscription, toggleAutoRenew } = useSubscription();
+  const { isPro, plan, status, nextBillingDate, isInGracePeriod, isInTrial, trialDaysLeft, totalSpent, billingHistory } = useSubscription();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as ProfileTab | null;
@@ -1032,7 +1032,7 @@ export default function OwnerProfile() {
               {isPro && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-offwhite rounded-xl p-4">
-                    <p className="text-xs text-charcoal/40 font-medium">Next Billing Date</p>
+                    <p className="text-xs text-charcoal/40 font-medium">Pro Access Until</p>
                     <p className="text-sm font-bold text-charcoal mt-1">
                       {nextBillingDate ? new Date(nextBillingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
                     </p>
@@ -1042,18 +1042,9 @@ export default function OwnerProfile() {
                     <p className="text-sm font-bold text-charcoal mt-1">₹{(totalSpent / 100).toLocaleString('en-IN')}</p>
                   </div>
                   <div className="bg-offwhite rounded-xl p-4">
-                    <p className="text-xs text-charcoal/40 font-medium">Auto-Renewal</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <button
-                        onClick={async () => {
-                          const sub = await toggleAutoRenew(true);
-                          if (!sub.error) addToast('Auto-renewal enabled', 'success');
-                        }}
-                        className="text-sm font-semibold text-green-600 flex items-center gap-1 cursor-pointer"
-                      >
-                        On <i className="ri-toggle-fill text-green-500 text-lg" />
-                      </button>
-                    </div>
+                    <p className="text-xs text-charcoal/40 font-medium">Renewal</p>
+                    <p className="text-sm font-bold text-charcoal mt-1">Manual</p>
+                    <p className="text-[11px] text-charcoal/40 mt-0.5">No auto-charge — renew anytime from the Plans page.</p>
                   </div>
                 </div>
               )}
@@ -1127,30 +1118,23 @@ export default function OwnerProfile() {
               )}
             </div>
 
-            {/* Subscription Actions */}
+            {/* Subscription Settings -- Pro is a one-time payment, so
+                there's no recurring charge to cancel; the plan simply
+                ends at the paid-through date unless renewed. */}
             {isPro && (
               <div className="bg-white rounded-3xl border border-black/5 p-6">
                 <h2 className="text-base font-bold text-charcoal mb-4">Subscription Settings</h2>
-                <div className="space-y-3">
-                  <button
-                    onClick={async () => {
-                      const { error } = await cancelSubscription();
-                      if (error) addToast(error, 'error');
-                      else addToast('Subscription cancelled. You\'ll keep Pro access until the end of your billing period.', 'success');
-                    }}
-                    className="w-full flex items-center justify-between p-3 rounded-xl border border-red-100 hover:bg-red-50 transition-colors cursor-pointer text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50">
-                        <i className="ri-close-circle-line text-sm text-red-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-red-600">Cancel Subscription</p>
-                        <p className="text-xs text-charcoal/40">You\'ll keep Pro access until the end of your current period</p>
-                      </div>
-                    </div>
-                    <i className="ri-arrow-right-s-line text-charcoal/40" />
-                  </button>
+                <div className="bg-offwhite rounded-xl p-4 flex items-start gap-3">
+                  <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-50 flex-shrink-0">
+                    <i className="ri-information-line text-sm text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-charcoal">Nothing to cancel — you're never auto-charged</p>
+                    <p className="text-xs text-charcoal/60 mt-0.5">
+                      Your Pro plan is a one-time payment and simply ends on the date above unless you renew.
+                      For a refund within 7 days of purchase, <Link to="/contact" className="text-amber-600 font-medium hover:text-amber-700">contact support</Link>.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

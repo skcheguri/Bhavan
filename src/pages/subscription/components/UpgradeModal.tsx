@@ -22,10 +22,13 @@ export default function UpgradeModal({ isOpen, onClose, plan }: UpgradeModalProp
 
   const handleUpgrade = async () => {
     setLoading(true);
-    const { error } = await upgradeToPro(plan);
+    const { error, cancelled } = await upgradeToPro(plan);
     setLoading(false);
     if (error) {
       addToast(error, 'error');
+    } else if (cancelled) {
+      // Owner closed the Razorpay window without paying -- nothing
+      // happened, so no success toast and the modal stays open.
     } else {
       addToast(`Upgraded to Pro (${selectedPlanLabel}) successfully!`, 'success');
       onClose();

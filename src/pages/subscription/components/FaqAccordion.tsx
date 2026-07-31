@@ -6,24 +6,24 @@ const faqs = [
     a: 'The Free plan has no hard caps on properties, listings, or inquiries. Pro gives you advanced tools like analytics, auto-reminders, and priority placement — not more quantity.',
   },
   {
-    q: 'Can I switch between Monthly and Annual billing?',
-    a: 'Yes! You can switch at any time from your Billing tab. If you switch from Monthly to Annual, the new annual rate applies at your next billing cycle.',
+    q: 'Can I switch between Monthly and Annual?',
+    a: 'Yes — just purchase the other plan whenever you like. Any time remaining on your current plan is added on top of the new period, so you never lose days you\'ve already paid for.',
   },
   {
     q: 'Is there a free trial for Pro?',
-    a: 'Yes — all new landlords get a 7-day free trial of Pro features. If you don\'t upgrade before the trial ends, you\'ll automatically move to the Free tier.',
+    a: 'The Free plan is free forever with no caps on properties, listings, or inquiries — so you can use Bhavan as long as you like and upgrade only when you want the Pro tools.',
   },
   {
     q: 'What payment methods do you support?',
     a: 'We accept UPI (Google Pay, PhonePe, Paytm, BHIM), all major Credit/Debit cards (Visa, Mastercard, RuPay), Net Banking, and popular wallets like Paytm and PhonePe.',
   },
   {
-    q: 'What is the grace period?',
-    a: 'If a renewal payment fails, you get a 7-day grace period where you keep full Pro access. We\'ll send reminders to update your payment method. After 7 days, you\'ll revert to the Free tier.',
+    q: 'Will I be charged automatically when my plan ends?',
+    a: 'Never. Pro is a one-time payment — there is no auto-renewal and no card on file. When your paid-through date arrives, Pro simply ends; your listings and data are untouched, and you can renew any time.',
   },
   {
     q: 'Can I cancel anytime?',
-    a: 'Absolutely. Cancel from your Billing tab and you\'ll stay on Pro until the end of your current billing period. No hidden fees, no questions asked.',
+    a: 'There\'s nothing to cancel — since Pro is a one-time payment with no recurring charge, you keep Pro until your paid-through date and it stops on its own. No hidden fees, no questions asked.',
   },
   {
     q: 'Is there a refund policy?',

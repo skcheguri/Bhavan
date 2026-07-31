@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { getSupabase, functionErrorMessage } from '@/lib/supabase';
+import { loadRazorpayScript } from '@/lib/razorpay';
 import { PRO_FEATURE_KEYS } from '@/lib/subscriptionConfig';
 
 export type SubscriptionPlan = 'free' | 'pro_monthly' | 'pro_annual';
@@ -67,9 +68,7 @@ export interface SubscriptionContextValue {
   isInGracePeriod: boolean;
   isInTrial: boolean;
   trialDaysLeft: number;
-  upgradeToPro: (plan: 'pro_monthly' | 'pro_annual') => Promise<{ error: string | null }>;
-  cancelSubscription: () => Promise<{ error: string | null }>;
-  toggleAutoRenew: (enabled: boolean) => Promise<{ error: string | null }>;
+  upgradeToPro: (plan: 'pro_monthly' | 'pro_annual') => Promise<{ error: string | null; cancelled?: boolean }>;
   refresh: () => Promise<void>;
 }
 
@@ -92,8 +91,6 @@ export const SubscriptionContext = createContext<SubscriptionContextValue>({
   isInTrial: false,
   trialDaysLeft: 0,
   upgradeToPro: async () => ({ error: null }),
-  cancelSubscription: async () => ({ error: null }),
-  toggleAutoRenew: async () => ({ error: null }),
   refresh: async () => {},
 });
 
@@ -135,8 +132,15 @@ export function useSubscriptionProvider(ownerId: string | undefined): Subscripti
     refresh();
   }, [refresh]);
 
-  const isPro = subscription?.plan === 'pro_monthly' || subscription?.plan === 'pro_annual';
-  const plan: SubscriptionPlan = subscription?.plan ?? 'free';
+  // Pro is one-time-paid (no auto-renewal exists in this stack), so a
+  // plan past its period end has lapsed even if the nightly
+  // expire_lapsed_subscriptions job hasn't flipped the status row yet.
+  const hasProPlan = subscription?.plan === 'pro_monthly' || subscription?.plan === 'pro_annual';
+  const notLapsed =
+    subscription?.status === 'active' &&
+    (!subscription.current_period_end || new Date(subscription.current_period_end).getTime() > Date.now());
+  const isPro = hasProPlan && notLapsed;
+  const plan: SubscriptionPlan = isPro ? subscription!.plan : 'free';
   const status: SubscriptionStatus | null = subscription?.status ?? null;
 
   const canUseFeature = useCallback(
@@ -165,41 +169,67 @@ export function useSubscriptionProvider(ownerId: string | undefined): Subscripti
     ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : 0;
 
-  const upgradeToPro = async (selectedPlan: 'pro_monthly' | 'pro_annual'): Promise<{ error: string | null }> => {
+  // Full purchase flow: server-priced order -> Razorpay Checkout ->
+  // server-side HMAC verification -> subscription activated. Resolves
+  // with { cancelled: true } if the owner closes the checkout window
+  // without paying (not an error, just nothing happened).
+  const upgradeToPro = async (
+    selectedPlan: 'pro_monthly' | 'pro_annual'
+  ): Promise<{ error: string | null; cancelled?: boolean }> => {
     const supabase = getSupabase();
     if (!supabase || !ownerId) return { error: 'Not authenticated' };
 
-    const { error } = await supabase.functions.invoke('create-razorpay-subscription', {
-      body: { owner_id: ownerId, plan: selectedPlan },
+    const { data: orderData, error: orderError } = await supabase.functions.invoke('create-subscription-order', {
+      body: { plan: selectedPlan },
     });
-    if (error) return { error: (await functionErrorMessage(error)) || error.message };
-    await refresh();
-    return { error: null };
-  };
+    if (orderError || !orderData?.orderId) {
+      return { error: (await functionErrorMessage(orderError)) || 'Could not start this purchase. Please try again.' };
+    }
 
-  const cancelSubscription = async (): Promise<{ error: string | null }> => {
-    const supabase = getSupabase();
-    if (!supabase || !ownerId || !subscription) return { error: 'No active subscription' };
+    const scriptLoaded = await loadRazorpayScript();
+    if (!scriptLoaded || !window.Razorpay) {
+      return { error: 'Could not load the payment window. Check your connection and try again.' };
+    }
 
-    const { error } = await supabase.functions.invoke('cancel-razorpay-subscription', {
-      body: { subscription_id: subscription.razorpay_subscription_id },
+    return new Promise((resolve) => {
+      const razorpay = new window.Razorpay!({
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        order_id: orderData.orderId,
+        name: 'Bhavan',
+        description: `${orderData.planLabel} subscription`,
+        prefill: {
+          name: orderData.ownerName,
+          email: orderData.ownerEmail,
+        },
+        theme: { color: '#f59e0b' },
+        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+          const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-subscription-payment', {
+            body: {
+              billingRowId: orderData.billingRowId,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            },
+          });
+          if (verifyError || !verifyData?.success) {
+            resolve({
+              error:
+                (await functionErrorMessage(verifyError)) ||
+                'We could not confirm this payment. If money was deducted, contact support — your Pro access will be activated manually.',
+            });
+            return;
+          }
+          await refresh();
+          resolve({ error: null });
+        },
+        modal: {
+          ondismiss: () => resolve({ error: null, cancelled: true }),
+        },
+      });
+      razorpay.open();
     });
-    if (error) return { error: (await functionErrorMessage(error)) || error.message };
-    await refresh();
-    return { error: null };
-  };
-
-  const toggleAutoRenew = async (enabled: boolean): Promise<{ error: string | null }> => {
-    const supabase = getSupabase();
-    if (!supabase || !ownerId || !subscription) return { error: 'No active subscription' };
-
-    const { error } = await supabase
-      .from('owner_subscriptions')
-      .update({ cancel_at_period_end: !enabled })
-      .eq('id', subscription.id);
-    if (error) return { error: error.message };
-    await refresh();
-    return { error: null };
   };
 
   return {
@@ -221,8 +251,6 @@ export function useSubscriptionProvider(ownerId: string | undefined): Subscripti
     isInTrial,
     trialDaysLeft,
     upgradeToPro,
-    cancelSubscription,
-    toggleAutoRenew,
     refresh,
   };
 }
