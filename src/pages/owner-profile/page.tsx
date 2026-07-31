@@ -12,6 +12,7 @@ import RentalAgreementModal from './components/RentalAgreementModal';
 import { useRentalAgreements } from '@/hooks/useRentalAgreements';
 import { useRentPayment } from '@/hooks/useRentPayment';
 import { useOwnerMaintenanceRequests } from '@/hooks/useMaintenanceRequests';
+import { useOwnerConnectionRequests } from '@/hooks/useConnectionRequests';
 import NotificationBell from './components/NotificationBell';
 import RequestsTab from './components/RequestsTab';
 import InquiriesTab from './components/InquiriesTab';
@@ -81,6 +82,7 @@ export default function OwnerProfile() {
   const [sendingReset, setSendingReset] = useState(false);
   const { payments: allPayments } = useRentPayment();
   const { requests: maintenanceRequests } = useOwnerMaintenanceRequests(user?.id);
+  const { requests: connectionRequests } = useOwnerConnectionRequests(user?.id);
 
   const initEditForm = () => {
     if (!user) return;
@@ -123,7 +125,7 @@ export default function OwnerProfile() {
 
   const initials = user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
-  const pendingInquiries = 0; // No inquiries for new users
+  const pendingInquiries = connectionRequests.filter((r) => r.status === 'pending').length;
 
   const handleSave = async () => {
     let hasError = false;
