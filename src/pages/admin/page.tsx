@@ -9,6 +9,7 @@ import { useAdminUserStats } from '@/hooks/useAdminUsers';
 import { useAdminOverviewCounts } from '@/hooks/useAdminOverview';
 import { useAdminContactInquiries } from '@/hooks/useContactInquiries';
 import { useAdminErrorLogs } from '@/hooks/useAdminErrorLogs';
+import { useErrorRateAlerts } from '@/hooks/useErrorRateAlerts';
 
 interface AdminCard {
   title: string;
@@ -17,6 +18,7 @@ interface AdminCard {
   color: string;
   to: string;
   description: string;
+  alertLabel?: string;
 }
 
 export default function AdminDashboard() {
@@ -29,6 +31,7 @@ export default function AdminDashboard() {
   const { counts: overviewCounts } = useAdminOverviewCounts();
   const { inquiries } = useAdminContactInquiries();
   const { logs: errorLogs } = useAdminErrorLogs();
+  const { activeAlerts } = useErrorRateAlerts();
   const [search, setSearch] = useState('');
 
   const pendingReports = reports.filter((r) => r.status === 'pending').length;
@@ -70,6 +73,7 @@ export default function AdminDashboard() {
       color: 'bg-rose-50 text-rose-600',
       to: '/admin/errors',
       description: 'Crashes and uncaught errors reported by real browser sessions in the last 7 days.',
+      alertLabel: activeAlerts.length > 0 ? 'Error spike' : undefined,
     },
     {
       title: 'Broker Reports',
@@ -198,10 +202,16 @@ export default function AdminDashboard() {
                   <div className={`w-10 h-10 flex items-center justify-center rounded-xl ${card.color}`}>
                     <i className={`${card.icon} text-lg`} />
                   </div>
-                  {card.count > 0 && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
-                      {card.count} pending
+                  {card.alertLabel ? (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-600 text-white animate-pulse">
+                      {card.alertLabel}
                     </span>
+                  ) : (
+                    card.count > 0 && (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
+                        {card.count} pending
+                      </span>
+                    )
                   )}
                 </div>
                 <h3 className="text-sm font-bold text-charcoal mb-1">{card.title}</h3>

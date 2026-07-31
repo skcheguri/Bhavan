@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminErrorLogs, type ClientErrorLog } from '@/hooks/useAdminErrorLogs';
+import { useErrorRateAlerts } from '@/hooks/useErrorRateAlerts';
 import { useToast } from '@/hooks/useToast';
 
 type SourceFilter = 'all' | ClientErrorLog['source'];
@@ -20,8 +21,14 @@ const sourceBadge: Record<ClientErrorLog['source'], string> = {
 export default function AdminErrorsPage() {
   const { addToast } = useToast();
   const { logs, loading, dismiss } = useAdminErrorLogs();
+  const { activeAlerts, settings, acknowledge, updateSettings } = useErrorRateAlerts();
   const [filter, setFilter] = useState<SourceFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [thresholdInput, setThresholdInput] = useState('');
+  const [windowInput, setWindowInput] = useState('');
+  const [webhookInput, setWebhookInput] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const filtered = logs.filter((l) => (filter === 'all' ? true : l.source === filter));
 
@@ -29,6 +36,34 @@ export default function AdminErrorsPage() {
     const ok = await dismiss(id);
     if (ok) addToast('Log entry dismissed', 'success');
     else addToast('Failed to dismiss log entry', 'error');
+  };
+
+  const handleAcknowledge = async (id: string) => {
+    const ok = await acknowledge(id);
+    if (ok) addToast('Alert acknowledged', 'success');
+    else addToast('Failed to acknowledge alert', 'error');
+  };
+
+  const openSettings = () => {
+    setThresholdInput(String(settings?.thresholdCount ?? 10));
+    setWindowInput(String(settings?.windowMinutes ?? 15));
+    setWebhookInput(settings?.webhookUrl ?? '');
+    setShowSettings(true);
+  };
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    const { error } = await updateSettings({
+      thresholdCount: Number(thresholdInput) || 10,
+      windowMinutes: Number(windowInput) || 15,
+      webhookUrl: webhookInput.trim(),
+    });
+    setSavingSettings(false);
+    if (error) addToast(error, 'error');
+    else {
+      addToast('Alert settings saved', 'success');
+      setShowSettings(false);
+    }
   };
 
   return (
@@ -42,7 +77,100 @@ export default function AdminErrorsPage() {
             <h1 className="text-2xl md:text-3xl font-bold text-charcoal">Client Error Logs</h1>
             <p className="text-sm text-charcoal/60 mt-1">Crashes and uncaught errors reported by real browser sessions, most recent 200.</p>
           </div>
+          <button
+            onClick={openSettings}
+            className="text-xs font-semibold text-charcoal/50 hover:text-charcoal cursor-pointer whitespace-nowrap flex items-center gap-1"
+          >
+            <i className="ri-settings-3-line" /> Alert settings
+          </button>
         </div>
+
+        {activeAlerts.length > 0 && (
+          <div className="space-y-3 mb-6">
+            {activeAlerts.map((alert) => (
+              <div key={alert.id} className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <i className="ri-alarm-warning-line text-red-500 text-lg mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-red-700">
+                      {alert.errorCount} errors in the last {Math.round((new Date(alert.windowEnd).getTime() - new Date(alert.windowStart).getTime()) / 60000)} minutes
+                    </p>
+                    <p className="text-xs text-red-600/80 mt-0.5">
+                      Threshold was {alert.thresholdCount} — triggered {new Date(alert.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {alert.webhookNotified ? ', webhook notified' : alert.webhookError ? ', webhook failed' : ''}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleAcknowledge(alert.id)}
+                  className="text-xs font-semibold text-red-700 bg-white border border-red-200 rounded-full px-3 py-1.5 hover:bg-red-100 cursor-pointer whitespace-nowrap"
+                >
+                  Acknowledge
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showSettings && (
+          <div className="bg-white rounded-2xl border border-black/5 p-5 mb-6 space-y-3">
+            <h3 className="text-sm font-bold text-charcoal">Error rate alert settings</h3>
+            <p className="text-xs text-charcoal/50">
+              A background job checks every 5 minutes and raises an alert above when the error count in the trailing
+              window crosses the threshold.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-charcoal mb-1">Threshold (errors)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={thresholdInput}
+                  onChange={(e) => setThresholdInput(e.target.value)}
+                  className="w-full px-3 py-2 bg-lightgray rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-charcoal mb-1">Window (minutes)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={windowInput}
+                  onChange={(e) => setWindowInput(e.target.value)}
+                  className="w-full px-3 py-2 bg-lightgray rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-charcoal mb-1">Webhook URL (optional)</label>
+              <input
+                type="url"
+                placeholder="https://hooks.slack.com/services/…"
+                value={webhookInput}
+                onChange={(e) => setWebhookInput(e.target.value)}
+                className="w-full px-3 py-2 bg-lightgray rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <p className="text-[11px] text-charcoal/40 mt-1">
+                Posts a JSON payload with a "text" field -- compatible with Slack/Discord incoming webhooks. Leave blank until one is set up.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleSaveSettings}
+                disabled={savingSettings}
+                className="bg-charcoal text-white text-xs font-semibold px-4 py-2 rounded-full hover:bg-black transition-colors disabled:opacity-60 cursor-pointer"
+              >
+                {savingSettings ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-xs font-semibold text-charcoal/50 px-4 py-2 hover:text-charcoal cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
           {(['all', 'error_boundary', 'window_error', 'unhandled_rejection'] as SourceFilter[]).map((f) => (
