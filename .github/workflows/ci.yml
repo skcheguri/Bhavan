@@ -35,3 +35,44 @@ jobs:
       # e2e (Playwright) tests aren't run here -- they need a live app URL
       # and Supabase credentials wired as repo secrets first, so they don't
       # run against the real production project by accident.
+
+  # Production deploys happen HERE, only after verify is green -- Vercel's
+  # git auto-deploy for main is disabled in vercel.json (git.deploymentEnabled),
+  # because it shipped every push regardless of CI outcome. An `ignoreCommand`
+  # can't fix that: Vercel starts building the moment a push lands, before CI
+  # has produced any check result to consult.
+  #
+  # Requires three repo secrets (Settings -> Secrets and variables -> Actions):
+  #   VERCEL_TOKEN       -- vercel.com -> Account Settings -> Tokens
+  #   VERCEL_ORG_ID      -- from .vercel/project.json after `vercel link`,
+  #   VERCEL_PROJECT_ID     or Vercel dashboard -> Project -> Settings -> General
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check deploy secrets are configured
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "::error::VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID secrets are not set. Production deploys are paused until they are added (see comments in this workflow file)."
+            exit 1
+          fi
+
+      - name: Pull Vercel environment
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build for Vercel
+        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to production
+        run: npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
