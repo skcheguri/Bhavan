@@ -38,6 +38,34 @@ database state -- and if a test creates a row it doesn't need to keep,
 clean it up in the test itself (or accept it as test fixture data in a
 dedicated test account, not a shared/production one).
 
+## Critical path (`critical-path.spec.ts`)
+
+Covers the connection-request -> owner-approval flow, the trust loop every
+other feature depends on. Needs two dedicated test accounts plus a test
+listing owned by the owner account:
+
+```bash
+E2E_TENANT_EMAIL=e2e-tenant@yourdomain.test
+E2E_TENANT_PASSWORD=...
+E2E_OWNER_EMAIL=e2e-owner@yourdomain.test
+E2E_OWNER_PASSWORD=...
+E2E_TEST_LISTING_ID=<uuid of a listing owned by the owner account>
+```
+
+Unlike most specs, this one creates a real `connection_requests` row and
+approves it -- so an `afterAll` hook signs in as the owner (via
+`VITE_PUBLIC_SUPABASE_URL`/`VITE_PUBLIC_SUPABASE_ANON_KEY`, already in your
+`.env`) and deletes the row it just approved, making the suite safely
+re-runnable. If that cleanup itself fails partway (e.g. the run is killed
+before `afterAll` runs), the next run's tenant test will fail with a
+timeout waiting for "Request to Connect" because the listing already shows
+"Request Approved" -- clear it manually:
+
+```sql
+DELETE FROM connection_requests
+WHERE listing_id = '<E2E_TEST_LISTING_ID>' AND tenant_id = '<e2e tenant's user id>';
+```
+
 ## Running
 
 ```bash
