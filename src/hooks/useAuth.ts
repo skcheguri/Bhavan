@@ -45,6 +45,11 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<AuthUser>) => Promise<{ error: string | null; emailVerificationSent?: boolean }>;
   refreshProfile: () => Promise<void>;
+  mfaEnrollTotp: () => Promise<{ error: string | null; factorId?: string; qrCode?: string; secret?: string }>;
+  mfaChallengeAndVerify: (factorId: string, code: string) => Promise<{ error: string | null }>;
+  mfaUnenroll: (factorId: string) => Promise<{ error: string | null }>;
+  mfaListFactors: () => Promise<{ error: string | null; verifiedTotpFactorId?: string; unverifiedTotpFactorId?: string }>;
+  mfaGetAssuranceLevel: () => Promise<{ currentLevel: string | null; nextLevel: string | null }>;
 }
 
 // Role picked on the Login/Signup screen before a Google OAuth redirect,
@@ -136,6 +141,11 @@ export const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
   updateProfile: async () => ({ error: null }),
   refreshProfile: async () => {},
+  mfaEnrollTotp: async () => ({ error: null }),
+  mfaChallengeAndVerify: async () => ({ error: null }),
+  mfaUnenroll: async () => ({ error: null }),
+  mfaListFactors: async () => ({ error: null }),
+  mfaGetAssuranceLevel: async () => ({ currentLevel: null, nextLevel: null }),
 });
 
 export function useAuth() {
@@ -438,6 +448,79 @@ export function useAuthProvider(): AuthContextValue {
     return { error: null };
   };
 
+  // Starts TOTP enrollment. The returned factor is unverified until
+  // mfaChallengeAndVerify() confirms a real code from the authenticator
+  // app -- an unverified factor doesn't count toward AAL and won't show
+  // up as "enrolled" to RequireAdmin's gate. Supabase returns the QR as
+  // a ready-to-render SVG data URI (totp.qr_code), so no client-side QR
+  // library is needed here.
+  const mfaEnrollTotp = async (): Promise<{ error: string | null; factorId?: string; qrCode?: string; secret?: string }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: 'Supabase not connected' };
+
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
+    if (error) return { error: error.message };
+
+    return {
+      error: null,
+      factorId: data.id,
+      qrCode: data.totp.qr_code,
+      secret: data.totp.secret,
+    };
+  };
+
+  // Combines challenge+verify into one call since the UI never needs the
+  // intermediate challengeId for anything else -- enter a factor + the
+  // 6-digit code, get back either a confirmed factor (first-time
+  // enrollment) or an aal2 session (a returning admin's per-session
+  // challenge).
+  const mfaChallengeAndVerify = async (factorId: string, code: string): Promise<{ error: string | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: 'Supabase not connected' };
+
+    const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
+    if (challengeError) return { error: challengeError.message };
+
+    const { error: verifyError } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId: challengeData.id,
+      code,
+    });
+    if (verifyError) return { error: verifyError.message };
+
+    return { error: null };
+  };
+
+  const mfaUnenroll = async (factorId: string): Promise<{ error: string | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: 'Supabase not connected' };
+
+    const { error } = await supabase.auth.mfa.unenroll({ factorId });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
+  const mfaListFactors = async (): Promise<{ error: string | null; verifiedTotpFactorId?: string; unverifiedTotpFactorId?: string }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: 'Supabase not connected' };
+
+    const { data, error } = await supabase.auth.mfa.listFactors();
+    if (error) return { error: error.message };
+
+    const verified = data.totp.find((f) => f.status === 'verified');
+    const unverified = data.totp.find((f) => f.status === 'unverified');
+    return { error: null, verifiedTotpFactorId: verified?.id, unverifiedTotpFactorId: unverified?.id };
+  };
+
+  const mfaGetAssuranceLevel = async (): Promise<{ currentLevel: string | null; nextLevel: string | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { currentLevel: null, nextLevel: null };
+
+    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (error || !data) return { currentLevel: null, nextLevel: null };
+    return { currentLevel: data.currentLevel, nextLevel: data.nextLevel };
+  };
+
   return {
     user,
     loading,
@@ -453,5 +536,10 @@ export function useAuthProvider(): AuthContextValue {
     signOut,
     updateProfile,
     refreshProfile,
+    mfaEnrollTotp,
+    mfaChallengeAndVerify,
+    mfaUnenroll,
+    mfaListFactors,
+    mfaGetAssuranceLevel,
   };
 }

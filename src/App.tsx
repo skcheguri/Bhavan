@@ -50,7 +50,8 @@ function AppShell() {
   // comment) -- it shouldn't sit under the consumer Navbar/Footer, which
   // would visually contradict its own dedicated sign-in form.
   const { pathname } = useLocation();
-  const isStandaloneAdminLogin = pathname === '/admin/login';
+  const isStandaloneAdminLogin =
+    pathname === '/admin/login' || pathname === '/admin/mfa-setup' || pathname === '/admin/mfa-challenge';
 
   return (
     <div className="min-h-screen flex flex-col">

@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 interface RequireAdminProps {
@@ -22,12 +23,29 @@ function AccessDenied({ message, to, label }: { message: string; to: string; lab
   );
 }
 
-// Wraps every /admin/* page. RLS is the real enforcement layer (every admin
-// write already requires is_admin() at the database level) -- this guard
-// only controls whether the admin UI renders at all, so a non-admin never
-// even sees the screen, let alone has a reason to poke at its buttons.
+// Wraps every /admin/* page. RLS is the real enforcement layer for data
+// access (every admin write already requires is_admin() at the database
+// level) -- this guard controls whether the admin UI renders at all, so a
+// non-admin never even sees the screen, and additionally requires every
+// admin session to reach aal2 (TOTP MFA) before rendering, since the admin
+// panel is the highest-privilege surface in the app and a password alone
+// is not an acceptable bar for it.
 export default function RequireAdmin({ children }: RequireAdminProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, mfaGetAssuranceLevel } = useAuth();
+  const location = useLocation();
+  const [aal, setAal] = useState<{ currentLevel: string | null; nextLevel: string | null } | 'loading'>('loading');
+
+  useEffect(() => {
+    if (loading || !user || user.role !== 'admin') return;
+    let mounted = true;
+    mfaGetAssuranceLevel().then((result) => {
+      if (mounted) setAal(result);
+    });
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user]);
 
   if (loading) {
     return (
@@ -49,6 +67,23 @@ export default function RequireAdmin({ children }: RequireAdminProps) {
 
   if (user.role !== 'admin') {
     return <AccessDenied message="This area is restricted to admin users only." to="/" label="Go Home" />;
+  }
+
+  if (aal === 'loading') {
+    return (
+      <div className="min-h-screen bg-offwhite flex items-center justify-center pt-20">
+        <i className="ri-loader-4-line animate-spin text-2xl text-charcoal/40" />
+      </div>
+    );
+  }
+
+  if (aal.currentLevel !== 'aal2') {
+    // nextLevel === 'aal2' means a verified factor already exists and this
+    // session just hasn't completed the per-session challenge yet.
+    // nextLevel === 'aal1' means no verified factor exists at all --
+    // enrollment is mandatory for every admin account, no opt-out.
+    const target = aal.nextLevel === 'aal2' ? '/admin/mfa-challenge' : '/admin/mfa-setup';
+    return <Navigate to={target} state={{ from: location.pathname }} replace />;
   }
 
   return <>{children}</>;

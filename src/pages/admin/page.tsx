@@ -127,6 +127,14 @@ export default function AdminDashboard() {
       to: '/admin/broker-reports',
       description: 'View and manage active account restrictions.',
     },
+    {
+      title: 'Security',
+      count: 0,
+      icon: 'ri-shield-keyhole-line',
+      color: 'bg-emerald-50 text-emerald-600',
+      to: '/admin/security',
+      description: 'Manage your two-factor authenticator device.',
+    },
   ];
 
   const overviewStats = [

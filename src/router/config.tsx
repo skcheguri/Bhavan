@@ -50,6 +50,9 @@ const AdminListings = lazy(() => import("../pages/admin/listings/page"));
 const AdminSupport = lazy(() => import("../pages/admin/support/page"));
 const AdminErrors = lazy(() => import("../pages/admin/errors/page"));
 const AdminLogin = lazy(() => import("../pages/admin/login/page"));
+const AdminMfaSetup = lazy(() => import("../pages/admin/mfa-setup/page"));
+const AdminMfaChallenge = lazy(() => import("../pages/admin/mfa-challenge/page"));
+const AdminSecurity = lazy(() => import("../pages/admin/security/page"));
 
 const routes: RouteObject[] = [
   {
@@ -165,6 +168,14 @@ const routes: RouteObject[] = [
     element: <AdminLogin />,
   },
   {
+    path: "/admin/mfa-setup",
+    element: <AdminMfaSetup />,
+  },
+  {
+    path: "/admin/mfa-challenge",
+    element: <AdminMfaChallenge />,
+  },
+  {
     path: "/admin",
     element: <RequireAdmin><AdminDashboard /></RequireAdmin>,
   },
@@ -207,6 +218,10 @@ const routes: RouteObject[] = [
   {
     path: "/admin/errors",
     element: <RequireAdmin><AdminErrors /></RequireAdmin>,
+  },
+  {
+    path: "/admin/security",
+    element: <RequireAdmin><AdminSecurity /></RequireAdmin>,
   },
   {
     path: "/403",
