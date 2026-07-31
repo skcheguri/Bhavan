@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useAdminPurgedAccounts } from '@/hooks/useAdminPurgedAccounts';
 
 const roleBadge: Record<string, string> = {

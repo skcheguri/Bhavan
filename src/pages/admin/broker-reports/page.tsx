@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useAdminBrokerReports, type AdminBrokerReport } from '@/hooks/useBrokerReport';
 import { fetchAdminUserById, setUserSuspended, type AdminUserRow } from '@/hooks/useAdminUsers';
 import { useToast } from '@/hooks/useToast';

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import VerificationSteps from './components/VerificationSteps';
 import FaqAccordion from './components/FaqAccordion';
 import { useAuth } from '@/hooks/useAuth';

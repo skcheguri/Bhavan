@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useRentPayment } from '@/hooks/useRentPayment';
 import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import { useAuth, GOOGLE_PENDING_ROLE_KEY, type UserRole } from '@/hooks/useAuth';
 import { getSupabase } from '@/lib/supabase';
 

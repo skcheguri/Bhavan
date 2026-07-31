@@ -1,4 +1,4 @@
-import { BrowserRouter, useLocation } from "react-router-dom";
+import { BrowserRouter, useLocation } from "react-router";
 import { AppRoutes } from "./router";
 import { Suspense, useEffect } from "react";
 import { I18nextProvider } from "react-i18next";

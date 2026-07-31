@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useAdminUsers, type AdminUserRow } from '@/hooks/useAdminUsers';
 import { useToast } from '@/hooks/useToast';
 import AdminUserDetailModal from './components/AdminUserDetailModal';

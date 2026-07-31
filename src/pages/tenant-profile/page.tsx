@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useSavedListings } from '@/hooks/useListings';
 import NotificationBell from '@/pages/owner-profile/components/NotificationBell';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useAdminBrokerReports } from '@/hooks/useBrokerReport';
 import { useAdminPropertyVerification } from '@/hooks/useAdminPropertyVerification';
 import { useAdminListingReports } from '@/hooks/useListingReports';

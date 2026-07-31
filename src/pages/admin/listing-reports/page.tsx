@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useAdminListingReports, LISTING_REPORT_REASONS, type AdminListingReport } from '@/hooks/useListingReports';
 import { useToast } from '@/hooks/useToast';
 

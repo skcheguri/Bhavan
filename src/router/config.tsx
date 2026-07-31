@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import type { RouteObject } from "react-router-dom";
+import type { RouteObject } from "react-router";
 import Home from "../pages/home/page";
 import Login from "../pages/login/page";
 import Signup from "../pages/signup/page";

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import LegalPageLayout, { LegalSection, LegalList, LegalContactNote } from '@/components/feature/LegalPageLayout';
 
 export default function Privacy() {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useAdminListings, type AdminListingStatus, type AdminListingSort } from '@/hooks/useAdminListings';
 import { useToast } from '@/hooks/useToast';
 
