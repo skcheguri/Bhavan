@@ -61,6 +61,10 @@ function mapRow(r: Record<string, unknown>): RentalAgreementRow {
 export function useRentalAgreements(ownerId: string | undefined) {
   const [agreements, setAgreements] = useState<RentalAgreementRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Distinguishes "you have no agreements" from "the fetch failed" -- on a
+  // legal-documents page, showing an empty list on failure invites the
+  // owner to generate a duplicate agreement.
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
@@ -69,6 +73,7 @@ export function useRentalAgreements(ownerId: string | undefined) {
       return;
     }
     setLoading(true);
+    setFetchError(null);
     const { data, error } = await supabase
       .from('rental_agreements')
       .select('*')
@@ -77,6 +82,7 @@ export function useRentalAgreements(ownerId: string | undefined) {
 
     if (error) {
       console.warn('Supabase rental_agreements fetch error:', error.message);
+      setFetchError(error.message);
       setAgreements([]);
     } else {
       setAgreements(((data ?? []) as Record<string, unknown>[]).map(mapRow));
@@ -159,7 +165,7 @@ export function useRentalAgreements(ownerId: string | undefined) {
     []
   );
 
-  return { agreements, loading, create, markShared, refresh };
+  return { agreements, loading, fetchError, create, markShared, refresh };
 }
 
 export function generateAgreementNumber(): string {
@@ -172,6 +178,7 @@ export function generateAgreementNumber(): string {
 export function useTenantRentalAgreements(tenantId: string | undefined) {
   const [agreements, setAgreements] = useState<RentalAgreementRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
@@ -180,6 +187,7 @@ export function useTenantRentalAgreements(tenantId: string | undefined) {
       return;
     }
     setLoading(true);
+    setFetchError(null);
     const { data, error } = await supabase
       .from('rental_agreements')
       .select('*')
@@ -188,6 +196,7 @@ export function useTenantRentalAgreements(tenantId: string | undefined) {
 
     if (error) {
       console.warn('Supabase rental_agreements (tenant) fetch error:', error.message);
+      setFetchError(error.message);
       setAgreements([]);
     } else {
       setAgreements(((data ?? []) as Record<string, unknown>[]).map(mapRow));
@@ -199,5 +208,5 @@ export function useTenantRentalAgreements(tenantId: string | undefined) {
     refresh();
   }, [refresh]);
 
-  return { agreements, loading, refresh };
+  return { agreements, loading, fetchError, refresh };
 }

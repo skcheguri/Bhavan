@@ -42,6 +42,10 @@ function mapRow(r: Record<string, unknown>): RentReceiptRow {
 export function useRentReceipts(ownerId: string | undefined) {
   const [receipts, setReceipts] = useState<RentReceiptRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Distinguishes "no receipts yet" from "the fetch failed" -- a tenant
+  // relying on receipts for an HRA claim must not see a silent empty list
+  // when the query errored.
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
@@ -50,6 +54,7 @@ export function useRentReceipts(ownerId: string | undefined) {
       return;
     }
     setLoading(true);
+    setFetchError(null);
     const { data, error } = await supabase
       .from('rent_receipts')
       .select('*')
@@ -58,6 +63,7 @@ export function useRentReceipts(ownerId: string | undefined) {
 
     if (error) {
       console.warn('Supabase rent_receipts fetch error:', error.message);
+      setFetchError(error.message);
       setReceipts([]);
     } else {
       setReceipts(((data ?? []) as Record<string, unknown>[]).map(mapRow));
@@ -122,7 +128,7 @@ export function useRentReceipts(ownerId: string | undefined) {
     setReceipts((prev) => prev.map((r) => (r.id === receiptId ? { ...r, sentToTenant: true, sentAt: new Date().toISOString() } : r)));
   }, []);
 
-  return { receipts, loading, create, markShared, refresh };
+  return { receipts, loading, fetchError, create, markShared, refresh };
 }
 
 export function generateReceiptNumber(): string {
@@ -135,6 +141,7 @@ export function generateReceiptNumber(): string {
 export function useTenantRentReceipts(tenantId: string | undefined) {
   const [receipts, setReceipts] = useState<RentReceiptRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
@@ -143,6 +150,7 @@ export function useTenantRentReceipts(tenantId: string | undefined) {
       return;
     }
     setLoading(true);
+    setFetchError(null);
     const { data, error } = await supabase
       .from('rent_receipts')
       .select('*')
@@ -151,6 +159,7 @@ export function useTenantRentReceipts(tenantId: string | undefined) {
 
     if (error) {
       console.warn('Supabase rent_receipts (tenant) fetch error:', error.message);
+      setFetchError(error.message);
       setReceipts([]);
     } else {
       setReceipts(((data ?? []) as Record<string, unknown>[]).map(mapRow));
@@ -162,5 +171,5 @@ export function useTenantRentReceipts(tenantId: string | undefined) {
     refresh();
   }, [refresh]);
 
-  return { receipts, loading, refresh };
+  return { receipts, loading, fetchError, refresh };
 }

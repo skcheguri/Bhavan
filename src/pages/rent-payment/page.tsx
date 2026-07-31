@@ -35,7 +35,7 @@ const statusLabels: Record<string, string> = {
 
 export default function RentPayment() {
   const { user } = useAuth();
-  const { payments, mandates, tenantPayments, getMandateForTenant, createPayment, refresh } = useRentPayment();
+  const { payments, mandates, tenantPayments, getMandateForTenant, createPayment, refresh, error: paymentsFetchError } = useRentPayment();
   const { addToast } = useToast();
   const isTenant = user?.role === 'tenant';
   const isOwner = user?.role === 'owner';
@@ -488,7 +488,18 @@ export default function RentPayment() {
               </div>
             </div>
 
-            {filteredHistory.length === 0 ? (
+            {paymentsFetchError ? (
+              // The hook exposes a real fetch-error state -- an empty
+              // history on failure would look like "never paid rent."
+              <div className="text-center py-12">
+                <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-red-50 rounded-full">
+                  <i className="ri-wifi-off-line text-2xl text-red-500" />
+                </div>
+                <p className="text-sm font-semibold text-charcoal mb-1">Couldn't load payment history</p>
+                <p className="text-sm text-charcoal/60 mb-4">Your past payments may exist but couldn't be shown right now.</p>
+                <button onClick={() => refresh()} className="bg-charcoal text-white px-5 py-2 rounded-full text-xs font-medium hover:bg-black transition-colors cursor-pointer">Retry</button>
+              </div>
+            ) : filteredHistory.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
                   <i className="ri-history-line text-2xl text-charcoal/40" />

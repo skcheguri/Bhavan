@@ -19,7 +19,7 @@ export default function RentalAgreementsPage() {
 
   const { listings } = useOwnerListings(user?.id);
   const { contacts: eligibleTenants } = useOwnerEligibleTenants(user?.id);
-  const { agreements, loading, create, markShared } = useRentalAgreements(user?.id);
+  const { agreements, loading, fetchError, create, markShared, refresh } = useRentalAgreements(user?.id);
 
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
   const [selectedListingId, setSelectedListingId] = useState('');
@@ -356,6 +356,17 @@ export default function RentalAgreementsPage() {
           <div className="space-y-4">
             {loading ? (
               <div className="bg-white rounded-3xl border border-black/5 p-12 text-center text-sm text-charcoal/40">Loading agreements…</div>
+            ) : fetchError ? (
+              // A failed fetch must never look like "no agreements yet" --
+              // that invites generating a duplicate legal document.
+              <div className="bg-white rounded-3xl border border-red-100 p-12 text-center">
+                <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-red-50 rounded-full">
+                  <i className="ri-wifi-off-line text-2xl text-red-500" />
+                </div>
+                <h3 className="text-base font-bold text-charcoal mb-2">Couldn't load your agreements</h3>
+                <p className="text-sm text-charcoal/60 mb-5">Your existing agreements may not be shown. Please retry before creating a new one.</p>
+                <button onClick={() => refresh()} className="bg-charcoal text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-black transition-colors whitespace-nowrap cursor-pointer">Retry</button>
+              </div>
             ) : agreements.length === 0 ? (
               <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
                 <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-amber-50 rounded-full">
