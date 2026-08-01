@@ -34,13 +34,18 @@ jobs:
 
   # Playwright, against a dev server this job starts itself.
   #
-  # With no secrets set this runs the credential-free tier -- public pages,
-  # client-side form validation, subscription pricing/GST arithmetic, and
-  # every "you must be authenticated" server guard on the payment and
-  # subscription edge functions. Roughly 13 tests; the other 19 skip rather
-  # than fail (see e2e/helpers.ts). That tier needs no login and creates no
-  # rows, so it is safe to point at the production Supabase project and it
-  # works on pull requests from forks, which cannot read secrets at all.
+  # With nothing configured at all this runs 7 tests and skips 25: static
+  # public pages, client-side form validation, and the listings browse UI
+  # including the collapsible filter panel. Note the app itself is
+  # unconfigured too -- there is no .env in a fresh checkout, so anything
+  # needing a live backend (a listing to click, a password-reset round
+  # trip) skips rather than fails.
+  #
+  # Setting the two PUBLIC_SUPABASE_* repository variables below adds the
+  # edge-function auth guards and subscription pricing checks, taking it to
+  # 13. That tier still needs no login and creates no rows, so it is safe
+  # against the production project and works on pull requests from forks,
+  # which cannot read secrets at all.
   #
   # The optional secrets below turn on the rest. Think before setting them:
   # those tests sign in as real fixture accounts, and the deletion spec

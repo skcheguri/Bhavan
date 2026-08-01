@@ -100,26 +100,30 @@ unless the CI project is a disposable one.
 The `e2e` job in `.github/workflows/ci.yml` runs this suite on every push
 and pull request, and production deploys are gated on it.
 
-CI has no fixture logins, so it runs the credential-free tier: public
-pages, client-side form validation, subscription pricing and GST
-arithmetic, and every "you must be authenticated" guard on the payment
-and subscription edge functions. That's 13 tests; the remaining 19 skip.
-None of them sign in or create rows, so pointing them at the production
-project is harmless, and they work on pull requests from forks (which
-cannot read repo secrets at all).
+Two things are unconfigured in CI, and they're easy to conflate: the
+**test process** has no fixture logins, and the **app under test** has no
+Supabase config either, because `.env` is untracked and a fresh checkout
+doesn't have one. So anything needing a live backend -- a listing to
+click, a password-reset round trip -- skips, on top of the credentialed
+tests skipping.
 
-For that tier to run at all CI needs somewhere to send its requests --
-two **repository variables** (Settings -> Secrets and variables ->
-Actions -> Variables), not secrets, since both values already ship inside
-the browser bundle:
+With nothing configured that's 7 tests passing and 25 skipping: static
+public pages, client-side form validation, and the listings browse UI
+including the collapsible filter panel.
+
+Adding two **repository variables** (Settings -> Secrets and variables ->
+Actions -> **Variables**, not Secrets -- both values already ship inside
+the browser bundle) takes it to 13 by connecting the app and enabling the
+edge-function auth guards and subscription pricing checks:
 
 ```
 PUBLIC_SUPABASE_URL
 PUBLIC_SUPABASE_ANON_KEY
 ```
 
-Without them the four edge-function guards skip too and only 9 tests
-run -- still green, just thinner.
+Neither tier signs in nor creates rows, so pointing them at the
+production project is harmless, and both work on pull requests from forks
+(which cannot read repo secrets at all).
 
 The remaining 19 tests need fixture accounts, and turning them on in CI
 is a decision, not a config step: they sign in as real users and the

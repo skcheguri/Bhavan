@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { hasSupabase } from "./helpers";
 
 // Smoke tests for pages that render without needing a logged-in
 // session -- the cheapest, most stable layer of E2E coverage since they
@@ -19,7 +20,12 @@ test.describe("public pages", () => {
   test("listings page shows the browse UI, with filters behind the edit toggle", async ({ page }) => {
     await page.goto("/listings");
 
-    await expect(page.getByText(/properties found/i)).toBeVisible();
+    // Anchored to the count, not just the words: with an empty result set
+    // the page also renders "No properties found", and a looser regex
+    // matches both and trips strict mode. Written this way the assertion
+    // holds whether or not the project has listings, so this test -- and
+    // with it the filter toggle below -- still runs in CI.
+    await expect(page.getByText(/\d+ properties found/i)).toBeVisible();
 
     // Filters start collapsed so the sticky header doesn't eat the
     // viewport while scrolling results -- on a phone it was ~30% of the
@@ -42,6 +48,9 @@ test.describe("public pages", () => {
   });
 
   test("navigating from listings to a listing's detail page works", async ({ page }) => {
+    // Unlike the rest of this file, this one needs the project to
+    // actually contain a listing to click.
+    test.skip(!hasSupabase, "Supabase env not set");
     await page.goto("/listings");
 
     // Listing cards are plain divs with an onClick navigate() handler,

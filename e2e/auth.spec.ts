@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { hasSupabase } from "./helpers";
 
 test.describe("signup form", () => {
   test("strips special characters from the name field live", async ({ page }) => {
@@ -31,6 +32,11 @@ test.describe("signup form", () => {
 });
 
 test.describe("forgot password", () => {
+  // Needs a reachable Supabase project: the step only advances once
+  // resetPasswordForEmail() resolves. With no backend configured the app
+  // stays on the form, so skip rather than fail (CI runs unconfigured).
+  test.skip(!hasSupabase, "Supabase env not set");
+
   test("shows the check-your-email step after requesting a reset link", async ({ page }) => {
     // This only exercises the client-side step transition, not real
     // email delivery -- Supabase's resetPasswordForEmail() is rate
