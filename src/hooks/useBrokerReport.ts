@@ -121,18 +121,25 @@ async function fetchSoftBlockSupabase(tenantId: string): Promise<SoftBlockState 
     return null;
   }
   if (!data) return null;
+  // details is a json column; this is its one narrowing point.
+  const details = data.details as {
+    employer_name?: string;
+    company_address?: string;
+    reference_contact?: string;
+    purpose_of_renting?: string;
+  } | null;
   return {
     tenant_id: data.tenant_id,
     active: data.active,
     triggered_at: data.triggered_at,
     aadhaar_re_verified: data.aadhaar_re_verified,
     additional_details_provided: data.additional_details_provided,
-    details: data.details
+    details: details
       ? {
-          employerName: data.details.employer_name,
-          companyAddress: data.details.company_address,
-          referenceContact: data.details.reference_contact,
-          purposeOfRenting: data.details.purpose_of_renting,
+          employerName: details.employer_name,
+          companyAddress: details.company_address,
+          referenceContact: details.reference_contact,
+          purposeOfRenting: details.purpose_of_renting,
         }
       : null,
   };

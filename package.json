@@ -58,6 +58,7 @@
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
+    "gen:types": "supabase gen types typescript --linked > src/types/database.types.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

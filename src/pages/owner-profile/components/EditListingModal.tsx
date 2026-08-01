@@ -204,7 +204,9 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
       return;
     }
 
-    onSave(data as ListingFromDB);
+    // Same single-point narrowing as useListings' toListings: the row is
+    // fully schema-checked except nearby_places (json in the DB).
+    onSave({ ...data, nearby_places: data.nearby_places as unknown as ListingFromDB['nearby_places'] });
     addToast('Listing updated successfully', 'success');
     onClose();
   };

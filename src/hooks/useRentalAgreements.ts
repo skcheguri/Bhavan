@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import type { RentalAgreementData } from '@/lib/documents/rentalAgreementDocument';
+import type { Tables } from '@/types/database.types';
 
 export interface RentalAgreementRow extends RentalAgreementData {
   id: string;
@@ -13,7 +14,11 @@ export interface RentalAgreementRow extends RentalAgreementData {
   sharedAt: string | null;
 }
 
-function mapRow(r: Record<string, unknown>): RentalAgreementRow {
+// Typed against the generated schema row (not Record<string, unknown>)
+// on purpose: these fields end up in a legal document, so a renamed or
+// dropped column must be a compile error here -- never a silently blank
+// PAN or landlord name in a generated agreement.
+function mapRow(r: Tables<'rental_agreements'>): RentalAgreementRow {
   return {
     id: String(r.id),
     ownerId: String(r.owner_id ?? ''),
@@ -85,7 +90,7 @@ export function useRentalAgreements(ownerId: string | undefined) {
       setFetchError(error.message);
       setAgreements([]);
     } else {
-      setAgreements(((data ?? []) as Record<string, unknown>[]).map(mapRow));
+      setAgreements((data ?? []).map(mapRow));
     }
     setLoading(false);
   }, [ownerId]);
@@ -199,7 +204,7 @@ export function useTenantRentalAgreements(tenantId: string | undefined) {
       setFetchError(error.message);
       setAgreements([]);
     } else {
-      setAgreements(((data ?? []) as Record<string, unknown>[]).map(mapRow));
+      setAgreements((data ?? []).map(mapRow));
     }
     setLoading(false);
   }, [tenantId]);

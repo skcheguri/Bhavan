@@ -1,37 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
+import type { Tables } from '@/types/database.types';
+import type { Json } from '@/types/database.types';
 
 export type ListingCategory = 'residential' | 'commercial' | 'vacation';
 
-export interface ListingFromDB {
-  id: string;
-  property_id: string | null;
-  owner_id: string;
-  title: string;
-  description: string | null;
-  price: number;
-  deposit: number | null;
-  maintenance_charge: number | null;
-  location: string | null;
-  city: string | null;
-  bedrooms: number | null;
-  bathrooms: number | null;
-  area_sqft: number | null;
-  furnished: boolean | null;
-  parking: string | null;
-  property_type: string | null;
-  images: string[];
-  amenities: string[];
-  nearby_places: { label: string; distance: string }[] | null;
-  status: string | null;
-  verified: boolean | null;
-  views_count: number | null;
-  inquiries_count: number | null;
-  saves_count: number | null;
-  created_at: string;
-  category: string | null;
-  latitude: number | null;
-  longitude: number | null;
+export type NearbyPlace = { label: string; distance: string };
+
+// The generated listings Row plus the joined relations the queries below
+// select, with nearby_places narrowed from `json` to its real shape --
+// that narrowing (inside toListings) is the single unchecked cast left in
+// this file. Everything else is verified against the generated schema, so
+// a renamed or dropped column fails compilation instead of silently
+// rendering as '' in the UI.
+export interface ListingFromDB extends Omit<Tables<'listings'>, 'nearby_places'> {
+  nearby_places: NearbyPlace[] | null;
   owner?: {
     name: string | null;
     avatar_url: string | null;
@@ -40,6 +23,18 @@ export interface ListingFromDB {
   property?: {
     address: string | null;
   } | null;
+}
+
+// Parameter type is structural on purpose: passing query results here is
+// what proves, at compile time, that every column ListingFromDB expects
+// still exists in the database.
+type ListingJoinedRow = Omit<ListingFromDB, 'nearby_places'> & { nearby_places: Json | null };
+
+function toListings(rows: ListingJoinedRow[]): ListingFromDB[] {
+  return rows.map((row) => ({
+    ...row,
+    nearby_places: (row.nearby_places as unknown as NearbyPlace[] | null) ?? null,
+  }));
 }
 
 interface UseListingsReturn {
@@ -84,7 +79,7 @@ export function useListings(category?: string): UseListingsReturn {
       setError(dbError.message);
       setListings([]);
     } else {
-      setListings((data as ListingFromDB[]) ?? []);
+      setListings(toListings(data ?? []));
     }
     setLoading(false);
   }, [category]);
@@ -123,7 +118,7 @@ export function useOwnerListings(ownerId: string | undefined): UseListingsReturn
       setError(dbError.message);
       setListings([]);
     } else {
-      setListings((data as ListingFromDB[]) ?? []);
+      setListings(toListings(data ?? []));
     }
     setLoading(false);
   }, [ownerId]);
@@ -174,7 +169,7 @@ export function useSavedListings(userId: string | undefined): UseListingsReturn 
       setError(listingsError.message);
       setListings([]);
     } else {
-      setListings((listingsData as ListingFromDB[]) ?? []);
+      setListings(toListings(listingsData ?? []));
     }
     setLoading(false);
   }, [userId]);
@@ -186,40 +181,6 @@ export function useSavedListings(userId: string | undefined): UseListingsReturn 
   return { listings, loading, error, refresh: fetchSaved };
 }
 
-export async function saveListing(listingData: Partial<ListingFromDB>): Promise<{ data: ListingFromDB | null; error: string | null }> {
-  const supabase = getSupabase();
-  if (!supabase) return { data: null, error: 'Supabase not connected' };
-
-  const { data, error } = await supabase
-    .from('listings')
-    .insert(listingData)
-    .select()
-    .single();
-
-  if (error) {
-    return { data: null, error: error.message };
-  }
-  return { data: data as ListingFromDB, error: null };
-}
-
-export async function createProperty(propertyData: {
-  owner_id: string;
-  name: string;
-  address: string;
-  city: string;
-  verified?: boolean;
-}): Promise<{ data: { id: string } | null; error: string | null }> {
-  const supabase = getSupabase();
-  if (!supabase) return { data: null, error: 'Supabase not connected' };
-
-  const { data, error } = await supabase
-    .from('properties')
-    .insert(propertyData)
-    .select('id')
-    .single();
-
-  if (error) {
-    return { data: null, error: error.message };
-  }
-  return { data, error: null };
-}
+// saveListing/createProperty that used to live here were dead exports --
+// list-property/page.tsx inserts directly with the (now typed) client, and
+// the real createProperty lives in useProperties.ts.

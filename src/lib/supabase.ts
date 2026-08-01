@@ -1,11 +1,18 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database.types';
 
 const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_PUBLIC_SUPABASE_URL) || '';
 const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY) || '';
 
-let supabaseInstance: SupabaseClient | null = null;
+// Regenerate src/types/database.types.ts after any migration with:
+//   npm run gen:types
+// Typing the client makes every .from()/.rpc() call schema-aware -- a
+// renamed or dropped column becomes a compile error instead of silently
+// rendering as '' in the UI (which previously reached even the legal
+// documents via the hand-written mapRow casts).
+let supabaseInstance: SupabaseClient<Database> | null = null;
 
-export function getSupabase(): SupabaseClient | null {
+export function getSupabase(): SupabaseClient<Database> | null {
   if (!supabaseInstance && supabaseUrl && supabaseAnonKey) {
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import type { TablesInsert } from '@/types/database.types';
 
 export interface PropertyVisit {
   id: string;
@@ -68,6 +69,10 @@ export function useCreatePropertyVisit() {
     if (!supabase) return { error: 'Supabase not connected' };
 
     setCreating(true);
+    // owner_id is deliberately omitted: trg_set_property_visit_owner
+    // derives it from the listing server-side (a client-supplied value
+    // shouldn't be trusted for it anyway). The generated Insert type
+    // can't know about the trigger, hence the cast.
     const { data, error } = await supabase
       .from('property_visits')
       .insert({
@@ -79,7 +84,7 @@ export function useCreatePropertyVisit() {
         visitor_phone: input.visitorPhone,
         visitor_email: input.visitorEmail,
         note: input.note || null,
-      })
+      } as unknown as TablesInsert<'property_visits'>)
       .select('id')
       .single();
 

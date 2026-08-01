@@ -65,11 +65,18 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject }
       addToast('Please sign in to submit a review', 'error');
       return;
     }
+    // Reviews must name a real account (NOT NULL subject_id + the
+    // relationship-scoped RLS from migration-era task "restrict reviews
+    // to actual tenant-owner relationships"). Without a locked subject
+    // there is nobody to attach the review to.
+    if (!lockedSubject?.id) {
+      addToast('Reviews can only be written about someone you have an actual rental relationship with — open this from your Inquiries or My Reviews tab.', 'error');
+      return;
+    }
     setSubmitting(true);
     const { error } = await createReview({
       reviewer_id: user.id,
-      subject_id: lockedSubject?.id ?? null,
-      subject_name: subjectName,
+      subject_id: lockedSubject.id,
       role,
       property_name: property,
       tenancy_period: period,

@@ -122,9 +122,13 @@ export function useSubscriptionProvider(ownerId: string | undefined): Subscripti
       console.warn('Subscription fetch error:', subError.message);
     }
 
-    setSubscription(subData ?? null);
-    setBillingHistory(billingData ?? []);
-    setFeatures(featuresData ?? []);
+    // The plan/status/source columns are plain text in the database
+    // (constrained by CHECK, not enums), so the generated types say
+    // `string` -- these casts narrow them to the app unions the CHECK
+    // constraints actually enforce.
+    setSubscription(subData ? { ...subData, plan: subData.plan as SubscriptionPlan, status: subData.status as SubscriptionStatus } : null);
+    setBillingHistory((billingData ?? []).map((b) => ({ ...b, plan: b.plan as SubscriptionPlan, status: b.status as BillingInvoice['status'] })));
+    setFeatures((featuresData ?? []).map((f) => ({ ...f, source: f.source as SubscriptionFeature['source'] })));
     setLoading(false);
   }, [ownerId]);
 

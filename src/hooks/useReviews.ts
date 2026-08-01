@@ -3,10 +3,12 @@ import { getSupabase } from '@/lib/supabase';
 
 export type FeedbackRole = 'owner_on_renter' | 'renter_on_owner';
 
-export interface ReviewAnswer {
+// Type alias (not interface) so it stays assignable to the json column
+// type on insert.
+export type ReviewAnswer = {
   question: string;
   value: boolean | null;
-}
+};
 
 export interface ReviewFromDB {
   id: string;
@@ -172,10 +174,15 @@ export async function hasReviewed(reviewerId: string, subjectId: string): Promis
   return (count ?? 0) > 0;
 }
 
+// subject_id is required: reviews.subject_id is NOT NULL and reviews are
+// RLS-restricted to real tenant-owner relationships, so a review must
+// name an actual account. The old signature also inserted a subject_name
+// column that doesn't exist in the database -- every submission through
+// this path failed at runtime with a column-not-found error until the
+// generated types surfaced it.
 export async function createReview(payload: {
   reviewer_id: string;
-  subject_id?: string | null;
-  subject_name: string;
+  subject_id: string;
   role: FeedbackRole;
   property_name: string;
   tenancy_period: string;
@@ -188,8 +195,7 @@ export async function createReview(payload: {
 
   const { error } = await supabase.from('reviews').insert({
     reviewer_id: payload.reviewer_id,
-    subject_id: payload.subject_id ?? null,
-    subject_name: payload.subject_name,
+    subject_id: payload.subject_id,
     role: payload.role,
     property_name: payload.property_name,
     tenancy_period: payload.tenancy_period,

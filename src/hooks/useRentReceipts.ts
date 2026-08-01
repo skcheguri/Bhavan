@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import type { RentReceiptData } from '@/lib/documents/rentReceiptDocument';
+import type { Tables } from '@/types/database.types';
 
 export interface RentReceiptRow extends RentReceiptData {
   id: string;
@@ -11,7 +12,11 @@ export interface RentReceiptRow extends RentReceiptData {
   sentAt: string | null;
 }
 
-function mapRow(r: Record<string, unknown>): RentReceiptRow {
+// Typed against the generated schema row (not Record<string, unknown>)
+// on purpose: these fields end up in an HRA/tax receipt, so a renamed or
+// dropped column must be a compile error here -- never a silently blank
+// PAN or amount on a generated receipt.
+function mapRow(r: Tables<'rent_receipts'>): RentReceiptRow {
   return {
     id: String(r.id),
     ownerId: String(r.owner_id ?? ''),
@@ -66,7 +71,7 @@ export function useRentReceipts(ownerId: string | undefined) {
       setFetchError(error.message);
       setReceipts([]);
     } else {
-      setReceipts(((data ?? []) as Record<string, unknown>[]).map(mapRow));
+      setReceipts((data ?? []).map(mapRow));
     }
     setLoading(false);
   }, [ownerId]);
@@ -162,7 +167,7 @@ export function useTenantRentReceipts(tenantId: string | undefined) {
       setFetchError(error.message);
       setReceipts([]);
     } else {
-      setReceipts(((data ?? []) as Record<string, unknown>[]).map(mapRow));
+      setReceipts((data ?? []).map(mapRow));
     }
     setLoading(false);
   }, [tenantId]);
