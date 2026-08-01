@@ -53,6 +53,11 @@ export default function Listings() {
   const [searchOriginLabel, setSearchOriginLabel] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
 
+  // The filter row collapses behind the pencil in the search bar. It's
+  // closed by default because the whole header is sticky -- left expanded
+  // it ate roughly half the viewport on a phone while scrolling results.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const { searchQuery, propertyType, priceRange, bedrooms, furnished, parking, maxGuests, verifiedOnly } = applied;
 
   const navigate = useNavigate();
@@ -66,6 +71,9 @@ export default function Listings() {
   const applySearch = (e?: React.FormEvent) => {
     e?.preventDefault();
     setApplied(draft);
+    // Collapse once applied -- reclaiming the space is the whole point,
+    // and the badge now reflects whatever was just chosen.
+    setFiltersOpen(false);
 
     const query = draft.searchQuery.trim();
     if (!query) {
@@ -120,6 +128,26 @@ export default function Listings() {
   }, [searchParams]);
 
   const isVacation = activeCategory === 'vacation';
+
+  // Counted off `applied`, not `draft`, and only over the fields this
+  // category actually renders -- collapsed, this badge is the only thing
+  // telling you the results are filtered, so it has to match both what's
+  // on screen and what you're able to change.
+  const activeFilterCount = (isVacation
+    ? [applied.propertyType, applied.priceRange, applied.maxGuests, applied.verifiedOnly]
+    : [applied.propertyType, applied.priceRange, applied.bedrooms, applied.furnished, applied.parking, applied.verifiedOnly]
+  ).filter((value) => value !== 'all').length;
+
+  const toggleFilters = () => {
+    if (filtersOpen) {
+      // Closing throws away filter edits that were never applied. Keeping
+      // them would leave the dropdowns disagreeing with both the badge and
+      // the results, with nothing on screen to explain why. The typed
+      // query survives -- its input stays visible either way.
+      setDraft({ ...applied, searchQuery: draft.searchQuery });
+    }
+    setFiltersOpen(!filtersOpen);
+  };
 
   const displayListings = dbListings.map((l) => ({
     id: l.id,
@@ -320,7 +348,7 @@ export default function Listings() {
                 placeholder={isVacation ? 'Search by destination or property name...' : 'Search by location or property name...'}
                 value={draft.searchQuery}
                 onChange={(e) => setDraft({ ...draft, searchQuery: e.target.value })}
-                className={`w-full pl-10 pr-12 py-2.5 sm:py-3 bg-lightgray rounded-xl text-sm focus:outline-none transition-colors ${
+                className={`w-full pl-10 pr-20 py-2.5 sm:py-3 bg-lightgray rounded-xl text-sm focus:outline-none transition-colors ${
                   isVacation ? 'focus:ring-2 focus:ring-sage/40' : 'focus:ring-2 focus:ring-brand/30'
                 }`}
               />
@@ -330,9 +358,33 @@ export default function Listings() {
                 disabled={locating}
                 aria-label="Search near my current location"
                 title="Search near my current location"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-charcoal/40 hover:text-brand hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
+                className="absolute right-11 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-charcoal/40 hover:text-brand hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
               >
                 <i className={locating ? 'ri-loader-4-line animate-spin' : 'ri-crosshair-2-line'} />
+              </button>
+              <button
+                type="button"
+                onClick={toggleFilters}
+                aria-expanded={filtersOpen}
+                aria-controls="listing-filters"
+                aria-label={filtersOpen ? 'Hide filters' : 'Edit filters'}
+                title={filtersOpen ? 'Hide filters' : 'Edit filters'}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                  filtersOpen
+                    ? isVacation ? 'bg-sage text-white' : 'bg-brand text-white'
+                    : 'text-charcoal/40 hover:text-brand hover:bg-white'
+                }`}
+              >
+                <i className={filtersOpen ? 'ri-close-line' : 'ri-pencil-line'} />
+                {!filtersOpen && activeFilterCount > 0 && (
+                  <span
+                    className={`absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 flex items-center justify-center rounded-full text-[9px] font-bold text-white ${
+                      isVacation ? 'bg-sage' : 'bg-brand'
+                    }`}
+                  >
+                    {activeFilterCount}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -355,7 +407,17 @@ export default function Listings() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+            {/* Stays mounted so aria-controls always resolves. Toggled by
+                swapping the display utility rather than the `hidden`
+                attribute, which `grid` would otherwise override. */}
+            <div
+              id="listing-filters"
+              className={
+                filtersOpen
+                  ? 'grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3'
+                  : 'hidden'
+              }
+            >
               <select
                 value={draft.propertyType}
                 onChange={(e) => setDraft({ ...draft, propertyType: e.target.value })}

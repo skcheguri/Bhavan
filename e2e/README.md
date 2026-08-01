@@ -144,3 +144,9 @@ the Supabase URL.
 
 First run only: `npx playwright install chromium` (already done if
 you're reading this after the initial testing-setup pass).
+
+The suite runs on a single worker by design. Almost every authenticated
+spec signs in as the same two fixture accounts, and concurrent logins get
+throttled by Supabase auth -- which shows up as a click timing out deep
+inside an unrelated assertion, not as a login error. If you add
+per-test accounts later, parallelism can come back.

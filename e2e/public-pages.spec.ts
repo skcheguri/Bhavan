@@ -16,15 +16,29 @@ test.describe("public pages", () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test("listings page shows the browse UI and filters", async ({ page }) => {
+  test("listings page shows the browse UI, with filters behind the edit toggle", async ({ page }) => {
     await page.goto("/listings");
 
     await expect(page.getByText(/properties found/i)).toBeVisible();
-    // The filter <select>'s <option> text isn't independently "visible"
-    // per Playwright's actionability rules (options in a closed native
-    // dropdown register as hidden even though the select itself is
-    // visible) -- assert on the select element, not its option text.
-    await expect(page.locator("select").first()).toBeVisible();
+
+    // Filters start collapsed so the sticky header doesn't eat the
+    // viewport while scrolling results -- on a phone it was ~30% of the
+    // screen. They must be genuinely hidden, not just visually: a
+    // display:none panel keeps its controls out of the tab order.
+    const filters = page.locator("#listing-filters");
+    await expect(filters).toBeHidden();
+
+    // The <option> text inside a closed native dropdown doesn't count as
+    // visible per Playwright's actionability rules, so assert on the
+    // select element itself rather than its option text.
+    await page.getByRole("button", { name: /edit filters/i }).click();
+    await expect(filters).toBeVisible();
+    await expect(filters.locator("select").first()).toBeVisible();
+
+    // Applying collapses the panel again and leaves a count behind, which
+    // is the only remaining signal that results are filtered.
+    await filters.getByRole("button", { name: /update search/i }).click();
+    await expect(filters).toBeHidden();
   });
 
   test("navigating from listings to a listing's detail page works", async ({ page }) => {

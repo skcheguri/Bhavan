@@ -10,7 +10,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Serial everywhere, not just in CI. Nearly every authenticated spec
+  // signs in as the same two fixture accounts, and running those logins
+  // concurrently makes Supabase auth throttle them -- which surfaces as
+  // unrelated-looking click timeouts deep inside a test rather than as a
+  // login error. The whole suite takes ~30s serially, so the parallelism
+  // was not buying much.
+  workers: 1,
   reporter: [["html", { open: "never" }]],
   use: {
     baseURL: "http://localhost:3000",
