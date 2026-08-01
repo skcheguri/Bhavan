@@ -87,7 +87,7 @@ export default function Privacy() {
           account closure so both parties still have access to their history. Aadhaar verification attempt records (used for rate-limiting and
           fraud prevention) are retained separately from the last-4-digits/verification-status fields on your profile. Consistent with the
           DPDP Act's storage-limitation principle, we erase or anonymize personal data once it is no longer necessary for the purpose it was
-          collected for and we are not required to keep it by law. You can request deletion of your account as described below.
+          collected for and we are not required to keep it by law. You can delete your account at any time as described below.
         </p>
       </LegalSection>
 
@@ -100,7 +100,9 @@ export default function Privacy() {
             <><strong>Correct, complete, and update</strong> your personal data. Most profile fields can be edited directly; re-verifying
               your phone number or email requires confirming a new OTP or confirmation link before the change takes effect.</>,
             <><strong>Erase</strong> personal data that is no longer necessary for the purpose it was collected for, including by
-              requesting deletion of your account.</>,
+              deleting your account at any time from Settings — this takes effect immediately, no request or waiting period needed.
+              Records shared with another party (rent payments, signed agreements, receipts, reviews) are retained for their benefit and
+              for legal/tax purposes, with your name replaced by "Deleted User."</>,
             <><strong>Withdraw consent</strong> for a given processing purpose at any time, as described in Section 2 — as easily as you
               gave it, from Channel Preferences or by writing to us.</>,
             <><strong>Nominate</strong> another individual to exercise these rights on your behalf in the event of your death or incapacity.

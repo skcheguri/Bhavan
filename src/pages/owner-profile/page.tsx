@@ -1251,7 +1251,7 @@ export default function OwnerProfile() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-red-600">Delete Account</p>
-                  <p className="text-xs text-charcoal/40">Request permanent removal of your account and data</p>
+                  <p className="text-xs text-charcoal/40">Permanently erase your personal data -- takes effect immediately</p>
                 </div>
               </button>
             </div>

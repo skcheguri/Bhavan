@@ -50,6 +50,7 @@ interface AuthContextValue {
   mfaUnenroll: (factorId: string) => Promise<{ error: string | null }>;
   mfaListFactors: () => Promise<{ error: string | null; verifiedTotpFactorId?: string; unverifiedTotpFactorId?: string }>;
   mfaGetAssuranceLevel: () => Promise<{ currentLevel: string | null; nextLevel: string | null }>;
+  deleteMyAccount: () => Promise<{ error: string | null }>;
 }
 
 // Role picked on the Login/Signup screen before a Google OAuth redirect,
@@ -146,6 +147,7 @@ export const AuthContext = createContext<AuthContextValue>({
   mfaUnenroll: async () => ({ error: null }),
   mfaListFactors: async () => ({ error: null }),
   mfaGetAssuranceLevel: async () => ({ currentLevel: null, nextLevel: null }),
+  deleteMyAccount: async () => ({ error: null }),
 });
 
 export function useAuth() {
@@ -521,6 +523,25 @@ export function useAuthProvider(): AuthContextValue {
     return { currentLevel: data.currentLevel, nextLevel: data.nextLevel };
   };
 
+  // Real, immediate deletion (migration 064) -- not a support ticket.
+  // delete_my_account() scrubs personal fields on the users row in place
+  // (rent_payments/rental_agreements/reviews the OTHER party holds keep
+  // a valid FK, showing "Deleted User" rather than breaking) and then
+  // deletes the auth.users row, revoking login. Sign out immediately
+  // afterward rather than leaving the client holding a token for a user
+  // that no longer exists server-side.
+  const deleteMyAccount = async (): Promise<{ error: string | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: 'Supabase not connected' };
+
+    const { error } = await supabase.rpc('delete_my_account');
+    if (error) return { error: error.message };
+
+    await supabase.auth.signOut();
+    setUser(null);
+    return { error: null };
+  };
+
   return {
     user,
     loading,
@@ -541,5 +562,6 @@ export function useAuthProvider(): AuthContextValue {
     mfaUnenroll,
     mfaListFactors,
     mfaGetAssuranceLevel,
+    deleteMyAccount,
   };
 }
