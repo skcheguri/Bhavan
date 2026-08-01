@@ -66,6 +66,35 @@ DELETE FROM connection_requests
 WHERE listing_id = '<E2E_TEST_LISTING_ID>' AND tenant_id = '<e2e tenant's user id>';
 ```
 
+## Money and destructive paths
+
+`payment.spec.ts`, `subscription.spec.ts` and `account-deletion.spec.ts`
+cover the three flows where a regression costs real money or destroys real
+data. They share `helpers.ts`, which wraps sign-in, edge-function and
+PostgREST calls.
+
+These deliberately **do not** drive the Razorpay checkout iframe. Paying
+with a test card through a third-party iframe is slow and brittle, and it
+proves the least interesting part: everything that actually protects the
+money is server-side. So the assertions are that you cannot order without
+being signed in, cannot order against someone else's tenancy, cannot
+choose your own amount or plan price, and cannot mark anything paid
+without a signature only Razorpay can produce. None of these tests create
+a Razorpay order, so they leave no `billing_history` residue.
+
+Account deletion is irreversible, so that spec never touches a shared
+fixture -- each destructive test creates a throwaway account and tears it
+down in a `finally` block. Those tests need the Auth admin API:
+
+```bash
+E2E_SERVICE_ROLE_KEY=<service_role key from Supabase -> Settings -> API>
+```
+
+Without it they **skip** rather than fail, matching the rest of the suite.
+Treat that key like a password: it bypasses RLS entirely. Keep it in your
+shell or a local untracked file -- never in the repo, and never in CI
+unless the CI project is a disposable one.
+
 ## Running
 
 ```bash
