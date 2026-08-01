@@ -19,6 +19,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID") ?? "";
 const RAZORPAY_KEY_SECRET = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
 
 const PLAN_PERIOD_MONTHS: Record<string, number> = {
@@ -31,6 +32,30 @@ interface VerifyRequest {
   razorpay_order_id?: string;
   razorpay_payment_id?: string;
   razorpay_signature?: string;
+  recoverPaidOrder?: boolean;
+}
+
+// Recovery path for a payment that succeeded but was never verified
+// (browser closed mid-checkout), where no signature is available.
+// `recoverPaidOrder` is a CLIENT-SUPPLIED flag and therefore proves
+// nothing on its own -- so instead of trusting it, we ask Razorpay
+// directly whether this payment exists, is captured, and belongs to this
+// order. That is strictly stronger than a signature the client hands us.
+async function confirmPaymentWithRazorpay(
+  paymentId: string,
+  orderId: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+    return { ok: false, error: "Payments are not configured." };
+  }
+  const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+    headers: { Authorization: `Basic ${btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: body?.error?.description || "Could not confirm this payment with Razorpay." };
+  if (body?.status !== "captured") return { ok: false, error: `This payment is not captured (status: ${body?.status}).` };
+  if (body?.order_id !== orderId) return { ok: false, error: "This payment belongs to a different order." };
+  return { ok: true };
 }
 
 Deno.serve(async (req) => {
@@ -62,19 +87,29 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body: VerifyRequest = await req.json().catch(() => ({}));
-    const { billingRowId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
-    if (!billingRowId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    const { billingRowId, razorpay_order_id, razorpay_payment_id, razorpay_signature, recoverPaidOrder } = body;
+    if (!billingRowId || !razorpay_order_id || !razorpay_payment_id) {
       return json({ error: "Missing payment verification fields." }, 400);
     }
 
-    const signatureOk = await verifyRazorpaySignature(
-      RAZORPAY_KEY_SECRET,
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    );
-    if (!signatureOk) {
-      return json({ error: "Payment verification failed. Please contact support before retrying." }, 400);
+    if (recoverPaidOrder) {
+      const confirmed = await confirmPaymentWithRazorpay(razorpay_payment_id, razorpay_order_id);
+      if (!confirmed.ok) {
+        return json({ error: confirmed.error || "Could not confirm this payment." }, 400);
+      }
+    } else {
+      if (!razorpay_signature) {
+        return json({ error: "Missing payment verification fields." }, 400);
+      }
+      const signatureOk = await verifyRazorpaySignature(
+        RAZORPAY_KEY_SECRET,
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature
+      );
+      if (!signatureOk) {
+        return json({ error: "Payment verification failed. Please contact support before retrying." }, 400);
+      }
     }
 
     const serviceClient = createClient(
@@ -106,7 +141,12 @@ Deno.serve(async (req) => {
     const periodMonths = PLAN_PERIOD_MONTHS[invoice.plan];
     if (!periodMonths) return json({ error: "Invoice has an unknown plan." }, 400);
 
-    const { error: updateInvoiceError } = await serviceClient
+    // Claim the invoice atomically. The .eq("status","pending") makes
+    // this a compare-and-set, and selecting the affected rows is what
+    // tells us whether WE won -- without that check, two concurrent
+    // verifications (double-click, retried callback) both proceeded and
+    // each extended the period, granting two months for one payment.
+    const { data: claimed, error: updateInvoiceError } = await serviceClient
       .from("billing_history")
       .update({
         status: "paid",
@@ -114,8 +154,13 @@ Deno.serve(async (req) => {
         paid_at: new Date().toISOString(),
       })
       .eq("id", invoice.id)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id");
     if (updateInvoiceError) return json({ error: updateInvoiceError.message }, 500);
+    if (!claimed || claimed.length === 0) {
+      // Someone else claimed it between our read and this write.
+      return json({ success: true, alreadyProcessed: true });
+    }
 
     // Renewing before expiry extends from the current period end, not
     // from today -- an owner paying early must not lose remaining days.
@@ -140,18 +185,14 @@ Deno.serve(async (req) => {
       updated_at: now.toISOString(),
     };
 
-    if (existingSub) {
-      const { error: subError } = await serviceClient
-        .from("owner_subscriptions")
-        .update(subscriptionFields)
-        .eq("id", existingSub.id);
-      if (subError) return json({ error: subError.message }, 500);
-    } else {
-      const { error: subError } = await serviceClient
-        .from("owner_subscriptions")
-        .insert({ owner_id: userId, ...subscriptionFields });
-      if (subError) return json({ error: subError.message }, 500);
-    }
+    // Upsert on the owner_id unique constraint (migration 069) rather
+    // than branching on "does a row exist" -- that read-then-insert could
+    // race into two rows for one owner, and every later .maybeSingle()
+    // errors on multiple rows, which rendered a PAYING customer as free.
+    const { error: subError } = await serviceClient
+      .from("owner_subscriptions")
+      .upsert({ owner_id: userId, ...subscriptionFields }, { onConflict: "owner_id" });
+    if (subError) return json({ error: subError.message }, 500);
 
     // Best-effort back-link from the invoice to the subscription row.
     const { data: subRow } = await serviceClient

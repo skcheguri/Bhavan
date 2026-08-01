@@ -48,22 +48,21 @@ export function usePushNotifications() {
   const isNative = Capacitor.isNativePlatform();
 
   const persistToken = useCallback(
-    async (token: string) => {
+    async (token: string): Promise<string | null> => {
       const supabase = getSupabase();
-      if (!supabase || !user) return;
-      // Conflict on fcm_token (unique, migration 065): re-registering the
-      // same device -- including after signing in as someone else --
-      // moves the row rather than duplicating it.
-      await supabase.from('user_push_tokens').upsert(
-        {
-          user_id: user.id,
-          fcm_token: token,
-          device_name: describeDevice(),
-          active: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'fcm_token' }
-      );
+      if (!supabase || !user) return 'Not signed in';
+      // Via RPC, not a direct upsert: RLS on user_push_tokens evaluates
+      // the UPDATE against the EXISTING row, so an upsert conflicting on
+      // a token still owned by a previously signed-in user is rejected.
+      // register_push_token (migration 068) reassigns it server-side,
+      // scoped to auth.uid(). The error is returned rather than
+      // swallowed -- silently failing here is what made the previous
+      // user keep receiving this device's notifications.
+      const { error } = await supabase.rpc('register_push_token', {
+        p_token: token,
+        p_device_name: describeDevice(),
+      });
+      return error ? error.message : null;
     },
     [user]
   );
@@ -158,7 +157,11 @@ export function usePushNotifications() {
           // The APNs/FCM token arrives asynchronously via this event --
           // register() itself resolves before the token exists.
           await PushNotifications.addListener('registration', async (t) => {
-            await persistToken(t.value);
+            const persistError = await persistToken(t.value);
+            if (persistError) {
+              setState((prev) => ({ ...prev, subscribed: false, error: persistError }));
+              return;
+            }
             setState((prev) => ({ ...prev, token: t.value, subscribed: true, error: null }));
           });
           await PushNotifications.addListener('registrationError', (err) => {
@@ -203,7 +206,11 @@ export function usePushNotifications() {
         return false;
       }
 
-      await persistToken(token);
+      const persistError = await persistToken(token);
+      if (persistError) {
+        setState({ permission: 'granted', token: null, subscribed: false, error: persistError });
+        return false;
+      }
       setState({ permission: 'granted', token, subscribed: true, error: null });
       return true;
     } catch (err) {
@@ -219,9 +226,13 @@ export function usePushNotifications() {
     const supabase = getSupabase();
 
     // Delete the row first: the user asked to stop receiving pushes, and
-    // that must hold even if revoking the token itself fails.
-    if (supabase && state.token) {
-      await supabase.from('user_push_tokens').delete().eq('fcm_token', state.token);
+    // that must hold even if revoking the token itself fails. Passing
+    // null clears every token for this account, which is what makes this
+    // work on native -- there the token isn't re-read after an app
+    // restart, so the old `if (state.token)` guard silently did nothing
+    // and delivery continued after the user turned it off.
+    if (supabase) {
+      await supabase.rpc('unregister_push_tokens', { p_token: state.token });
     }
 
     try {
@@ -247,7 +258,16 @@ export function usePushNotifications() {
     if (!supabase) return { error: 'Supabase not connected' };
     const { data, error } = await supabase.functions.invoke('send-push', { body: { test: true } });
     if (error) return { error: error.message };
-    if (data?.sent === 0) return { error: data?.skipped || 'No registered devices for this account.' };
+    if (!data) return { error: 'No response from the push service.' };
+    if (data.sent === 0) {
+      // Report what actually happened. Previously any FCM-side failure
+      // was reported as "no registered devices", which is a flatly wrong
+      // diagnosis when the real cause is a rejected send.
+      if (data.failed > 0) {
+        return { error: data.firstError || 'Firebase rejected the send for this device.' };
+      }
+      return { error: data.skipped || 'No registered devices for this account.' };
+    }
     return { error: null };
   }, []);
 

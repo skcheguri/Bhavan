@@ -800,7 +800,16 @@ export default function OwnerProfile() {
                 </div>
               ))}
             </div>
-            {myListings.length === 0 && (
+            {/* Must check loading before showing the empty state -- a
+                landlord with real properties was otherwise told "No
+                listings yet" for the whole fetch, then watched them
+                appear. */}
+            {listingsLoading && myListings.length === 0 && (
+              <div className="bg-white rounded-3xl border border-black/5 p-12 text-center text-sm text-charcoal/40">
+                Loading your listings…
+              </div>
+            )}
+            {!listingsLoading && myListings.length === 0 && (
               <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
                 <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-amber-50 rounded-full">
                   <i className="ri-home-4-line text-2xl text-amber-500" />

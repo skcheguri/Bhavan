@@ -1249,14 +1249,14 @@ export type Database = {
           {
             foreignKeyName: "owner_subscriptions_owner_id_fkey"
             columns: ["owner_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "owner_subscriptions_owner_id_fkey"
             columns: ["owner_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "users_public"
             referencedColumns: ["id"]
           },
@@ -1445,6 +1445,27 @@ export type Database = {
           phone?: string | null
           purged_at?: string
           role?: string | null
+        }
+        Relationships: []
+      }
+      push_config: {
+        Row: {
+          function_url: string | null
+          id: boolean
+          trigger_secret: string | null
+          updated_at: string
+        }
+        Insert: {
+          function_url?: string | null
+          id?: boolean
+          trigger_secret?: string | null
+          updated_at?: string
+        }
+        Update: {
+          function_url?: string | null
+          id?: boolean
+          trigger_secret?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2645,6 +2666,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      has_admin_role: { Args: { uid?: string }; Returns: boolean }
       increment_listing_counter: {
         Args: { p_counter: string; p_delta?: number; p_listing_id: string }
         Returns: undefined
@@ -2680,10 +2702,15 @@ export type Database = {
         Returns: undefined
       }
       purge_unconfirmed_accounts: { Args: never; Returns: number }
+      register_push_token: {
+        Args: { p_device_name?: string; p_token: string }
+        Returns: undefined
+      }
       set_aadhaar_verification_status: {
         Args: { p_status: string }
         Returns: undefined
       }
+      unregister_push_tokens: { Args: { p_token?: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

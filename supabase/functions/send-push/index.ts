@@ -209,21 +209,32 @@ Deno.serve(async (req) => {
     const endpoint = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
 
     let sent = 0;
+    let failed = 0;
+    let firstError: string | null = null;
     const staleTokenIds: string[] = [];
 
     for (const row of tokenRows) {
+      // Data-only on web: including a `notification` block makes the
+      // browser auto-display it AND still wake the service worker, which
+      // then calls showNotification() -- two notifications for one push.
+      // The SW builds the notification from `data` instead, so it stays
+      // the single place that decides how a web push looks.
       const payload = {
         message: {
           token: row.fcm_token,
-          notification: { title, body: message },
           data: {
+            title,
+            body: message,
             ...(actionUrl ? { actionUrl } : {}),
             ...(notificationId ? { notificationId } : {}),
           },
           webpush: {
-            notification: { icon: "/favicon.svg" },
             ...(actionUrl ? { fcmOptions: { link: actionUrl } } : {}),
           },
+          // Native platforms do need the notification block -- they have
+          // no service worker to render it.
+          android: { notification: { title, body: message } },
+          apns: { payload: { aps: { alert: { title, body: message } } } },
         },
       };
 
@@ -243,6 +254,15 @@ Deno.serve(async (req) => {
 
       const err = await res.json().catch(() => ({}));
       const status = err?.error?.details?.[0]?.errorCode || err?.error?.status || "";
+      failed++;
+      // Surfaced to the caller and logged: a 401 from a bad service
+      // account or a quota error used to vanish here, and the UI then
+      // reported "no registered devices" -- the wrong diagnosis entirely.
+      if (!firstError) {
+        firstError = err?.error?.message || `FCM rejected the send (HTTP ${res.status}${status ? `, ${status}` : ""}).`;
+      }
+      console.error("FCM send failed", { httpStatus: res.status, errorCode: status, message: err?.error?.message });
+
       // The device uninstalled/cleared the app or the token rotated --
       // prune it so we stop paying for dead sends on every notification.
       if (status === "UNREGISTERED" || status === "INVALID_ARGUMENT" || res.status === 404) {
@@ -258,7 +278,7 @@ Deno.serve(async (req) => {
       await serviceClient.from("notifications").update({ push_delivered: true }).eq("id", notificationId);
     }
 
-    return json({ sent, pruned: staleTokenIds.length });
+    return json({ sent, failed, pruned: staleTokenIds.length, firstError });
   } catch (err) {
     return json({ error: (err as Error).message }, 500);
   }

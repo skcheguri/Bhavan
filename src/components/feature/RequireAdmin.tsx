@@ -38,9 +38,16 @@ export default function RequireAdmin({ children }: RequireAdminProps) {
   useEffect(() => {
     if (loading || !user || user.role !== 'admin') return;
     let mounted = true;
-    mfaGetAssuranceLevel().then((result) => {
-      if (mounted) setAal(result);
-    });
+    mfaGetAssuranceLevel()
+      .then((result) => {
+        if (mounted) setAal(result);
+      })
+      .catch(() => {
+        // A network-layer rejection previously left setAal unresolved and
+        // the admin staring at a spinner forever. Fail closed to the
+        // enrollment/challenge routing instead of hanging.
+        if (mounted) setAal({ currentLevel: null, nextLevel: null });
+      });
     return () => {
       mounted = false;
     };

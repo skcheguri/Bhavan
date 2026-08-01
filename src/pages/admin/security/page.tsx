@@ -115,8 +115,10 @@ export default function AdminSecurity() {
               Register a new device
             </button>
             <p className="text-xs text-charcoal/40">
-              Use this if you got a new phone or reinstalled your authenticator app. Your current device stays
-              registered until you finish scanning the new code below.
+              Use this if you got a new phone or reinstalled your authenticator app. Supabase only allows one verified
+              authenticator at a time, so <strong>your current device stops working the moment you start</strong> — have
+              the new one ready, and finish the scan before closing this page. If you do get interrupted, you'll be sent
+              back to setup on your next sign-in.
             </p>
 
             {error && <p className="text-sm text-red-500">{error}</p>}

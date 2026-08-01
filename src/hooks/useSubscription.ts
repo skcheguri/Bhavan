@@ -190,6 +190,30 @@ export function useSubscriptionProvider(ownerId: string | undefined): Subscripti
       return { error: (await functionErrorMessage(orderError)) || 'Could not start this purchase. Please try again.' };
     }
 
+    // Recovery path: a previous attempt was actually paid but never
+    // verified (browser closed during checkout). Don't reopen Checkout --
+    // Razorpay refuses an already-paid order, which previously left the
+    // user permanently unable to buy this plan. Finish the activation.
+    if (orderData.alreadyPaid) {
+      const { data: recovered, error: recoverError } = await supabase.functions.invoke('verify-subscription-payment', {
+        body: {
+          billingRowId: orderData.billingRowId,
+          razorpay_order_id: orderData.orderId,
+          razorpay_payment_id: orderData.paymentId,
+          recoverPaidOrder: true,
+        },
+      });
+      if (recoverError || !recovered?.success) {
+        return {
+          error:
+            (await functionErrorMessage(recoverError)) ||
+            'You have already paid for this plan but we could not activate it automatically. Please contact support.',
+        };
+      }
+      await refresh();
+      return { error: null };
+    }
+
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded || !window.Razorpay) {
       return { error: 'Could not load the payment window. Check your connection and try again.' };

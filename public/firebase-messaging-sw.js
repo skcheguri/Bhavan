@@ -26,17 +26,22 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// send-push sends web pushes as data-only (no `notification` block) so
+// the browser does not auto-display one AND wake this handler to display
+// a second. That makes this the single place a web push is rendered --
+// hence reading title/body from data first.
 messaging.onBackgroundMessage((payload) => {
-  const title = (payload.notification && payload.notification.title) || 'Bhavan';
-  const body = (payload.notification && payload.notification.body) || '';
-  const actionUrl = (payload.data && payload.data.actionUrl) || '/notifications';
+  const data = payload.data || {};
+  const title = data.title || (payload.notification && payload.notification.title) || 'Bhavan';
+  const body = data.body || (payload.notification && payload.notification.body) || '';
+  const actionUrl = data.actionUrl || '/notifications';
 
   self.registration.showNotification(title, {
     body,
     icon: '/favicon.svg',
     badge: '/favicon.svg',
     data: { actionUrl },
-    tag: (payload.data && payload.data.notificationId) || undefined,
+    tag: data.notificationId || undefined,
   });
 });
 

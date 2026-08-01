@@ -109,6 +109,32 @@ Deno.serve(async (req) => {
     if (existingError) return json({ error: existingError.message }, 500);
 
     if (existing?.razorpay_order_id && existing.total_amount === totalPaise) {
+      // Recovery for pay-then-close: if the browser died between the
+      // Razorpay success callback and verify-subscription-payment, the
+      // invoice is still `pending` while the money HAS been taken.
+      // Handing the same order id back to Checkout fails (Razorpay
+      // refuses an already-paid order), which used to leave the user
+      // permanently unable to buy that plan. Ask Razorpay what actually
+      // happened before assuming the order is still payable.
+      const payRes = await fetch(
+        `https://api.razorpay.com/v1/orders/${existing.razorpay_order_id}/payments`,
+        { headers: { Authorization: `Basic ${btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)}` } }
+      );
+      const payBody = await payRes.json().catch(() => ({}));
+      const captured = Array.isArray(payBody?.items)
+        ? payBody.items.find((p: { status?: string }) => p.status === "captured")
+        : null;
+
+      if (captured) {
+        return json({
+          alreadyPaid: true,
+          billingRowId: existing.id,
+          orderId: existing.razorpay_order_id,
+          paymentId: captured.id,
+          planLabel: pricing.label,
+        });
+      }
+
       return json({
         billingRowId: existing.id,
         orderId: existing.razorpay_order_id,
