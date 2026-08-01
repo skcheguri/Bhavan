@@ -95,12 +95,52 @@ Treat that key like a password: it bypasses RLS entirely. Keep it in your
 shell or a local untracked file -- never in the repo, and never in CI
 unless the CI project is a disposable one.
 
+## In CI
+
+The `e2e` job in `.github/workflows/ci.yml` runs this suite on every push
+and pull request, and production deploys are gated on it.
+
+CI has no fixture logins, so it runs the credential-free tier: public
+pages, client-side form validation, subscription pricing and GST
+arithmetic, and every "you must be authenticated" guard on the payment
+and subscription edge functions. That's 13 tests; the remaining 19 skip.
+None of them sign in or create rows, so pointing them at the production
+project is harmless, and they work on pull requests from forks (which
+cannot read repo secrets at all).
+
+For that tier to run at all CI needs somewhere to send its requests --
+two **repository variables** (Settings -> Secrets and variables ->
+Actions -> Variables), not secrets, since both values already ship inside
+the browser bundle:
+
+```
+PUBLIC_SUPABASE_URL
+PUBLIC_SUPABASE_ANON_KEY
+```
+
+Without them the four edge-function guards skip too and only 9 tests
+run -- still green, just thinner.
+
+The remaining 19 tests need fixture accounts, and turning them on in CI
+is a decision, not a config step: they sign in as real users and the
+deletion spec creates and destroys real ones. Against the production
+project that means every push mutates production. Wire
+`E2E_SUPABASE_URL`, `E2E_SUPABASE_ANON_KEY`, the fixture credentials and
+`E2E_SERVICE_ROLE_KEY` only once a **disposable** Supabase project exists
+for CI to point at.
+
 ## Running
 
 ```bash
 npm run test:e2e          # headless, once
 npm run test:e2e:ui       # Playwright's interactive UI mode -- best for writing new specs
 ```
+
+The credentials above are read from the environment, not from `.env`
+(Playwright's config doesn't load it). Keep them in a local untracked
+file you source before running -- and note that a value quoted in `.env`
+keeps its quotes when exported by a plain shell, which silently breaks
+the Supabase URL.
 
 First run only: `npx playwright install chromium` (already done if
 you're reading this after the initial testing-setup pass).

@@ -40,8 +40,11 @@ test.describe("rent payment page", () => {
   });
 });
 
-test.describe("rent payment server guards", () => {
-  test.skip(!hasTenant, "E2E_TENANT_EMAIL/PASSWORD not set");
+// Asserting that an *unauthenticated* caller is refused needs no
+// credentials, only a Supabase project to talk to. Keeping these separate
+// means they still run in CI, where no fixture logins exist.
+test.describe("rent payment auth guards", () => {
+  test.skip(!hasSupabase, "Supabase env not set");
 
   test("creating an order requires authentication", async ({ request }) => {
     const res = await request.post(fnUrl("create-rent-payment-order"), {
@@ -50,6 +53,23 @@ test.describe("rent payment server guards", () => {
     });
     expect(res.status()).toBe(401);
   });
+
+  test("verification requires authentication", async ({ request }) => {
+    const res = await request.post(fnUrl("verify-rent-payment"), {
+      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      data: {
+        paymentRowId: "11111111-2222-4333-8444-555555555555",
+        razorpay_order_id: "order_x",
+        razorpay_payment_id: "pay_x",
+        razorpay_signature: "0".repeat(64),
+      },
+    });
+    expect(res.status()).toBe(401);
+  });
+});
+
+test.describe("rent payment server guards", () => {
+  test.skip(!hasTenant, "E2E_TENANT_EMAIL/PASSWORD not set");
 
   test("a tenant cannot start a payment against an agreement that isn't theirs", async ({ request }) => {
     const token = await signIn(request, TENANT_EMAIL!, TENANT_PASSWORD!);
@@ -106,19 +126,6 @@ test.describe("rent payment server guards", () => {
     // Must fail on the signature, before the row is ever looked at.
     expect(res.status()).toBe(400);
     expect((await res.json()).error).toMatch(/verification failed/i);
-  });
-
-  test("verification requires authentication", async ({ request }) => {
-    const res = await request.post(fnUrl("verify-rent-payment"), {
-      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
-      data: {
-        paymentRowId: "11111111-2222-4333-8444-555555555555",
-        razorpay_order_id: "order_x",
-        razorpay_payment_id: "pay_x",
-        razorpay_signature: "0".repeat(64),
-      },
-    });
-    expect(res.status()).toBe(401);
   });
 });
 

@@ -32,11 +32,67 @@ jobs:
       - name: Build
         run: npm run build
 
-      # e2e (Playwright) tests aren't run here -- they need a live app URL
-      # and Supabase credentials wired as repo secrets first, so they don't
-      # run against the real production project by accident.
+  # Playwright, against a dev server this job starts itself.
+  #
+  # With no secrets set this runs the credential-free tier -- public pages,
+  # client-side form validation, subscription pricing/GST arithmetic, and
+  # every "you must be authenticated" server guard on the payment and
+  # subscription edge functions. Roughly 13 tests; the other 19 skip rather
+  # than fail (see e2e/helpers.ts). That tier needs no login and creates no
+  # rows, so it is safe to point at the production Supabase project and it
+  # works on pull requests from forks, which cannot read secrets at all.
+  #
+  # The optional secrets below turn on the rest. Think before setting them:
+  # those tests sign in as real fixture accounts, and the deletion spec
+  # creates and destroys real auth users. Against the production project
+  # that means every push mutates production data. Only wire them up once
+  # there is a disposable Supabase project for CI to use:
+  #   E2E_SUPABASE_URL / E2E_SUPABASE_ANON_KEY  -- override the target project
+  #   E2E_TENANT_EMAIL / E2E_TENANT_PASSWORD    -- fixture logins
+  #   E2E_OWNER_EMAIL / E2E_OWNER_PASSWORD
+  #   E2E_TEST_LISTING_ID                       -- listing owned by that owner
+  #   E2E_SERVICE_ROLE_KEY                      -- bypasses RLS entirely
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  # Production deploys happen HERE, only after verify is green -- Vercel's
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          # Falls back to the public project values so the credential-free
+          # tier still has somewhere to send its requests. Without a URL the
+          # edge-function calls would resolve relative to the dev server and
+          # come back 404, which reads as a failure rather than a skip.
+          VITE_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL || vars.PUBLIC_SUPABASE_URL }}
+          VITE_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY || vars.PUBLIC_SUPABASE_ANON_KEY }}
+          E2E_TENANT_EMAIL: ${{ secrets.E2E_TENANT_EMAIL }}
+          E2E_TENANT_PASSWORD: ${{ secrets.E2E_TENANT_PASSWORD }}
+          E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
+          E2E_OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
+          E2E_TEST_LISTING_ID: ${{ secrets.E2E_TEST_LISTING_ID }}
+          E2E_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # Production deploys happen HERE, only after verify and e2e are green -- Vercel's
   # git auto-deploy for main is disabled in vercel.json (git.deploymentEnabled),
   # because it shipped every push regardless of CI outcome. An `ignoreCommand`
   # can't fix that: Vercel starts building the moment a push lands, before CI
@@ -48,7 +104,7 @@ jobs:
   #   VERCEL_PROJECT_ID     or Vercel dashboard -> Project -> Settings -> General
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: verify
+    needs: [verify, e2e]
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
