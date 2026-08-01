@@ -27,6 +27,9 @@ export default defineConfig({
     command: "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    // Generous in CI: a cold runner cannot start Vite as fast as a warm
+    // dev box, and this gate blocks deploys -- a timeout here would read
+    // as a failing test suite rather than a slow machine.
+    timeout: process.env.CI ? 120_000 : 30_000,
   },
 });
