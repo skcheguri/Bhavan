@@ -13,6 +13,13 @@ dist/
 # not secret by itself, but machine-specific and never meant to be committed.
 .vercel/
 
+# Firebase native config / credentials (see PUSH_SETUP.md). google-services.json
+# and GoogleService-Info.plist identify the Firebase project to the mobile apps;
+# *.p8 is an APNs auth key and is a real secret.
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+*.p8
+
 # Editor/OS
 .DS_Store
 *.log
