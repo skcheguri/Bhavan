@@ -9,6 +9,10 @@ dist/
 .env
 .env.local
 
+# Vercel CLI local link state (`vercel link` writes org/project IDs here) --
+# not secret by itself, but machine-specific and never meant to be committed.
+.vercel/
+
 # Editor/OS
 .DS_Store
 *.log
