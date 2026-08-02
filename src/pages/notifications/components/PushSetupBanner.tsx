@@ -92,7 +92,7 @@ export default function PushSetupBanner() {
           <p className="text-sm font-semibold text-amber-800">Enable push notifications</p>
           <p className="text-xs text-amber-700/80">
             {user
-              ? 'Get instant alerts on this device when someone responds to an inquiry, a payment lands, or an agreement is shared.'
+              ? 'Get instant alerts on this device when someone messages you, responds to an inquiry, a payment lands, or an agreement is shared.'
               : 'Sign in to enable push notifications on this device.'}
           </p>
           {error && <p className="text-xs text-red-600 mt-1">{error}</p>}

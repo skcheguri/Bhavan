@@ -33,6 +33,55 @@ function describeDevice(): string {
   return `${browser} on ${os}`;
 }
 
+/**
+ * Registers the FCM service worker and resolves only once it is genuinely
+ * active.
+ *
+ * `register()` resolves as soon as the registration object exists -- the
+ * worker itself is usually still `installing` at that point. getToken()
+ * calls PushManager.subscribe(), which throws "Subscription failed - no
+ * active Service Worker" against a registration that has no active worker.
+ * On a first visit losing that race is the normal case, not the rare one,
+ * which is why no device ever managed to register a token.
+ */
+async function registerActiveServiceWorker(): Promise<ServiceWorkerRegistration> {
+  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+  if (registration.active) return registration;
+
+  const pending = registration.installing ?? registration.waiting;
+  if (!pending) {
+    // Nothing in flight and nothing active: fall back to the browser's own
+    // "some worker controls this scope" signal.
+    await navigator.serviceWorker.ready;
+    return registration;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const settle = (fn: () => void) => {
+      clearTimeout(timer);
+      pending.removeEventListener('statechange', onStateChange);
+      fn();
+    };
+    const onStateChange = () => {
+      if (pending.state === 'activated') settle(resolve);
+      // 'redundant' means the install failed outright -- surfacing that
+      // beats hanging until the timeout.
+      else if (pending.state === 'redundant') {
+        settle(() => reject(new Error('The notification service worker failed to install.')));
+      }
+    };
+    const timer = setTimeout(
+      () => settle(() => reject(new Error('The notification service worker took too long to start.'))),
+      10_000
+    );
+    pending.addEventListener('statechange', onStateChange);
+    // It can activate between the checks above and the listener attaching.
+    onStateChange();
+  });
+
+  return registration;
+}
+
 export function usePushNotifications() {
   const { user } = useAuth();
   const [state, setState] = useState<PushState>({
@@ -101,7 +150,7 @@ export function usePushNotifications() {
 
       if (current === 'granted' && user) {
         try {
-          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          const registration = await registerActiveServiceWorker();
           const token = await getToken(messaging, {
             vapidKey: VAPID_PUBLIC_KEY,
             serviceWorkerRegistration: registration,
@@ -196,7 +245,7 @@ export function usePushNotifications() {
         return false;
       }
 
-      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      const registration = await registerActiveServiceWorker();
       const token = await getToken(messaging, {
         vapidKey: VAPID_PUBLIC_KEY,
         serviceWorkerRegistration: registration,
