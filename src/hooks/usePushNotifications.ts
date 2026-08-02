@@ -263,9 +263,16 @@ export function usePushNotifications() {
       setState({ permission: 'granted', token, subscribed: true, error: null });
       return true;
     } catch (err) {
+      // Keep the DOMException name, not just the message. "Registration
+      // failed - push service error" alone is ambiguous -- AbortError
+      // points at the browser's push service or a VAPID key that doesn't
+      // belong to this Firebase project, NotAllowedError at permission,
+      // InvalidStateError at a stale subscription under a different key.
+      // Without the name every one of those reads identically.
+      const name = err instanceof Error && err.name && err.name !== 'Error' ? ` (${err.name})` : '';
       setState((prev) => ({
         ...prev,
-        error: err instanceof Error ? err.message : 'Could not enable push notifications',
+        error: err instanceof Error ? `${err.message}${name}` : 'Could not enable push notifications',
       }));
       return false;
     }
