@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNotifications, NotificationFromDB } from '@/hooks/useNotifications';
 import PushSetupBanner from './components/PushSetupBanner';
 
-type NotificationType = 'maintenance' | 'inquiry' | 'lease' | 'payment' | 'platform';
+type NotificationType = 'maintenance' | 'inquiry' | 'message' | 'lease' | 'payment' | 'platform';
 
 function timeAgo(isoDate: string) {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -18,6 +18,7 @@ function timeAgo(isoDate: string) {
 
 const typeIcons: Record<NotificationType, string> = {
   inquiry: 'ri-user-received-line',
+  message: 'ri-chat-3-line',
   lease: 'ri-file-list-3-line',
   maintenance: 'ri-tools-line',
   payment: 'ri-money-rupee-circle-line',
@@ -26,6 +27,7 @@ const typeIcons: Record<NotificationType, string> = {
 
 const typeColors: Record<NotificationType, string> = {
   inquiry: 'bg-amber-50 text-amber-600',
+  message: 'bg-emerald-50 text-emerald-600',
   lease: 'bg-blue-50 text-blue-600',
   maintenance: 'bg-orange-50 text-orange-600',
   payment: 'bg-teal-50 text-teal-600',
@@ -36,6 +38,7 @@ const typeLabels: Record<NotificationType | 'all' | 'unread', string> = {
   all: 'All',
   unread: 'Unread',
   inquiry: 'Inquiries',
+  message: 'Messages',
   lease: 'Lease',
   maintenance: 'Maintenance',
   payment: 'Payments',
@@ -69,6 +72,7 @@ export default function NotificationsPage() {
     all: notifications.length,
     unread: unreadCount,
     inquiry: notifications.filter((n) => n.type === 'inquiry').length,
+    message: notifications.filter((n) => n.type === 'message').length,
     lease: notifications.filter((n) => n.type === 'lease').length,
     maintenance: notifications.filter((n) => n.type === 'maintenance').length,
     payment: notifications.filter((n) => n.type === 'payment').length,

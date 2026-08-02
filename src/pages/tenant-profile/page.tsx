@@ -71,7 +71,11 @@ export default function TenantProfile() {
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
-  const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(null);
+  // A new-message notification links to ?tab=messages&request=<id> so it
+  // opens the conversation it is about, not just the Messages tab.
+  const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(
+    searchParams.get('request')
+  );
 
   const { requests: maintRequestsFromDB } = useMaintenanceRequests(user?.id);
 

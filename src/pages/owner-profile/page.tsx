@@ -48,7 +48,11 @@ export default function OwnerProfile() {
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as ProfileTab | null;
   const [activeTab, setActiveTab] = useState<ProfileTab>(tabParam && PROFILE_TABS.includes(tabParam) ? tabParam : 'overview');
-  const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(null);
+  // A new-message notification links to ?tab=messages&request=<id> so it
+  // opens the conversation it is about, not just the Messages tab.
+  const [activeChatRequestId, setActiveChatRequestId] = useState<string | null>(
+    searchParams.get('request')
+  );
 
   // Real data hooks for new users (empty initially)
   const { listings: myListingsFromDB, loading: listingsLoading, refresh: refreshListings } = useOwnerListings(user?.id);

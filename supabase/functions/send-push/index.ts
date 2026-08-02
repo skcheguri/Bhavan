@@ -110,6 +110,10 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
 const CATEGORY_FOR_TYPE: Record<string, string> = {
   maintenance: "maintenance",
   inquiry: "inquiries",
+  // Chat rides the existing "Inquiries & Messages" toggle rather than
+  // adding a category -- that switch already promises to cover messages.
+  // An unmapped type would bypass the preference check entirely.
+  message: "inquiries",
   payment: "payments",
   lease: "lease",
   platform: "platform",
