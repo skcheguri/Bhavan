@@ -2,6 +2,10 @@
 
 Bhavan is a web platform that connects renters with landlords and fellow tenants across India. It offers verified property listings, rent management tools, and a supportive community for Indian renters. The platform is fully backed by Supabase for authentication, real-time data, and secure storage.
 
+> **New to this codebase?** Start with **[HANDOVER.md](HANDOVER.md)** — what
+> is finished, what only looks finished, and what is left before this can
+> ship on web, iOS and Android.
+
 ---
 
 ## Tech Stack
