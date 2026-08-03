@@ -205,32 +205,43 @@ it fails.
 
 ---
 
-## 5. In flight right now (as of handover)
+## 5. Push notifications — state
 
-**Push notifications don't reach devices yet.** Two bugs found and fixed
-today; a third is open.
+**Working and verified end to end.** A chat message creates a
+notification, the trigger dispatches it, FCM accepts it, and it arrives
+on a registered device (`notifications.push_delivered` flips to true).
+Confirmed against production on a real iOS device.
 
-1. Chat messages never created a `notifications` row, so the push
-   dispatcher — which fires on insert into that table — never saw them.
-   Fixed in migration 070. *(Note: 071 exists because 070 alone broke
-   chat message sending for about two minutes — `notifications.type` has
-   a CHECK constraint that rejected the new value, and because the trigger
-   is AFTER INSERT it aborted the transaction. Worth reading as a warning
-   about trigger-based side effects.)*
-2. `PushManager.subscribe()` was called before the service worker became
-   active, so no device could ever register a token — `user_push_tokens`
-   was empty for every account. Fixed by waiting for activation.
-3. **Open:** subscription now fails with *"Registration failed – push
-   service error"* on Edge. Not yet isolated. The VAPID key is
-   well-formed and the service worker installs cleanly, so the suspects
-   are (a) the VAPID key not belonging to Firebase project `bhavan-f7b8e`,
-   or (b) the browser's push service. Diagnostic snippet and reasoning are
-   in the session notes; the fastest split is to try Chrome.
+Three bugs were fixed to get there, all worth knowing about:
 
-Push has **never been confirmed delivered end-to-end on any platform.**
-Treat it as unproven.
+1. Chat messages never created a `notifications` row, so the dispatcher —
+   which fires on insert into that table — never saw them (migration 070).
+2. Migration 071 exists because 070 alone broke chat message *sending* for
+   about two minutes: `notifications.type` has a CHECK constraint that
+   rejected the new value, and because the trigger is AFTER INSERT the
+   rejection aborted the transaction. A cautionary tale about trigger-based
+   side effects.
+3. `PushManager.subscribe()` was called before the service worker became
+   active, so no browser could register a token — `user_push_tokens` was
+   empty for every account.
 
----
+### Known limitation
+
+One Windows/Edge machine still fails to register with
+*"Registration failed – push service error"*. iOS Safari on the same
+account registers fine, and the server side is proven healthy (FCM
+rejects a bogus token with a precise, correct error, which means the
+service account authenticates and the FCM v1 API is enabled). So this is
+the browser failing to reach its own push service — network, VPN, or
+Windows notification settings — not app configuration.
+
+**Do not go looking at the VAPID key for this.** The key is not validated
+against the Firebase project at `subscribe()` time; VAPID is
+project-agnostic and a mismatched key fails later, when *sending*. The
+banner now says as much rather than surfacing a raw DOMException.
+
+Native push (Capacitor) has still never executed — there is no app to run
+it in (§4.2).
 
 ## 6. Operational docs
 
