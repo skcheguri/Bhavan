@@ -34,6 +34,25 @@ function describeDevice(): string {
 }
 
 /**
+ * Drops an existing push subscription created under a different
+ * applicationServerKey. Browsers refuse to re-subscribe over one with a
+ * mismatched key, and it outlives reloads, so a device that subscribed
+ * before the VAPID key was set would otherwise be permanently stuck.
+ */
+async function clearMismatchedSubscription(registration: ServiceWorkerRegistration): Promise<void> {
+  const existing = await registration.pushManager.getSubscription();
+  if (!existing) return;
+
+  const current = existing.options?.applicationServerKey;
+  if (current) {
+    const bytes = new Uint8Array(current);
+    const encoded = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    if (encoded === VAPID_PUBLIC_KEY) return; // Same key -- reuse it.
+  }
+  await existing.unsubscribe();
+}
+
+/**
  * Registers the FCM service worker and resolves only once it is genuinely
  * active.
  *
@@ -80,6 +99,34 @@ async function registerActiveServiceWorker(): Promise<ServiceWorkerRegistration>
   });
 
   return registration;
+}
+
+/**
+ * Turns a subscription failure into something the user can act on.
+ *
+ * The raw DOMException is close to useless in a banner: "Registration
+ * failed - push service error" reads like an app bug when it is almost
+ * always the browser failing to reach its own push service. Worth being
+ * precise about that -- the VAPID key is *not* validated against the
+ * Firebase project at subscribe time (VAPID is project-agnostic; a
+ * mismatched key fails later, when sending), so an AbortError here points
+ * at the browser, the OS or the network, not at our configuration.
+ */
+function describePushFailure(err: unknown): string {
+  const name = err instanceof Error ? err.name : '';
+  const message = err instanceof Error ? err.message : '';
+
+  if (name === 'AbortError' || /push service/i.test(message)) {
+    return 'Your browser could not register with its push service. This is usually the browser, the network or Windows notification settings rather than Bhavan — try another browser, turn off any VPN, and check that notifications are allowed for this site and system-wide.';
+  }
+  if (name === 'NotAllowedError') {
+    return 'Notifications are blocked for this site. Allow them in your browser’s site settings, then try again.';
+  }
+  if (name === 'InvalidStateError') {
+    return 'This device had a notification subscription from an older setup and it could not be replaced. Clear this site’s data in your browser settings, then try again.';
+  }
+  if (!message) return 'Could not enable push notifications.';
+  return name && name !== 'Error' ? `${message} (${name})` : message;
 }
 
 export function usePushNotifications() {
@@ -246,6 +293,7 @@ export function usePushNotifications() {
       }
 
       const registration = await registerActiveServiceWorker();
+      await clearMismatchedSubscription(registration);
       const token = await getToken(messaging, {
         vapidKey: VAPID_PUBLIC_KEY,
         serviceWorkerRegistration: registration,
@@ -263,17 +311,7 @@ export function usePushNotifications() {
       setState({ permission: 'granted', token, subscribed: true, error: null });
       return true;
     } catch (err) {
-      // Keep the DOMException name, not just the message. "Registration
-      // failed - push service error" alone is ambiguous -- AbortError
-      // points at the browser's push service or a VAPID key that doesn't
-      // belong to this Firebase project, NotAllowedError at permission,
-      // InvalidStateError at a stale subscription under a different key.
-      // Without the name every one of those reads identically.
-      const name = err instanceof Error && err.name && err.name !== 'Error' ? ` (${err.name})` : '';
-      setState((prev) => ({
-        ...prev,
-        error: err instanceof Error ? `${err.message}${name}` : 'Could not enable push notifications',
-      }));
+      setState((prev) => ({ ...prev, error: describePushFailure(err) }));
       return false;
     }
   }, [isNative, persistToken, user]);
