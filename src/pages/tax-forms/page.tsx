@@ -752,7 +752,7 @@ function TenantTaxView({ userName }: { userName: string }) {
               Rent Payment Summary (FY 2025-26)
             </h2>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="border-b border-black/5">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-charcoal/40 uppercase tracking-wide">Month</th>

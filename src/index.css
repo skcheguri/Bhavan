@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Safe-area insets for the native shell.
+ *
+ * With viewport-fit=cover (set in index.html, and required before iOS
+ * reports insets at all) the WebView draws edge to edge -- underneath the
+ * status bar, the notch and the home indicator. These variables resolve to
+ * 0 in a desktop browser, so this is inert on web and correct on device.
+ *
+ * Applied to body rather than a wrapper so `position: sticky` headers
+ * measure from below the status bar instead of underneath it. */
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Stop iOS zooming the page when a text field smaller than 16px is
+ * focused -- it zooms in and never zooms back out, which reads as the
+ * layout breaking rather than as a zoom.
+ *
+ * Deliberately not <select>: iOS opens a picker wheel for those rather
+ * than zooming, so they don't need it, and forcing 16px on the listings
+ * filter selects would overflow their two-column grid on a narrow phone.
+ * Checkboxes and radios have no text to size. Coarse pointers only, so
+ * desktop keeps its own scale. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea {
+    font-size: max(16px, 1rem);
+  }
+}
+
