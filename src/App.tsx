@@ -1,8 +1,6 @@
 import { BrowserRouter, useLocation } from "react-router";
 import { AppRoutes } from "./router";
 import { Suspense, useEffect } from "react";
-import { I18nextProvider } from "react-i18next";
-import i18n from "./i18n";
 import Navbar from "./components/feature/Navbar";
 import Footer from "./components/feature/Footer";
 import AuthProvider from "./components/feature/AuthProvider";
@@ -79,7 +77,6 @@ function AppShell() {
 
 function App() {
   return (
-    <I18nextProvider i18n={i18n}>
       <AuthProvider>
         <SubscriptionProvider>
           <ToastProvider>
@@ -91,7 +88,6 @@ function App() {
           </ToastProvider>
         </SubscriptionProvider>
       </AuthProvider>
-    </I18nextProvider>
   );
 }
 
