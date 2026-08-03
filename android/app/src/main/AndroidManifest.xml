@@ -38,4 +38,15 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Push notifications. POST_NOTIFICATIONS is required from Android 13
+         (API 33); without it the permission request silently resolves to
+         denied and no notification is ever shown. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- "Search near me" on the listings page. Coarse is enough for a
+         20km radius search; declaring FINE as well lets the OS offer the
+         precise option, and the user can still choose approximate. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 </manifest>

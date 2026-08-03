@@ -47,5 +47,14 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- "Search near me" on the listings page. App Review rejects a
+	     missing or vague purpose string, so this says what it is for. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Bhavan uses your location to show rental listings near you. You can search by typing a locality instead.</string>
+	<!-- Lets a push arrive while the app is backgrounded. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

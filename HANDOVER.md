@@ -109,36 +109,40 @@ catalogs, not a hand-written guess.
 
 Until that exists, CI runs only the tests that need no backend (7 of 32).
 
-### 4.2 Mobile does not exist yet
+### 4.2 Mobile: scaffolded, never built or run
 
-This is the item most likely to be underestimated. Capacitor is
-*configured* — dependencies, `capacitor.config.ts`, `cap:sync` /
-`android:open` / `ios:open` scripts, and `.gitignore` entries for native
-secrets. But `npx cap add android` and `npx cap add ios` have **never
-been run**. There is no `android/` or `ios/` directory. No native project
-has ever been built, launched, or tested on a device.
+The native projects **do exist** and are tracked in git — `android/` and
+`ios/` were generated on 31 Jul. iOS uses Swift Package Manager, not
+CocoaPods, so there is no Podfile to install.
 
-Everything below is outstanding:
+Wired up as of this handover: all four Capacitor plugins are registered on
+both platforms (`cap sync` run against push-notifications, filesystem,
+share and geolocation), Android declares `POST_NOTIFICATIONS`,
+`ACCESS_COARSE_LOCATION` and `ACCESS_FINE_LOCATION`, and iOS has
+`NSLocationWhenInUseUsageDescription` plus the `remote-notification`
+background mode.
+
+Still outstanding:
 
 | | Android | iOS |
 |---|---|---|
-| Native project (`cap add`) | not created | not created |
-| Push credentials | `google-services.json` | APNs auth key + entitlements |
+| Firebase config file | `google-services.json` (gitignored) | `GoogleService-Info.plist` (gitignored) |
+| Push credentials | — | APNs auth key uploaded to Firebase |
 | Signing | keystore | certificates + provisioning profiles |
 | Store account | Google Play (₹2,000 one-time) | Apple Developer ($99/yr) |
-| Store listing | screenshots, description, privacy labels | same + App Privacy questionnaire |
-| Review | Data safety form | App Tracking Transparency if applicable |
+| Store listing | screenshots, description, data safety form | screenshots, App Privacy questionnaire |
+| Deep links | `assetlinks.json` (needs signing fingerprint) | AASA file (needs Team ID) |
+| Icons / splash | still Capacitor defaults | still Capacitor defaults |
 
-Plus work that only surfaces once a native shell exists: deep-link /
-universal-link config so notification taps open the right screen, safe-area
-insets, hardware back button on Android, keyboard avoidance, and the
-Razorpay checkout inside a WebView (which is a different integration from
-the web SDK and needs its own testing).
+**Neither project has ever been built, launched or tested on a device.**
+That is the real gap, and it is where the time goes: native UX (safe
+areas, back button, keyboard), Razorpay inside a WebView, camera and file
+upload permissions, and the device-matrix testing that shakes out the
+rest. The native push path in `usePushNotifications.ts`, and the native
+document/share/geolocation branches added just before handover, have never
+executed — verify them first.
 
-The native push path in `usePushNotifications.ts` is written but has
-**never executed** — there has been no device to run it on.
-
-Treat "web works" as no evidence at all about mobile.
+Treat "web works" as no evidence about mobile.
 
 ### 4.3 Third-party integrations that are stubs or unverified
 
@@ -336,8 +340,8 @@ Everything above, including accessibility and the RLS entitlements:
 
 | Work | Days |
 |---|---|
-| `cap add android`, first successful device build | 2–3 |
-| `google-services.json`, native FCM, verified delivery | 2–3 |
+| First successful device build (project already scaffolded) | 1–2 |
+| `google-services.json`, verified delivery (plugins already synced) | 1–2 |
 | Deep links so a notification tap lands on the right screen | 2–3 |
 | Native UX: safe areas, back button, keyboard avoidance, scroll | 4–6 |
 | Razorpay in the native shell (different from the web SDK) | 3–5 |
@@ -345,21 +349,21 @@ Everything above, including accessibility and the RLS entitlements:
 | Play Console, data safety form, listing assets, testing track | 2–3 |
 | Device-matrix testing and the fixes it produces | 4–6 |
 
-**~21–32 days (~4–6 weeks).**
+**~18–28 days (~4–6 weeks).**
 
 ### iOS
 
 | Work | Days |
 |---|---|
-| `cap add ios`, Xcode project, signing and provisioning | 2–3 |
-| APNs key, entitlements, verified delivery | 2–3 |
+| Xcode signing and provisioning (project already scaffolded, SPM not CocoaPods) | 1–2 |
+| APNs key, verified delivery (background mode already set) | 1–2 |
 | Universal links (needs an AASA file served from the domain) | 2–3 |
 | Native UX: notch / dynamic island / safe areas | 3–5 |
 | Razorpay on iOS (cheaper if Android went first) | 2–4 |
 | App Store Connect, privacy labels, ATT if applicable | 2–3 |
 | Device testing + review-rejection fixes | 3–5 |
 
-**~16–26 days (~3–5 weeks)**, plus review latency.
+**~14–23 days (~3–5 weeks)**, plus review latency.
 
 Doing iOS *after* Android is materially cheaper — deep-link design, native
 UX patterns and the payment integration all transfer. Running them in
