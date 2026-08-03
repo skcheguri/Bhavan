@@ -1,5 +1,6 @@
 import type { RentalAgreementRow } from '@/hooks/useRentalAgreements';
 import { buildRentalAgreementHtml } from '@/lib/documents/rentalAgreementDocument';
+import { useToast } from '@/hooks/useToast';
 import { viewDocument } from '@/lib/viewDocument';
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function RentalAgreementModal({ agreement, onClose }: Props) {
+  const { addToast } = useToast();
   if (!agreement) return null;
 
   const html = buildRentalAgreementHtml(agreement);
@@ -18,7 +20,7 @@ export default function RentalAgreementModal({ agreement, onClose }: Props) {
         <div className="p-4 border-b border-black/5 flex items-center justify-between flex-shrink-0">
           <h3 className="text-sm font-bold text-charcoal">{agreement.agreementNumber}</h3>
           <div className="flex items-center gap-2">
-            <button onClick={() => viewDocument(html)} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
+            <button onClick={async () => { const e = await viewDocument(html); if (e) addToast(e, 'error'); }} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
               <i className="ri-printer-line" /> Print
             </button>
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-lightgray transition-colors cursor-pointer">

@@ -5,6 +5,7 @@ import { useListings, type ListingCategory } from '@/hooks/useListings';
 import { useToast } from '@/hooks/useToast';
 import { geocodeAddress } from '@/lib/geocode';
 import { haversineDistanceKm, matchesSearchTerms, type Coordinates } from '@/lib/geo';
+import { getCurrentPosition, describePositionFailure } from '@/lib/currentPosition';
 
 // How far a "nearby" text search (e.g. "Suchitra, Hyderabad") or a
 // current-location search reaches before a listing is excluded, in km.
@@ -90,29 +91,20 @@ export default function Listings() {
     });
   };
 
-  const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      addToast('Your browser does not support location search', 'error');
+  const useCurrentLocation = async () => {
+    setLocating(true);
+    // Goes through the helper rather than navigator.geolocation directly:
+    // inside a native shell the browser API needs an OS permission the
+    // WebView cannot request, and the failure advice differs per platform.
+    const { coords, failure } = await getCurrentPosition();
+    setLocating(false);
+
+    if (!coords) {
+      addToast(describePositionFailure(failure ?? 'unavailable'), 'error');
       return;
     }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setSearchOrigin({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-        setSearchOriginLabel('your current location');
-        setLocating(false);
-      },
-      (err) => {
-        setLocating(false);
-        addToast(
-          err.code === err.PERMISSION_DENIED
-            ? 'Location access was denied — enable it in your browser settings to search nearby'
-            : 'Could not determine your location',
-          'error'
-        );
-      },
-      { enableHighAccuracy: false, timeout: 10000 }
-    );
+    setSearchOrigin(coords);
+    setSearchOriginLabel('your current location');
   };
 
   const clearSearchOrigin = () => {

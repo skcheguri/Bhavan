@@ -1,5 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import QRCode from 'qrcode';
+import { Capacitor } from '@capacitor/core';
+import { shareImage } from '@/lib/shareImage';
+import { viewDocument } from '@/lib/viewDocument';
 
 interface Listing {
   id: string;
@@ -17,6 +20,8 @@ interface QRCodeModalProps {
 export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [printBlocked, setPrintBlocked] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -140,20 +145,28 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
     qrImg.src = qrDataUrl;
   }, [listing, qrDataUrl]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!canvasRef.current || !listing) return;
+    const dataUrl = canvasRef.current.toDataURL('image/png');
+
+    // An <a download> click is silently a no-op inside a Capacitor
+    // WebView -- there is no download manager to hand the file to. On
+    // native the image goes to the OS share sheet instead, which is where
+    // "save this picture" lives on a phone anyway.
+    if (Capacitor.isNativePlatform()) {
+      await shareImage(dataUrl, `bhavan-qr-${listing.id}.png`, listing.title);
+      return;
+    }
     const link = document.createElement('a');
     link.download = `bhavan-qr-${listing.id}.png`;
-    link.href = canvasRef.current.toDataURL('image/png');
+    link.href = dataUrl;
     link.click();
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (!canvasRef.current || !listing) return;
     const dataUrl = canvasRef.current.toDataURL('image/png');
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
+    const printHtml = `
       <html>
         <head>
           <title>Print QR Code - ${listing.title}</title>
@@ -228,7 +241,25 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
           </div>
         </body>
       </html>
-    `);
+    `;
+
+    // A WebView has no second window to write into: window.open() returns
+    // null and the old code then returned silently, so "Print" did nothing
+    // at all on a phone. Hand the sheet to the OS share sheet instead --
+    // printing is one of the options it offers.
+    if (Capacitor.isNativePlatform()) {
+      await viewDocument(printHtml, `QR code - ${listing.title}`);
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    // Pop-up blockers also produce null here; saying so beats doing nothing.
+    if (!printWindow) {
+      setPrintBlocked(true);
+      setTimeout(() => setPrintBlocked(false), 4000);
+      return;
+    }
+    printWindow.document.write(printHtml);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => {
@@ -236,11 +267,18 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
     }, 300);
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     if (!listing) return;
-    navigator.clipboard.writeText(`${window.location.origin}/scan/${listing.id}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    // Await it: clipboard access can be refused (notably in a WebView), and
+    // flashing "Copied!" when nothing was copied is worse than saying so.
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/scan/${listing.id}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopyFailed(true);
+      setTimeout(() => setCopyFailed(false), 3000);
+    }
   };
 
   if (!listing) return null;
@@ -307,7 +345,7 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
               onClick={handleCopyLink}
               className="px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 text-xs font-semibold hover:bg-amber-100 transition-colors cursor-pointer whitespace-nowrap"
             >
-              {copied ? 'Copied!' : 'Copy'}
+              {copied ? 'Copied!' : copyFailed ? 'Copy failed' : 'Copy'}
             </button>
           </div>
 
@@ -325,9 +363,15 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
               className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full border border-black/10 text-sm font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap"
             >
               <i className="ri-printer-line text-sm" />
-              Print
+              {printBlocked ? 'Pop-up blocked' : 'Print'}
             </button>
           </div>
+
+          {printBlocked && (
+            <p className="text-xs text-red-600 text-center">
+              Your browser blocked the print window. Allow pop-ups for this site and try again.
+            </p>
+          )}
 
           <p className="text-xs text-charcoal/40 text-center">
             Tip: Print on A4 and laminate for outdoor use

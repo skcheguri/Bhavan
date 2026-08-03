@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
 import { useRentPayment } from '@/hooks/useRentPayment';
 import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 import { useTenantRentReceipts } from '@/hooks/useRentReceipts';
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function RentManagementTab({ initialSubTab }: Props) {
+  const { addToast } = useToast();
   const { user } = useAuth();
   const [subTab, setSubTab] = useState<SubTab>(initialSubTab ?? 'requests');
 
@@ -91,7 +93,7 @@ export default function RentManagementTab({ initialSubTab }: Props) {
                       <p className="text-xs text-charcoal/40 mt-0.5">{a.leaseStartDate} to {a.leaseEndDate} · ₹{a.monthlyRent.toLocaleString('en-IN')}/mo</p>
                     </div>
                     <button
-                      onClick={() => viewDocument(buildRentalAgreementHtml(a))}
+                      onClick={async () => { const e = await viewDocument(buildRentalAgreementHtml(a)); if (e) addToast(e, 'error'); }}
                       className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-brand/40 hover:text-brand transition-colors cursor-pointer whitespace-nowrap"
                     >
                       <i className="ri-eye-line text-xs" /> View
@@ -132,7 +134,7 @@ export default function RentManagementTab({ initialSubTab }: Props) {
                       <p className="text-xs text-charcoal/40 mt-0.5">₹{r.rentAmount.toLocaleString('en-IN')}</p>
                     </div>
                     <button
-                      onClick={() => viewDocument(buildRentReceiptHtml(r))}
+                      onClick={async () => { const e = await viewDocument(buildRentReceiptHtml(r)); if (e) addToast(e, 'error'); }}
                       className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-brand/40 hover:text-brand transition-colors cursor-pointer whitespace-nowrap"
                     >
                       <i className="ri-eye-line text-xs" /> View

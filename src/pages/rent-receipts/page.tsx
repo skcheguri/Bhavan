@@ -259,7 +259,7 @@ export default function RentReceiptsPage() {
               <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
                 <div className="p-4 border-b border-black/5 flex items-center justify-between">
                   <h2 className="text-sm font-bold text-charcoal">Live Preview</h2>
-                  <button onClick={() => viewDocument(previewHtml)} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
+                  <button onClick={async () => { const e = await viewDocument(previewHtml); if (e) addToast(e, 'error'); }} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
                     <i className="ri-printer-line" /> Print
                   </button>
                 </div>
@@ -331,7 +331,7 @@ export default function RentReceiptsPage() {
               <div className="p-4 border-b border-black/5 flex items-center justify-between flex-shrink-0">
                 <h3 className="text-sm font-bold text-charcoal">{viewingReceipt.receiptNumber}</h3>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => viewDocument(buildRentReceiptHtml(viewingReceipt))} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
+                  <button onClick={async () => { const e = await viewDocument(buildRentReceiptHtml(viewingReceipt)); if (e) addToast(e, 'error'); }} className="text-xs text-amber-600 font-medium hover:text-amber-700 flex items-center gap-1 cursor-pointer">
                     <i className="ri-printer-line" /> Print
                   </button>
                   <button onClick={() => setViewingReceiptId(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-lightgray transition-colors cursor-pointer">
