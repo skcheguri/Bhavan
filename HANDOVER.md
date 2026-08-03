@@ -283,7 +283,120 @@ practice; scope it as one.
 
 ---
 
-## 9. Access the new developer needs
+## 9. Effort estimate
+
+Planning numbers, not a commitment. Assumes **one senior full-stack
+developer**, comfortable with React and Postgres/RLS but new to this
+codebase, working focused days. Whoever takes this should re-baseline it
+after a week — they'll know their own velocity better than this document
+does.
+
+"Days" means engineering days. Calendar time is longer, and for several
+items the constraint is a third party, not the work (see the end).
+
+### Shared — done once, benefits every platform
+
+| Work | Days |
+|---|---|
+| Ramp-up on the codebase (RLS-heavy, 157 files) | 3–5 |
+| Staging Supabase project + repoint CI/E2E (§4.1) | 3–4 |
+| Supabase Site URL / redirect config (§4.4) | 0.5 |
+| Finish and verify push delivery (§5) | 1–3 |
+| Razorpay live keys + webhook + idempotency | 2–3 |
+| Pro entitlements moved into RLS (§4.6) | 2–3 |
+| Accessibility pass (§4.5) | 5–8 |
+| Small items: source maps, unused deps, `audit_logs`, review rate limit, `geocode` auth | 2–3 |
+| Aadhaar provider integration, once a contract exists | 3–5 |
+| MSG91 OTP wiring | 2–3 |
+
+Staging is the widest range for a reason: migrations rebuild the *schema*,
+but auth settings, storage buckets, edge-function secrets, cron jobs and
+`pg_net` config are not in them. Expect to discover config drift.
+
+### Web
+
+Launch blockers only — staging, auth config, push, Razorpay + webhook:
+**8–13 days (~2–3 weeks)**.
+
+Everything above, including accessibility and the RLS entitlements:
+**+12–18 days (~3–4 weeks)**.
+
+### Android
+
+| Work | Days |
+|---|---|
+| `cap add android`, first successful device build | 2–3 |
+| `google-services.json`, native FCM, verified delivery | 2–3 |
+| Deep links so a notification tap lands on the right screen | 2–3 |
+| Native UX: safe areas, back button, keyboard avoidance, scroll | 4–6 |
+| Razorpay in the native shell (different from the web SDK) | 3–5 |
+| Camera / file upload + runtime permissions | 2–3 |
+| Play Console, data safety form, listing assets, testing track | 2–3 |
+| Device-matrix testing and the fixes it produces | 4–6 |
+
+**~21–32 days (~4–6 weeks).**
+
+### iOS
+
+| Work | Days |
+|---|---|
+| `cap add ios`, Xcode project, signing and provisioning | 2–3 |
+| APNs key, entitlements, verified delivery | 2–3 |
+| Universal links (needs an AASA file served from the domain) | 2–3 |
+| Native UX: notch / dynamic island / safe areas | 3–5 |
+| Razorpay on iOS (cheaper if Android went first) | 2–4 |
+| App Store Connect, privacy labels, ATT if applicable | 2–3 |
+| Device testing + review-rejection fixes | 3–5 |
+
+**~16–26 days (~3–5 weeks)**, plus review latency.
+
+Doing iOS *after* Android is materially cheaper — deep-link design, native
+UX patterns and the payment integration all transfer. Running them in
+parallel with one developer does not save time.
+
+### Waiting, not working
+
+These run concurrently with engineering if started early, and block
+launch if started late:
+
+| Gate | Typical |
+|---|---|
+| Razorpay KYC / live activation | 3–10 days |
+| MSG91 DLT template registration (mandatory in India) | 1–3 weeks |
+| KYC provider contract for Aadhaar | 2–6 weeks (commercial) |
+| Apple Developer account approval | days; longer for an org needing D-U-N-S |
+| App Store review | 1–7 days per submission; first is often rejected |
+| Google Play review | up to ~7 days |
+
+Check Google Play's current requirements for **new personal developer
+accounts** before choosing the account type — Play has required a closed
+test with a minimum number of testers over a fixed period before
+production access, which is calendar time you cannot compress. Verify the
+policy as it stands today; it has changed more than once.
+
+### Rough totals, one developer
+
+- **Web, launch-blocking only:** ~2–3 weeks
+- **Web, properly production ready:** ~5–7 weeks
+- **+ Android:** ~4–6 weeks more
+- **+ iOS:** ~3–5 weeks more
+- **Everything, sequential:** roughly **4–6 months** calendar, including
+  third-party gates
+
+### What could blow this up
+
+- **Native UX rework.** The UI was built web-first, and the data tables
+  are already known to be unusable at mobile widths. That debt lands
+  hardest on the app builds, and it's the line item most likely to double.
+- **Razorpay in a native shell** — the integration that most often turns
+  out fiddlier than planned.
+- **The open push bug (§5)** — hours if it's the VAPID key, days if not.
+- **Staging bring-up** surfacing config that was only ever set by hand in
+  the dashboard.
+
+---
+
+## 10. Access the new developer needs
 
 GitHub repo · Supabase project (owner) · Vercel project · Firebase project
 `bhavan-f7b8e` · Razorpay dashboard · domain DNS · MSG91 and KYC provider
