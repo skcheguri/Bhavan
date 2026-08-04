@@ -17,16 +17,14 @@ Bhavan is a web platform that connects renters with landlords and fellow tenants
 | Framework | React 19 + TypeScript |
 | Bundler | Vite |
 | Styling | Tailwind CSS 3.4 |
-| Router | React Router v7 (route-based code splitting via `React.lazy`) |
+| Router | React Router v8 (route-based code splitting via `React.lazy`) |
 | Auth & Database | Supabase (Auth + PostgreSQL + Realtime + Edge Functions) |
 | Payments | Razorpay (rent payments, subscription billing) |
-| i18n | react-i18next |
-| Charts | Recharts |
-| Icons | Remix Icon + Font Awesome (CDN) |
+| Icons | Remix Icon |
 | QR Codes | qrcode |
-| Mobile | Capacitor (Android/iOS shells) |
+| Mobile | Capacitor (Android/iOS projects scaffolded; never built on a device) |
 | Testing | Vitest (unit) + Playwright (e2e) |
-| CI | GitHub Actions (typecheck, lint, test, build) |
+| CI | GitHub Actions (typecheck, lint, unit tests, build, Playwright e2e; deploys gated on green) |
 | Build Tooling | ESLint 9 + TypeScript 5.8 |
 
 ---
@@ -77,13 +75,10 @@ src/
 │   ├── content/             # Static copy (FAQs, feedback questions, agreement clauses)
 │   ├── validation.ts        # Name/email/phone/Aadhaar validation
 │   └── subscriptionConfig.ts
-├── i18n/
-│   ├── index.ts             # i18n initialization
-│   └── local/               # Translation files per language
 └── main.tsx                 # App entry point
 
 supabase/
-├── migrations/              # 53 sequential SQL migrations (schema + RLS history)
+├── migrations/              # 9 migrations; 001 is a squashed baseline of schema + RLS
 ├── functions/                # Edge Functions (Razorpay, Aadhaar, rate limits, admin actions)
 └── tests/                    # Rollback-safe RLS regression scripts, run manually via
                                # `npx supabase db query --linked --file supabase/tests/<name>.sql`
