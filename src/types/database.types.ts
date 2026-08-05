@@ -766,8 +766,10 @@ export type Database = {
           acknowledged_at: string | null
           acknowledged_by: string | null
           created_at: string
+          detail: string | null
           error_count: number
           id: string
+          kind: string
           threshold_count: number
           webhook_error: string | null
           webhook_notified: boolean
@@ -778,8 +780,10 @@ export type Database = {
           acknowledged_at?: string | null
           acknowledged_by?: string | null
           created_at?: string
+          detail?: string | null
           error_count: number
           id?: string
+          kind?: string
           threshold_count: number
           webhook_error?: string | null
           webhook_notified?: boolean
@@ -790,8 +794,10 @@ export type Database = {
           acknowledged_at?: string | null
           acknowledged_by?: string | null
           created_at?: string
+          detail?: string | null
           error_count?: number
           id?: string
+          kind?: string
           threshold_count?: number
           webhook_error?: string | null
           webhook_notified?: boolean
@@ -2629,6 +2635,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      check_cron_health_and_alert: { Args: never; Returns: undefined }
       check_error_rate_and_alert: { Args: never; Returns: string }
       delete_my_account: { Args: never; Returns: undefined }
       expire_lapsed_subscriptions: { Args: never; Returns: number }

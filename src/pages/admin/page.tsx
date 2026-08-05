@@ -73,7 +73,14 @@ export default function AdminDashboard() {
       color: 'bg-rose-50 text-rose-600',
       to: '/admin/errors',
       description: 'Crashes and uncaught errors reported by real browser sessions in the last 7 days.',
-      alertLabel: activeAlerts.length > 0 ? 'Error spike' : undefined,
+      // Distinguish the two, since they need different responses: an
+      // error spike means look at stack traces, a stalled job means look
+      // at pg_cron (see INCIDENT_RESPONSE.md).
+      alertLabel: activeAlerts.length === 0
+        ? undefined
+        : activeAlerts.some((a) => a.kind === 'cron_stalled')
+          ? 'Job stopped'
+          : 'Error spike',
     },
     {
       title: 'Broker Reports',

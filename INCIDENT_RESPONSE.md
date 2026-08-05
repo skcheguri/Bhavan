@@ -105,16 +105,19 @@ for your case, since forcing history can diverge local and remote state.
 
 ### Scheduled jobs stopped (pg_cron / pg_net)
 
-Three jobs run inside Postgres. **Nothing alerts you when one dies** — a
-failed job is silent, and a stopped `check-error-rate` looks exactly like
-a quiet night. Check here when something that should happen on a schedule
-didn't.
+Four jobs run inside Postgres. A fifth thing to know: `check-cron-health`
+watches the other three and raises a **"Job stopped"** alert on the admin
+dashboard when one of them stops succeeding, so this is no longer purely a
+pull check. What it cannot do is detect its own death — if the watchdog
+itself stops, nothing raises an alert, which is why the manual queries
+below still matter.
 
 | Job | Schedule | If it stops |
 |---|---|---|
 | `check-error-rate` | every 5 min | You lose the only automated detection you have |
 | `purge-unconfirmed-accounts` | 03:00 daily | Abandoned signups accumulate; cosmetic |
 | `expire-lapsed-subscriptions` | 03:30 daily | **Expired Pro subscriptions keep working** — paid features given away |
+| `check-cron-health` | every 15 min | The other three fail silently again; nothing else watches them |
 
 Run these from the Supabase **SQL Editor**, or with the CLI as shown. The
 dashboard equivalent is **Integrations -> Cron**; extensions are listed
@@ -126,7 +129,7 @@ under **Database -> Extensions** (expect `pg_cron` and `pg_net`).
 npx supabase db query --linked "select jobid, jobname, schedule, active from cron.job order by jobname;"
 ```
 
-Three rows, all `active = true`. A missing row means the migration that
+Four rows, all `active = true`. A missing row means the migration that
 creates it was never applied to this project.
 
 **2. Are they actually succeeding?** This is the one that matters — a job
@@ -136,7 +139,7 @@ can be `active` and fail on every run.
 npx supabase db query --linked "select j.jobname, d.status, count(*) runs, max(d.start_time) last_run from cron.job_run_details d join cron.job j on j.jobid=d.jobid where d.start_time > now() - interval '24 hours' group by 1,2 order by 1;"
 ```
 
-Healthy looks like `status = succeeded` for all three, and **288 runs for
+Healthy looks like `status = succeeded` for all four, and **288 runs for
 `check-error-rate`** — that is every five-minute slot in a day. A lower
 number means runs are being skipped, which is a real problem even though
 nothing failed. For the failure message on a bad run:
@@ -164,7 +167,8 @@ own failures by design, so that a push problem can never roll back the
 notification it was sent for; the in-app bell stays correct while push
 silently does nothing.
 
-Definitions live in `001_baseline.sql` (the three jobs) and
+Definitions live in `001_baseline.sql` (the original three jobs),
+`072_cron_health_watchdog.sql` (the watchdog) and
 `065_push_notifications_delivery.sql` (the `net.http_post` dispatch).
 
 ### Suspected account compromise (including admin)

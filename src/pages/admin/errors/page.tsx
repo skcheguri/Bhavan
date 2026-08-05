@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAdminErrorLogs, type ClientErrorLog } from '@/hooks/useAdminErrorLogs';
-import { useErrorRateAlerts } from '@/hooks/useErrorRateAlerts';
+import { useErrorRateAlerts, describeAlert } from '@/hooks/useErrorRateAlerts';
 import { useToast } from '@/hooks/useToast';
 
 type SourceFilter = 'all' | ClientErrorLog['source'];
@@ -93,13 +93,13 @@ export default function AdminErrorsPage() {
                   <i className="ri-alarm-warning-line text-red-500 text-lg mt-0.5" />
                   <div>
                     <p className="text-sm font-bold text-red-700">
-                      {alert.errorCount} errors in the last {Math.round((new Date(alert.windowEnd).getTime() - new Date(alert.windowStart).getTime()) / 60000)} minutes
+                      {describeAlert(alert).headline}
                     </p>
                     <p className="text-xs text-red-600/80 mt-0.5">
                       {/* window_end is the freshness marker -- an ignored alert is
                           refreshed in place daily (migration 063), so this timestamp
                           updates while created_at keeps the incident's first raise. */}
-                      Threshold was {alert.thresholdCount} — latest spike {new Date(alert.windowEnd).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {describeAlert(alert).context} — {describeAlert(alert).timeLabel} {new Date(alert.windowEnd).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       {new Date(alert.windowEnd).getTime() - new Date(alert.createdAt).getTime() > 24 * 60 * 60 * 1000
                         ? `, ongoing since ${new Date(alert.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short' })}`
                         : ''}
