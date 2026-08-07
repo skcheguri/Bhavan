@@ -10,6 +10,8 @@ import ToastContainer from "./components/feature/ToastContainer";
 import ErrorBoundary from "./components/feature/ErrorBoundary";
 import { applyRouteSeo } from "./lib/seo";
 
+import { useNativeBackButton } from '@/hooks/useNativeBackButton';
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -56,6 +58,11 @@ function RoutesWithErrorBoundary() {
 }
 
 function AppShell() {
+  // Android's hardware back button. Mounted here rather than around the
+  // router because it drives window.history, which only exists once the
+  // router is live.
+  useNativeBackButton();
+
   // /admin/login is a deliberately separate surface (see its own file
   // comment) -- it shouldn't sit under the consumer Navbar/Footer, which
   // would visually contradict its own dedicated sign-in form.
