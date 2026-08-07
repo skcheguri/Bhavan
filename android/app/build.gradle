@@ -16,10 +16,43 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing reads from android/keystore.properties, which is
+    // gitignored. Absent, release builds stay unsigned and still compile,
+    // so CI and anyone without the key are unaffected -- they just cannot
+    // produce an uploadable artifact.
+    //
+    // The keystore itself is deliberately NOT in this repo and must never
+    // be. Play identifies the app by that key forever: lose it and you
+    // cannot ship an update to existing installs, ever. Back it up
+    // somewhere that survives a dead laptop.
+    signingConfigs {
+        release {
+            def keystorePropsFile = rootProject.file("keystore.properties")
+            if (keystorePropsFile.exists()) {
+                def keystoreProps = new Properties()
+                keystorePropsFile.withInputStream { keystoreProps.load(it) }
+                storeFile = rootProject.file(keystoreProps['storeFile'])
+                storePassword = keystoreProps['storePassword']
+                keyAlias = keystoreProps['keyAlias']
+                keyPassword = keystoreProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // R8 shrinks and obfuscates. Capacitor bridges Java to JS
+            // reflectively, so plugin classes must survive -- see
+            // proguard-rules.pro. Kept on because an unshrunk release
+            // ships every unused library class to users on Indian mobile
+            // data.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            if (rootProject.file("keystore.properties").exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
