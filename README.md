@@ -24,7 +24,7 @@ Bhavan is a web platform that connects renters with landlords and fellow tenants
 | Payments | Razorpay (rent payments, subscription billing) |
 | Icons | Remix Icon |
 | QR Codes | qrcode |
-| Mobile | Capacitor (Android/iOS projects scaffolded; never built on a device) |
+| Mobile | Capacitor — Android builds, installs and runs (debug + minified release, verified on emulator); iOS scaffolded, never built |
 | Testing | Vitest (unit) + Playwright (e2e) |
 | CI | GitHub Actions (typecheck, lint, unit tests, build, Playwright e2e; deploys gated on green) |
 | Build Tooling | ESLint 9 + TypeScript 5.8 |
