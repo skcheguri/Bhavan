@@ -17,6 +17,35 @@ buildscript {
 
 apply from: "variables.gradle"
 
+// Optionally relocate build output away from the source tree.
+//
+// This repo lives inside OneDrive on at least one machine, and cloud sync
+// is actively hostile to a Gradle build: it dehydrates files into cloud
+// placeholders (Gradle: "not a regular file") and holds handles open on
+// directories Gradle is trying to replace ("Unable to delete directory").
+// Both fail nondeterministically, mid-build, on files the build itself
+// just wrote -- so it reads as a broken project rather than a broken
+// folder, and clearing intermediates only fixes it until the next build.
+//
+// Set `buildDir.relocated` in android/local.properties (gitignored, and
+// already machine-specific) to somewhere outside the synced tree:
+//
+//     buildDir.relocated=C:/bhavan-build
+//
+// Leave it unset and nothing changes.
+def localProps = new Properties()
+def localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def relocatedRoot = localProps.getProperty("buildDir.relocated")
+if (relocatedRoot) {
+    println "Gradle build output relocated to ${relocatedRoot} (see android/build.gradle)"
+    allprojects {
+        layout.buildDirectory = new File(relocatedRoot, project.path.replace(':', '/').replaceFirst('^/', ''))
+    }
+}
+
 allprojects {
     repositories {
         google()

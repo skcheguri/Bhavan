@@ -16,7 +16,15 @@
     </style>
 
 
+    <!-- Android 11 and below use the full-bleed splash drawable. Android 12+
+         ignore it: the platform SplashScreen API composes the adaptive icon
+         over windowSplashScreenBackground, so that colour has to be set
+         explicitly or the surround falls back to the system default. Both
+         paths are declared so the launch screen matches on either. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/splashBackground</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

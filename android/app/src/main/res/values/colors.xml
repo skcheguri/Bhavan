@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand orange. Used as the Android 12+ splash window background so
+         the launch screen is brand-coloured edge to edge instead of the
+         system default, which rendered as pale lavender around the icon. -->
+    <color name="splashBackground">#E07856</color>
+</resources>

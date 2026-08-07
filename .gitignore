@@ -55,3 +55,6 @@ supabase/supabase/
 
 .vercel
 .env*
+
+# Source images for the app icon/splash are generated (scripts/generate-app-assets.mjs)
+assets/
