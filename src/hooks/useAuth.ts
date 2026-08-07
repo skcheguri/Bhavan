@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
+import { disableBiometricUnlock, enableBiometricUnlock, unlockWithBiometric } from '@/lib/biometricAuth';
 import { User } from '@supabase/supabase-js';
 
 export type UserRole = 'tenant' | 'owner' | 'admin' | null;
@@ -43,6 +44,9 @@ interface AuthContextValue {
   sendPasswordResetEmail: (email: string, redirectTo: string) => Promise<{ error: string | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  enableBiometrics: () => Promise<{ error: string | null }>;
+  signInWithBiometrics: () => Promise<{ error: string | null }>;
+  disableBiometrics: () => Promise<void>;
   updateProfile: (updates: Partial<AuthUser>) => Promise<{ error: string | null; emailVerificationSent?: boolean }>;
   refreshProfile: () => Promise<void>;
   mfaEnrollTotp: () => Promise<{ error: string | null; factorId?: string; qrCode?: string; secret?: string }>;
@@ -140,6 +144,9 @@ export const AuthContext = createContext<AuthContextValue>({
   sendPasswordResetEmail: async () => ({ error: null }),
   updatePassword: async () => ({ error: null }),
   signOut: async () => {},
+  enableBiometrics: async () => ({ error: null }),
+  signInWithBiometrics: async () => ({ error: null }),
+  disableBiometrics: async () => {},
   updateProfile: async () => ({ error: null }),
   refreshProfile: async () => {},
   mfaEnrollTotp: async () => ({ error: null }),
@@ -294,7 +301,54 @@ export function useAuthProvider(): AuthContextValue {
     if (supabase) {
       await supabase.auth.signOut();
     }
+    // Purge the biometric token unconditionally. Signing out is the moment
+    // a user expects the device to forget them; a refresh token surviving
+    // it would let the next person with a fingerprint on this phone walk
+    // straight back into the account.
+    await disableBiometricUnlock();
     setUser(null);
+  };
+
+  /**
+   * Enables biometric sign-in using the session already in hand. Lives
+   * here rather than in the settings screen so the refresh token never
+   * passes through component state.
+   */
+  const enableBiometrics = async (): Promise<{ error: string | null }> => {
+    const supabase = getSupabase();
+    if (!supabase || !user) return { error: 'Not signed in' };
+    const { data } = await supabase.auth.getSession();
+    const refreshToken = data.session?.refresh_token;
+    if (!refreshToken) return { error: 'No active session to remember' };
+    return { error: await enableBiometricUnlock(user.email, refreshToken) };
+  };
+
+  /**
+   * Signs in from the stored refresh token after a biometric check.
+   *
+   * A stored token can be dead -- revoked from another device, expired
+   * after long disuse, or invalidated by a password change elsewhere. When
+   * the server rejects it the credential is purged rather than left to
+   * fail on every future launch, and the user falls back to a password.
+   */
+  const signInWithBiometrics = async (): Promise<{ error: string | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { error: 'Database connection unavailable' };
+
+    const { refreshToken, error } = await unlockWithBiometric();
+    // No token and no error means the user cancelled -- say nothing.
+    if (!refreshToken) return { error: error ?? null };
+
+    const { error: refreshError } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+    if (refreshError) {
+      await disableBiometricUnlock();
+      return { error: 'That saved sign-in is no longer valid. Please use your password.' };
+    }
+    return { error: null };
+  };
+
+  const disableBiometrics = async (): Promise<void> => {
+    await disableBiometricUnlock();
   };
 
   const updateProfile = async (updates: Partial<AuthUser>): Promise<{ error: string | null; emailVerificationSent?: boolean }> => {
@@ -531,6 +585,9 @@ export function useAuthProvider(): AuthContextValue {
   // afterward rather than leaving the client holding a token for a user
   // that no longer exists server-side.
   const deleteMyAccount = async (): Promise<{ error: string | null }> => {
+    // The account is being destroyed; a stored refresh token would be a
+    // live credential for something that no longer exists.
+    await disableBiometricUnlock();
     const supabase = getSupabase();
     if (!supabase) return { error: 'Supabase not connected' };
 
@@ -545,6 +602,9 @@ export function useAuthProvider(): AuthContextValue {
   return {
     user,
     loading,
+    enableBiometrics,
+    disableBiometrics,
+    signInWithBiometrics,
     signIn,
     signUp,
     signInWithGoogle,

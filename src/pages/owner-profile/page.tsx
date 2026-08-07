@@ -1,3 +1,4 @@
+import BiometricSetting from '@/components/feature/BiometricSetting';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -1171,6 +1172,7 @@ export default function OwnerProfile() {
 
             <div className="bg-white rounded-3xl border border-black/5 p-6">
               <h2 className="text-base font-bold text-charcoal mb-4">Security</h2>
+              <BiometricSetting />
               <button
                 onClick={handleChangePassword}
                 disabled={sendingReset}

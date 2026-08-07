@@ -105,6 +105,32 @@ sensor output -- often past the uploader's 5MB limit. Native resizes to
 | 5b.5 | Check the uploaded file size | Roughly 200-400KB, not multi-MB |
 | 5b.6 | Android 12 or below | Gallery works via READ_EXTERNAL_STORAGE, capped at API 32 |
 
+## 5c. Biometric sign-in (native)
+
+Opt-in, off by default, toggled in profile Settings -> Security. Enabling
+stores the Supabase **refresh** token in Android Keystore / iOS Keychain,
+released only after a biometric check. The password path is never removed.
+
+Test the purges especially: a token that outlives sign-out is a real
+security defect, not a UX one.
+
+| # | Scenario | Expected |
+|---|---|---|
+| 5c.1 | Device with no biometric enrolled | Toggle does not appear at all |
+| 5c.2 | Enable the toggle | Prompts to confirm identity first, then confirms it is on |
+| 5c.3 | Sign out, reopen | "Unlock with fingerprint/Face ID" appears above Google |
+| 5c.4 | Unlock | Signs in without a password |
+| 5c.5 | Cancel the prompt | No error shown — cancelling is a normal choice |
+| 5c.6 | Fail biometrics repeatedly to lockout | Message directs to password, app still usable |
+| 5c.7 | **Sign out** | Token purged: the unlock button is gone next launch |
+| 5c.8 | **Delete account** | Token purged |
+| 5c.9 | Turn the toggle off | Token purged; unlock button gone |
+| 5c.10 | Change the password on another device, then unlock | Stored token rejected, purged, falls back to password |
+| 5c.11 | Enrol a *second* fingerprint on the device, then unlock | Decide policy: currently any enrolled biometric unlocks |
+
+**All of 5c is untested on a device** — the emulator has no biometric
+enrolled. 5c.7 and 5c.8 are the two that matter most.
+
 ## 6. Payments — the highest-consequence path
 
 **Confirm Razorpay is in test mode before anyone taps Pay.**

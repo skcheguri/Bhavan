@@ -8,6 +8,7 @@
     "@capacitor/push-notifications": "^8.1.2",
     "@capacitor/share": "^8.0.1",
     "@supabase/supabase-js": "2.57.4",
+    "capacitor-native-biometric": "^4.2.2",
     "firebase": "12.0.0",
     "i18next-browser-languagedetector": "^8.2.0",
     "lucide-react": "0.539.0",

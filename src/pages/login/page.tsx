@@ -1,3 +1,4 @@
+import { getBiometricStatus, type BiometricStatus } from '@/lib/biometricAuth';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,7 +10,29 @@ type ForgotStep = 'email' | 'sent';
 export default function Login() {
   const [selectedRole, setSelectedRole] = useState<'tenant' | 'owner' | null>(null);
   const [tab, setTab] = useState<AuthTab>('email');
-  const { signIn, signInWithGoogle, sendPhoneOtp, verifyPhoneOtp, sendPasswordResetEmail, user } = useAuth();
+  const { signIn, signInWithGoogle, sendPhoneOtp, verifyPhoneOtp, sendPasswordResetEmail, signInWithBiometrics, user } = useAuth();
+
+  // Offered only when a token is actually stored on this device, so the
+  // button never appears to someone it cannot help.
+  const [biometric, setBiometric] = useState<BiometricStatus>({ available: false, enrolled: false, kind: 'biometric' });
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [biometricError, setBiometricError] = useState('');
+
+  useEffect(() => {
+    getBiometricStatus().then(setBiometric);
+  }, []);
+
+  const handleBiometricUnlock = async () => {
+    setBiometricError('');
+    setBiometricBusy(true);
+    const { error } = await signInWithBiometrics();
+    setBiometricBusy(false);
+    if (error) {
+      setBiometricError(error);
+      // A rejected token is deleted by the auth layer, so stop offering it.
+      getBiometricStatus().then(setBiometric);
+    }
+  };
   const navigate = useNavigate();
 
   // Email login state
@@ -297,6 +320,27 @@ export default function Login() {
               </div>
 
               {/* Google */}
+              {biometric.enrolled && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleBiometricUnlock}
+                    disabled={biometricBusy}
+                    className="w-full flex items-center justify-center gap-3 border border-brand/30 bg-brand/5 hover:bg-brand/10 transition-colors py-3 rounded-xl text-sm font-semibold text-brand cursor-pointer whitespace-nowrap disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    <i className={biometricBusy ? 'ri-loader-4-line animate-spin text-base' : biometric.kind === 'face' ? 'ri-user-smile-line text-base' : 'ri-fingerprint-line text-base'} />
+                    {biometricBusy
+                      ? 'Waiting for confirmation...'
+                      : biometric.kind === 'face'
+                        ? 'Unlock with Face ID'
+                        : 'Unlock with fingerprint'}
+                  </button>
+                  {biometricError && (
+                    <p className="text-xs text-red-500 font-medium text-center -mt-1">{biometricError}</p>
+                  )}
+                </>
+              )}
+
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
