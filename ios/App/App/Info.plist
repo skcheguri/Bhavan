@@ -52,6 +52,14 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Bhavan uses your location to show rental listings near you. You can search by typing a locality instead.</string>
 	<!-- Lets a push arrive while the app is backgrounded. -->
+	<!-- Listing photos. App Review rejects a missing or vague purpose
+	     string, so these say what the access is actually for. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Bhavan uses the camera so you can photograph your property when creating a listing.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Bhavan needs access to your photos so you can add existing pictures of your property to a listing.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Bhavan saves listing photos you capture back to your photo library.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

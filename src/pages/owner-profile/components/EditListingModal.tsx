@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import type { ListingFromDB } from '@/hooks/useListings';
 import { uploadListingImages, deleteListingImage } from '@/hooks/useListingImages';
+import { hasNativeCamera, capturePhoto, pickPhotos } from '@/lib/photoCapture';
 import { useToast } from '@/hooks/useToast';
 import { geocodeAddress } from '@/lib/geocode';
 
@@ -96,6 +97,33 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
 
   const removeNearbyPlace = (index: number) => {
     setForm((prev) => ({ ...prev, nearbyPlaces: prev.nearbyPlaces.filter((_, i) => i !== index) }));
+  };
+
+  /**
+   * On a phone the hidden file inputs open a system chooser rather than
+   * the camera, and upload the sensor's full-size output -- often past the
+   * uploader's 5MB limit. The native path resizes first. Web keeps the
+   * inputs, which is the right control there.
+   */
+  const addFromCamera = async () => {
+    const { files, error } = await capturePhoto();
+    if (error) addToast(error, 'error');
+    if (files.length) await uploadFiles(files);
+  };
+
+  const addFromGallery = async () => {
+    const { files, error } = await pickPhotos();
+    if (error) addToast(error, 'error');
+    if (files.length) await uploadFiles(files);
+  };
+
+  const uploadFiles = async (files: FileList | File[]) => {
+    if (!listing) return;
+    setUploading(true);
+    const { urls, errors } = await uploadListingImages(listing.owner_id, listing.id, files);
+    if (urls.length > 0) setImages((prev) => [...prev, ...urls]);
+    if (errors.length > 0) addToast(errors.join('; '), 'error');
+    setUploading(false);
   };
 
   const handleFilesSelected = async (fileList: FileList | null) => {
@@ -270,7 +298,7 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
               ))}
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => (hasNativeCamera() ? addFromGallery() : fileInputRef.current?.click())}
                 disabled={uploading}
                 className="aspect-square rounded-xl border-2 border-dashed border-black/10 flex flex-col items-center justify-center gap-1 text-charcoal/40 hover:border-amber-300 hover:text-amber-600 transition-colors cursor-pointer disabled:opacity-50"
               >
@@ -285,7 +313,7 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
               </button>
               <button
                 type="button"
-                onClick={() => cameraInputRef.current?.click()}
+                onClick={() => (hasNativeCamera() ? addFromCamera() : cameraInputRef.current?.click())}
                 disabled={uploading}
                 className="aspect-square rounded-xl border-2 border-dashed border-black/10 flex flex-col items-center justify-center gap-1 text-charcoal/40 hover:border-amber-300 hover:text-amber-600 transition-colors cursor-pointer disabled:opacity-50"
               >

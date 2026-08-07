@@ -43,4 +43,13 @@
          precise option, and the user can still choose approximate. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Listing photos. CAMERA is required by @capacitor/camera; without it
+         the plugin's permission request resolves to denied and the camera
+         never opens. READ_MEDIA_IMAGES is the Android 13+ replacement for
+         READ_EXTERNAL_STORAGE, which is kept (capped) so gallery picking
+         still works on older devices. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 </manifest>

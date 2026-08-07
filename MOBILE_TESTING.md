@@ -89,6 +89,22 @@ have not themselves been exercised.
 | 5.5 | QR code "Print" | Share sheet; printing available |
 | 5.6 | Copy link | Clipboard actually contains the URL |
 
+## 5b. Camera and photo upload (native)
+
+Listing photos use @capacitor/camera on device rather than the web file
+input, which opens a chooser instead of the camera and uploads full-size
+sensor output -- often past the uploader's 5MB limit. Native resizes to
+1600px / quality 80 first.
+
+| # | Scenario | Expected |
+|---|---|---|
+| 5b.1 | "Take Photo" on a listing | Camera opens directly, not a file chooser **(not device-tested)** |
+| 5b.2 | Back out of the camera | No error toast — cancelling is not a failure |
+| 5b.3 | Deny camera permission | Message points at *device* settings |
+| 5b.4 | "Add Photos" | Gallery multi-select, up to 8 |
+| 5b.5 | Check the uploaded file size | Roughly 200-400KB, not multi-MB |
+| 5b.6 | Android 12 or below | Gallery works via READ_EXTERNAL_STORAGE, capped at API 32 |
+
 ## 6. Payments — the highest-consequence path
 
 **Confirm Razorpay is in test mode before anyone taps Pay.**
