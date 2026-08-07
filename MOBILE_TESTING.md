@@ -77,12 +77,13 @@ different code path.
 
 ## 5. Documents and sharing — all unverified on device
 
-The native branches exist but have never run. Treat every row as unproven.
+The agreement path is now verified on device; the rest share its code but
+have not themselves been exercised.
 
 | # | Scenario | Expected |
 |---|---|---|
-| 5.1 | View a rental agreement | Share sheet opens with the document **(never tested)** |
-| 5.2 | View a rent receipt | Same |
+| 5.1 | View a rental agreement | Share sheet opens with the document — **verified**, filename identifies the agreement |
+| 5.2 | View a rent receipt | Same — same code path, but not itself exercised |
 | 5.3 | Save from the share sheet | File lands in Files/Downloads and opens |
 | 5.4 | QR code "Download PNG" | Share sheet with the image **(never tested)** |
 | 5.5 | QR code "Print" | Share sheet; printing available |
