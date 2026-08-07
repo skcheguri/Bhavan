@@ -1,3 +1,4 @@
+import { readCache, writeCache } from '@/lib/offlineCache';
 import { useState, useEffect, useCallback } from 'react';
 import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
 import type { Tables } from '@/types/database.types';
@@ -42,6 +43,12 @@ interface UseListingsReturn {
   loading: boolean;
   error: string | null;
   refresh: () => void;
+  /**
+   * Set only when these rows came from the offline cache rather than the
+   * network, so the screen can say so. Rents and availability change; a
+   * snapshot presented as live is worse than no snapshot.
+   */
+  cachedAt?: Date | null;
 }
 
 export function useListings(category?: string): UseListingsReturn {
@@ -134,6 +141,10 @@ export function useSavedListings(userId: string | undefined): UseListingsReturn 
   const [listings, setListings] = useState<ListingFromDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // When these came from the cache rather than the network. Null means
+  // live -- the UI uses this to label a snapshot honestly instead of
+  // passing old rents off as current.
+  const [cachedAt, setCachedAt] = useState<Date | null>(null);
 
   const fetchSaved = useCallback(async () => {
     if (!isSupabaseConnected() || !userId) {
@@ -152,8 +163,27 @@ export function useSavedListings(userId: string | undefined): UseListingsReturn 
       .select('listing_id')
       .eq('user_id', userId);
 
-    if (dbError || !data || data.length === 0) {
+    if (dbError) {
+      // Offline, or the request failed. Saved listings are the one thing
+      // a user deliberately kept, so fall back to the last snapshot rather
+      // than showing an empty shelf.
+      const cached = await readCache<ListingFromDB[]>('savedListings', userId);
+      if (cached.data) {
+        setListings(cached.data);
+        setCachedAt(cached.cachedAt);
+        setError(null);
+      } else {
+        setError(dbError.message);
+        setListings([]);
+      }
+      setLoading(false);
+      return;
+    }
+
+    if (!data || data.length === 0) {
       setListings([]);
+      setCachedAt(null);
+      await writeCache('savedListings', userId, []);
       setLoading(false);
       return;
     }
@@ -166,10 +196,20 @@ export function useSavedListings(userId: string | undefined): UseListingsReturn 
       .eq('status', 'active');
 
     if (listingsError) {
-      setError(listingsError.message);
-      setListings([]);
+      const cached = await readCache<ListingFromDB[]>('savedListings', userId);
+      if (cached.data) {
+        setListings(cached.data);
+        setCachedAt(cached.cachedAt);
+        setError(null);
+      } else {
+        setError(listingsError.message);
+        setListings([]);
+      }
     } else {
-      setListings(toListings(listingsData ?? []));
+      const fresh = toListings(listingsData ?? []);
+      setListings(fresh);
+      setCachedAt(null);
+      await writeCache('savedListings', userId, fresh);
     }
     setLoading(false);
   }, [userId]);

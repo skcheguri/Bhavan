@@ -12,6 +12,7 @@ import { applyRouteSeo } from "./lib/seo";
 
 import { useNativeBackButton } from '@/hooks/useNativeBackButton';
 import { useNativePushRouting } from '@/hooks/useNativePushRouting';
+import OfflineBanner from '@/components/feature/OfflineBanner';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -76,6 +77,7 @@ function AppShell() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <OfflineBanner />
       {!isStandaloneAdminLogin && <Navbar />}
       <main className="flex-1">
         <RoutesWithErrorBoundary />

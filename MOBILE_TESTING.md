@@ -131,6 +131,27 @@ security defect, not a UX one.
 **All of 5c is untested on a device** — the emulator has no biometric
 enrolled. 5c.7 and 5c.8 are the two that matter most.
 
+## 5d. Offline access (native + web)
+
+Deliberately narrow: saved listings and rental agreements the user has
+already opened. Not a general browse cache — a withdrawn or repriced
+listing served from cache is not stale, it is wrong, and someone travels
+across a city for a flat that is gone.
+
+| # | Scenario | Expected |
+|---|---|---|
+| 5d.1 | Turn off wifi and data | Dark "You're offline" banner appears — **verified on device** |
+| 5d.2 | Turn them back on | Banner clears — **verified on device** |
+| 5d.3 | Go offline, open Saved Listings | Last snapshot shown, not an empty shelf |
+| 5d.4 | Go offline, open a rental agreement | Document opens from cache |
+| 5d.5 | Airplane mode on a fresh install | Honest empty state, no infinite spinner |
+| 5d.6 | **Sign out on a shared phone** | Cache purged: the next user sees none of it |
+| 5d.7 | Reconnect after a cached read | Live data replaces the snapshot |
+| 5d.8 | Captive portal (hotel wifi) | Treated as offline — this is why @capacitor/network is used over navigator.onLine |
+
+5d.6 is the one that matters: a cache outliving sign-out would show one
+person's saved flats and rental agreement to the next.
+
 ## 6. Payments — the highest-consequence path
 
 **Confirm Razorpay is in test mode before anyone taps Pay.**

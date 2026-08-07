@@ -1,3 +1,4 @@
+import { readCache, writeCache } from '@/lib/offlineCache';
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import type { RentalAgreementData } from '@/lib/documents/rentalAgreementDocument';
@@ -184,6 +185,7 @@ export function useTenantRentalAgreements(tenantId: string | undefined) {
   const [agreements, setAgreements] = useState<RentalAgreementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [cachedAt, setCachedAt] = useState<Date | null>(null);
 
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
@@ -201,10 +203,23 @@ export function useTenantRentalAgreements(tenantId: string | undefined) {
 
     if (error) {
       console.warn('Supabase rental_agreements (tenant) fetch error:', error.message);
-      setFetchError(error.message);
-      setAgreements([]);
+      // A signed agreement is a document the tenant is entitled to read
+      // whatever the network is doing -- at a viewing, in a basement flat,
+      // in front of a landlord. Fall back to the last copy seen.
+      const cached = await readCache<RentalAgreementRow[]>('tenantAgreements', tenantId);
+      if (cached.data) {
+        setAgreements(cached.data);
+        setCachedAt(cached.cachedAt);
+        setFetchError(null);
+      } else {
+        setFetchError(error.message);
+        setAgreements([]);
+      }
     } else {
-      setAgreements((data ?? []).map(mapRow));
+      const fresh = (data ?? []).map(mapRow);
+      setAgreements(fresh);
+      setCachedAt(null);
+      await writeCache('tenantAgreements', tenantId, fresh);
     }
     setLoading(false);
   }, [tenantId]);
@@ -213,5 +228,5 @@ export function useTenantRentalAgreements(tenantId: string | undefined) {
     refresh();
   }, [refresh]);
 
-  return { agreements, loading, fetchError, refresh };
+  return { agreements, loading, fetchError, refresh, cachedAt };
 }

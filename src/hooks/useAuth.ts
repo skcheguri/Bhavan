@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
 import { disableBiometricUnlock, enableBiometricUnlock, unlockWithBiometric } from '@/lib/biometricAuth';
+import { clearCacheForUser } from '@/lib/offlineCache';
 import { User } from '@supabase/supabase-js';
 
 export type UserRole = 'tenant' | 'owner' | 'admin' | null;
@@ -304,7 +305,10 @@ export function useAuthProvider(): AuthContextValue {
     // Purge the biometric token unconditionally. Signing out is the moment
     // a user expects the device to forget them; a refresh token surviving
     // it would let the next person with a fingerprint on this phone walk
-    // straight back into the account.
+    // straight back into the account. The offline cache goes too -- on a
+    // shared phone it would otherwise show the previous person's saved
+    // flats, and their rental agreement.
+    if (user) await clearCacheForUser(user.id);
     await disableBiometricUnlock();
     setUser(null);
   };
