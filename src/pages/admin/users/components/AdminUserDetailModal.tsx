@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useBrokerReport } from '@/hooks/useBrokerReport';
@@ -65,6 +66,7 @@ interface AdminUserDetailModalProps {
 }
 
 export default function AdminUserDetailModal({ user, onClose, onSuspend, onReactivate, busy }: AdminUserDetailModalProps) {
+  useDismissableLayer(onClose);
   const [reasonDraft, setReasonDraft] = useState('');
 
   const brokerStatus = useBrokerReport(user.role === 'tenant' ? user.id : undefined);

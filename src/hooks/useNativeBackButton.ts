@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { dismissTopLayer } from '@/hooks/useDismissableLayer';
 
 /**
  * Makes Android's hardware back button navigate instead of quitting.
@@ -30,6 +31,12 @@ export function useNativeBackButton(): void {
         // canGoBack reflects the WebView's own history, which the router's
         // pushState navigations feed into, so it tracks in-app screens
         // rather than only full page loads.
+        // Close what is on top of the page first. Back with a modal open
+        // used to navigate away, dismissing the modal only as a side
+        // effect of leaving the screen -- and taking whatever the user was
+        // doing with it.
+        if (dismissTopLayer()) return;
+
         if (canGoBack) {
           window.history.back();
         } else {

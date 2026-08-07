@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,6 +21,7 @@ interface UserProfileModalProps {
 }
 
 export default function UserProfileModal({ userId, roleLabel, reviewRole, canReview, onClose }: UserProfileModalProps) {
+  useDismissableLayer(onClose);
   const { user: currentUser } = useAuth();
   const [profile, setProfile] = useState<BasicProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);

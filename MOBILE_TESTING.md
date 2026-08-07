@@ -69,7 +69,7 @@ different code path.
 |---|---|---|
 | 4.1 | Back from a nested screen | Goes up one screen **(found here)** |
 | 4.2 | Back at home | Exits the app |
-| 4.3 | Back with a modal open | Closes the modal first — **known gap, not yet handled** |
+| 4.3 | Back with a modal open | Closes the modal first, does not navigate. Implemented via a dismissable-layer registry and adopted in 13 modals — **code-complete but NOT yet confirmed on a device**; confirm this one by hand |
 | 4.4 | Keyboard over a form field | Field stays visible; page scrolls rather than being covered |
 | 4.5 | Text fields | No zoom-on-focus (iOS); the 16px rule covers this |
 | 4.6 | Rotate to landscape | No clipped or overlapping layout |

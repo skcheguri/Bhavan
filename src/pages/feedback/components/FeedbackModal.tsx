@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useState } from 'react';
 import { ownerOnRenterQuestions, renterOnOwnerQuestions } from '@/lib/content/feedbackQuestions';
 import StarRating from './StarRating';
@@ -16,6 +17,7 @@ interface FeedbackModalProps {
 }
 
 export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject }: FeedbackModalProps) {
+  useDismissableLayer(onClose);
   const { user } = useAuth();
   const { addToast } = useToast();
   const questions = role === 'owner_on_renter' ? ownerOnRenterQuestions : renterOnOwnerQuestions;

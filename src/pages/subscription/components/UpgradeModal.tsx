@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useState } from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from '@/hooks/useToast';
@@ -9,6 +10,7 @@ interface UpgradeModalProps {
 }
 
 export default function UpgradeModal({ isOpen, onClose, plan }: UpgradeModalProps) {
+  useDismissableLayer(onClose);
   const { upgradeToPro } = useSubscription();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);

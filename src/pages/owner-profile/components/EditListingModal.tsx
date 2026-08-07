@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useState, useEffect, useRef } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import type { ListingFromDB } from '@/hooks/useListings';
@@ -30,6 +31,7 @@ const amenitiesList = [
 ];
 
 export default function EditListingModal({ listing, onClose, onSave }: EditListingModalProps) {
+  useDismissableLayer(onClose);
   const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [charCount, setCharCount] = useState(0);

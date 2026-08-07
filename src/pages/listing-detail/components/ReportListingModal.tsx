@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useState } from 'react';
 import { submitListingReport, LISTING_REPORT_REASONS, type ListingReportReason } from '@/hooks/useListingReports';
 import { useToast } from '@/hooks/useToast';
@@ -10,6 +11,7 @@ interface ReportListingModalProps {
 }
 
 export default function ReportListingModal({ open, onClose, listingId, reporterId }: ReportListingModalProps) {
+  useDismissableLayer(onClose);
   const { addToast } = useToast();
   const [reason, setReason] = useState<ListingReportReason>('photos_dont_match');
   const [detail, setDetail] = useState('');

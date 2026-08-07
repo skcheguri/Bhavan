@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import type { RentalAgreementRow } from '@/hooks/useRentalAgreements';
 import { buildRentalAgreementHtml } from '@/lib/documents/rentalAgreementDocument';
 import { useToast } from '@/hooks/useToast';
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function RentalAgreementModal({ agreement, onClose }: Props) {
+  useDismissableLayer(onClose);
   const { addToast } = useToast();
   if (!agreement) return null;
 

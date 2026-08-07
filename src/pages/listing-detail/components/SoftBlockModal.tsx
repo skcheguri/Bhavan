@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useState } from 'react';
 import { useBrokerReport } from '@/hooks/useBrokerReport';
 import { useToast } from '@/hooks/useToast';
@@ -10,6 +11,7 @@ interface SoftBlockModalProps {
 }
 
 export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: SoftBlockModalProps) {
+  useDismissableLayer(onClose);
   const broker = useBrokerReport(tenantId);
   const { addToast } = useToast();
   const [aadhaarDone, setAadhaarDone] = useState(broker.softBlockState.aadhaar_re_verified);

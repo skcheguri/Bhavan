@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function PhoneVerifyModal({ phone, onClose, onVerified }: Props) {
+  useDismissableLayer(onClose);
   const { sendPhoneVerificationOtp, confirmPhoneVerificationOtp } = useAuth();
   const [step, setStep] = useState<'send' | 'code'>('send');
   const [code, setCode] = useState('');

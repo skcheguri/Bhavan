@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useState } from 'react';
 import { ReportReason } from '@/hooks/useBrokerReport';
 
@@ -18,6 +19,7 @@ interface ReportBrokerModalProps {
 }
 
 export default function ReportBrokerModal({ open, onClose, prospectName, onReport, alreadyReported }: ReportBrokerModalProps) {
+  useDismissableLayer(onClose);
   const [selected, setSelected] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState('');
   const [submitted, setSubmitted] = useState(false);

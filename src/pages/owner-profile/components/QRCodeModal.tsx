@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useEffect, useState, useRef } from 'react';
 import QRCode from 'qrcode';
 import { Capacitor } from '@capacitor/core';
@@ -18,6 +19,7 @@ interface QRCodeModalProps {
 }
 
 export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
+  useDismissableLayer(onClose);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);

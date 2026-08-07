@@ -1,3 +1,4 @@
+import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useState } from 'react';
 import { useRentPayment } from '@/hooks/useRentPayment';
 import { useRentalAgreements } from '@/hooks/useRentalAgreements';
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function ReconciliationPanel({ ownerId, onClose }: Props) {
+  useDismissableLayer(onClose);
   const { payments, reconcilePayment, refresh } = useRentPayment();
   const { agreements } = useRentalAgreements(ownerId);
   const { addToast } = useToast();
