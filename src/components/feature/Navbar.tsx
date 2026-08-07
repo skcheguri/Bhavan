@@ -3,7 +3,13 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 
+// Rendered in both the desktop profile dropdown and the mobile menu, so
+// anything added here appears on both -- which is how Notifications came
+// to be missing from neither and then both. It was previously reachable
+// only via a bell on the profile page, i.e. two taps deep behind a screen
+// you had to already know to open.
 const sharedMenuItems = [
+  { to: '/notifications', icon: 'ri-notification-3-line', label: 'Notifications' },
   { to: '/feedback', icon: 'ri-star-line', label: 'My Reviews' },
   { to: '/community', icon: 'ri-discuss-line', label: 'Community Forum' },
 ];
@@ -324,7 +330,12 @@ export default function Navbar({ sticky = false }: Props) {
                         </span>
                       )}
                     </div>
+                    <p className="text-[11px] text-brand font-semibold mt-1">View my dashboard</p>
                   </div>
+                  {/* Says out loud that this row is a link. Without it the
+                      block reads as a heading and the dashboard looks
+                      unreachable from the menu. */}
+                  <i className="ri-arrow-right-s-line text-charcoal/30 text-xl ml-auto" />
                 </Link>
 
                 {sharedMenuItems.map((item) => (

@@ -39,6 +39,14 @@ command -v "$ADB" >/dev/null 2>&1 || [ -x "$ADB" ] || fail "adb not found under 
 
 echo "==> Building web bundle"
 npm run build >/dev/null || fail "web build failed"
+
+# Purge the previously synced bundle rather than copying over it. Stale
+# hashed chunks accumulate, and on a cloud-synced checkout (OneDrive,
+# Dropbox) an old one can end up a dehydrated placeholder that Gradle
+# cannot read -- "Cannot snapshot <file>: not a regular file", on a file
+# nothing in this build even references. cap sync regenerates the whole
+# directory, so deleting it first is free and removes the failure mode.
+rm -rf android/app/src/main/assets/public
 npx cap sync android >/dev/null || fail "cap sync failed"
 
 echo "==> Building Android ($VARIANT)"
