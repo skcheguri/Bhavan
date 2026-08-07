@@ -50,7 +50,19 @@ async function nativePosition(): Promise<PositionResult> {
   }
   if (status.location !== 'granted') return { failure: 'denied' };
 
-  const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000 });
+  // High accuracy on purpose, even though a 20km radius search does not
+  // need precision. It is not a precision setting so much as a provider
+  // setting: false restricts Android to the network/passive provider,
+  // which frequently has no fix at all, so the call sits there and times
+  // out. True enables GPS, which is the one that actually returns a
+  // position. Verified on a device -- with `false` and a 10s budget this
+  // failed every time with OS-PLUG-GLOC-0010 ("could not obtain location
+  // in time") despite permission being granted.
+  //
+  // The longer budget goes with it: a cold GPS fix routinely takes more
+  // than ten seconds, and the button shows a spinner throughout, so
+  // waiting is visible rather than mysterious.
+  const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 25000 });
   return { coords: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } };
 }
 
