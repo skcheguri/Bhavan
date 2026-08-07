@@ -58,3 +58,6 @@ supabase/supabase/
 
 # Source images for the app icon/splash are generated (scripts/generate-app-assets.mjs)
 assets/
+
+# Smoke test artifacts
+.smoke/
