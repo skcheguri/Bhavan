@@ -11,6 +11,7 @@ import ErrorBoundary from "./components/feature/ErrorBoundary";
 import { applyRouteSeo } from "./lib/seo";
 
 import { useNativeBackButton } from '@/hooks/useNativeBackButton';
+import { useNativePushRouting } from '@/hooks/useNativePushRouting';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -62,6 +63,9 @@ function AppShell() {
   // router because it drives window.history, which only exists once the
   // router is live.
   useNativeBackButton();
+  // Foreground pushes and notification taps. App-wide, because a tap
+  // that launches the app from cold must find its handler bound.
+  useNativePushRouting();
 
   // /admin/login is a deliberately separate surface (see its own file
   // comment) -- it shouldn't sit under the consumer Navbar/Footer, which
