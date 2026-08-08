@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/useToast';
 import {
   postAnnouncement,
+  updateAnnouncement,
   deleteAnnouncement,
   createTicket,
   setTicketStatus,
@@ -33,12 +34,30 @@ export function Notices({
   userId: string;
   isAdmin: boolean;
 }) {
-  const { announcements, loading, error, refresh } = list;
+  const { announcements, loading, loadingMore, error, refresh, loadMore, hasMore } = list;
   const { addToast } = useToast();
   const [composing, setComposing] = useState(false);
+  // The id being edited, or null when composing a new notice. One form
+  // serves both, because they are the same fields and a second copy would
+  // drift.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', body: '', pinned: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const startEdit = (a: Announcement) => {
+    setForm({ title: a.title, body: a.body, pinned: a.pinned });
+    setEditingId(a.id);
+    setComposing(true);
+    setErr(null);
+  };
+
+  const cancel = () => {
+    setComposing(false);
+    setEditingId(null);
+    setForm({ title: '', body: '', pinned: false });
+    setErr(null);
+  };
 
   const submit = async () => {
     if (!form.title.trim() || !form.body.trim()) {
@@ -46,21 +65,22 @@ export function Notices({
       return;
     }
     setBusy(true);
-    const { error: e } = await postAnnouncement(
-      communityId,
-      userId,
-      form.title.trim(),
-      form.body.trim(),
-      form.pinned
-    );
+    const payload = { title: form.title.trim(), body: form.body.trim(), pinned: form.pinned };
+    const { error: e } = editingId
+      ? await updateAnnouncement(editingId, payload)
+      : await postAnnouncement(communityId, userId, payload.title, payload.body, payload.pinned);
     setBusy(false);
     if (e) {
       setErr(e);
       return;
     }
-    setForm({ title: '', body: '', pinned: false });
-    setComposing(false);
-    addToast('Notice posted. Every owner has been notified.', 'success');
+    // Editing deliberately does not re-notify, so the confirmation must not
+    // claim it did.
+    addToast(
+      editingId ? 'Notice updated.' : 'Notice posted. Every owner has been notified.',
+      'success'
+    );
+    cancel();
     await refresh();
   };
 
@@ -133,17 +153,19 @@ export function Notices({
               disabled={busy}
               className="px-5 py-2.5 bg-brand text-white rounded-lg text-sm font-semibold disabled:opacity-40"
             >
-              {busy ? 'Posting…' : 'Post notice'}
+              {busy ? 'Saving…' : editingId ? 'Save changes' : 'Post notice'}
             </button>
             <button
-              onClick={() => {
-                setComposing(false);
-                setErr(null);
-              }}
+              onClick={cancel}
               className="px-5 py-2.5 border border-gray-200 text-charcoal rounded-lg text-sm font-semibold"
             >
               Cancel
             </button>
+            {editingId && (
+              <span className="self-center text-xs text-gray-400">
+                Editing does not notify owners again.
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -170,21 +192,43 @@ export function Notices({
                     month: 'short',
                     year: 'numeric',
                   })}
+                  {/* Says so when the text is no longer what was sent out,
+                      since the notification quoted the original. */}
+                  {a.updated_at && a.updated_at !== a.created_at && ' · edited'}
                 </p>
               </div>
               {isAdmin && (
-                <button
-                  onClick={() => void remove(a)}
-                  className="text-gray-300 hover:text-red-500 flex-shrink-0"
-                  title="Delete"
-                >
-                  <i className="ri-delete-bin-line" />
-                </button>
+                <div className="flex gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => startEdit(a)}
+                    className="text-gray-300 hover:text-charcoal"
+                    title="Edit"
+                  >
+                    <i className="ri-edit-line" />
+                  </button>
+                  <button
+                    onClick={() => void remove(a)}
+                    className="text-gray-300 hover:text-red-500"
+                    title="Delete"
+                  >
+                    <i className="ri-delete-bin-line" />
+                  </button>
+                </div>
               )}
             </div>
             <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap">{a.body}</p>
           </div>
         ))
+      )}
+
+      {hasMore && (
+        <button
+          onClick={() => void loadMore()}
+          disabled={loadingMore}
+          className="w-full py-2.5 border border-gray-200 text-charcoal rounded-lg text-sm font-semibold disabled:opacity-40"
+        >
+          {loadingMore ? 'Loading…' : 'Show older notices'}
+        </button>
       )}
     </div>
   );
@@ -221,7 +265,7 @@ export function Maintenance({
   isAdmin: boolean;
   isPaid: boolean;
 }) {
-  const { tickets, loading, error, refresh } = list;
+  const { tickets, loading, loadingMore, error, refresh, loadMore, hasMore } = list;
   const { addToast } = useToast();
   const [composing, setComposing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -456,6 +500,16 @@ export function Maintenance({
             </div>
           );
         })
+      )}
+
+      {hasMore && (
+        <button
+          onClick={() => void loadMore()}
+          disabled={loadingMore}
+          className="w-full py-2.5 border border-gray-200 text-charcoal rounded-lg text-sm font-semibold disabled:opacity-40"
+        >
+          {loadingMore ? 'Loading…' : 'Show older issues'}
+        </button>
       )}
     </div>
   );

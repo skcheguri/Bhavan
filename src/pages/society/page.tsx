@@ -82,8 +82,24 @@ export default function SocietyPage() {
   }
 
   if (membership && society) {
-    if (membership.status === 'pending') return <Pending society={society} membership={membership} />;
-    if (membership.status === 'rejected') return <Rejected society={society} membership={membership} />;
+    if (membership.status === 'pending')
+      return (
+        <Pending
+          society={society}
+          membership={membership}
+          memberships={memberships}
+          onSwitch={selectSociety}
+        />
+      );
+    if (membership.status === 'rejected')
+      return (
+        <Rejected
+          society={society}
+          membership={membership}
+          memberships={memberships}
+          onSwitch={selectSociety}
+        />
+      );
     return (
       <SocietyHome
         society={society}
@@ -388,6 +404,87 @@ function CreateForm({ userId, onDone }: { userId: string; onDone: () => Promise<
   );
 }
 
+/**
+ * Which society you are looking at.
+ *
+ * Rendered on the waiting screens as well as the main one. Applying to a
+ * second society creates a pending membership, and without a switcher
+ * there you would land on "waiting for approval" with no way back to the
+ * building you are already a member of.
+ */
+function SocietySwitcher({
+  memberships,
+  currentId,
+  onSwitch,
+}: {
+  memberships: SocietyMembership[];
+  currentId: string;
+  onSwitch: (communityId: string) => void;
+}) {
+  // A picker with a single entry is furniture.
+  if (memberships.length < 2) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1 p-1 bg-white rounded-xl border border-black/5 mb-4 sm:inline-flex sm:flex-nowrap">
+      {memberships.map((m) => (
+        <button
+          key={m.society.id}
+          onClick={() => onSwitch(m.society.id)}
+          className={`flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            m.society.id === currentId ? 'bg-charcoal text-white' : 'text-gray-500 hover:text-charcoal'
+          }`}
+        >
+          {m.society.name}
+          {m.member.status === 'pending' && (
+            <span className="ml-1 text-[10px] opacity-60">pending</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Join a second society from inside the first.
+ *
+ * Without this the code box was reachable only by someone with no society
+ * at all, so an owner who bought a flat in another building had nowhere to
+ * type the code -- and an owner whose old society never removed them was
+ * locked out permanently by a stale membership they did not control. The
+ * database always allowed several memberships; only the screen did not.
+ */
+function JoinAnother({ userId, onDone }: { userId: string; onDone: () => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <div className="pt-2 text-center">
+        <button
+          onClick={() => setOpen(true)}
+          className="text-xs text-gray-400 hover:text-charcoal"
+        >
+          Own a flat in another society? Join it with a code
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-2">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-semibold text-charcoal">Join another society</p>
+        <button
+          onClick={() => setOpen(false)}
+          className="text-xs text-gray-400 hover:text-charcoal"
+        >
+          Cancel
+        </button>
+      </div>
+      <JoinForm userId={userId} onDone={onDone} />
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Waiting states                                                      */
 /* ------------------------------------------------------------------ */
@@ -430,9 +527,20 @@ function SocietyUnderReview({ society }: { society: Society }) {
 }
 
 /** Your join request is waiting on a society admin. */
-function Pending({ society, membership }: { society: Society; membership: SocietyMember }) {
+function Pending({
+  society,
+  membership,
+  memberships,
+  onSwitch,
+}: {
+  society: Society;
+  membership: SocietyMember;
+  memberships: SocietyMembership[];
+  onSwitch: (communityId: string) => void;
+}) {
   return (
     <Shell>
+      <SocietySwitcher memberships={memberships} currentId={society.id} onSwitch={onSwitch} />
       <PageTitle title={society.name} />
       <Notice tone="warn" icon="ri-time-line" title="Waiting for approval">
         You asked to join as{' '}
@@ -443,9 +551,20 @@ function Pending({ society, membership }: { society: Society; membership: Societ
   );
 }
 
-function Rejected({ society, membership }: { society: Society; membership: SocietyMember }) {
+function Rejected({
+  society,
+  membership,
+  memberships,
+  onSwitch,
+}: {
+  society: Society;
+  membership: SocietyMember;
+  memberships: SocietyMembership[];
+  onSwitch: (communityId: string) => void;
+}) {
   return (
     <Shell>
+      <SocietySwitcher memberships={memberships} currentId={society.id} onSwitch={onSwitch} />
       <PageTitle title={society.name} />
       <Notice tone="error" icon="ri-close-circle-line" title="Your request wasn't approved">
         {membership.rejection_reason ? (
@@ -512,25 +631,7 @@ function SocietyHome({
 
   return (
     <Shell>
-      {/* Only rendered when the owner actually has more than one building.
-          A picker with a single entry is furniture. */}
-      {memberships.length > 1 && (
-        <div className="flex gap-1 p-1 bg-white rounded-xl border border-black/5 mb-4 overflow-x-auto sm:inline-flex">
-          {memberships.map((m) => (
-            <button
-              key={m.society.id}
-              onClick={() => onSwitch(m.society.id)}
-              className={`flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                m.society.id === society.id
-                  ? 'bg-charcoal text-white'
-                  : 'text-gray-500 hover:text-charcoal'
-              }`}
-            >
-              {m.society.name}
-            </button>
-          ))}
-        </div>
-      )}
+      <SocietySwitcher memberships={memberships} currentId={society.id} onSwitch={onSwitch} />
 
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="min-w-0">
@@ -596,6 +697,10 @@ function SocietyHome({
           userId={userId}
           isAdmin={isAdmin}
           isPaid={isPaid}
+          societyName={society.name}
+          societyAddress={[society.address, society.city, society.state]
+            .filter(Boolean)
+            .join(', ')}
         />
       ) : tab === 'members' ? (
         <Members list={memberList} adminId={userId} myMemberId={membership.id} />
@@ -647,6 +752,8 @@ function SocietyHome({
             communityId={society.id}
             onPaid={onRefresh}
           />
+
+          <JoinAnother userId={userId} onDone={onRefresh} />
         </div>
       )}
     </Shell>

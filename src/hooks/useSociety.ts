@@ -459,8 +459,12 @@ export interface Announcement {
   body: string;
   pinned: boolean;
   created_at: string;
+  updated_at: string;
   author_name: string | null;
 }
+
+/** How many rows a "show more" list asks for at a time. */
+const PAGE = 20;
 
 export type TicketStatus = 'open' | 'acknowledged' | 'in_progress' | 'resolved';
 
@@ -496,34 +500,89 @@ export const TICKET_CATEGORIES = [
 /** Announcements for one society. Reading is free; only admins can post. */
 export function useAnnouncements(communityId: string | undefined) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
-    const supabase = client();
-    if (!supabase || !communityId) {
+  // Fetches one page. `append` distinguishes "show more" from a refresh:
+  // after posting or editing, the list must be rebuilt from the top rather
+  // than grown, or the new row appears twice.
+  const fetchPage = useCallback(
+    async (offset: number, append: boolean) => {
+      const supabase = client();
+      if (!supabase || !communityId) {
+        setLoading(false);
+        return;
+      }
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+
+      const { data, error: dbError } = await supabase.rpc('get_community_announcements', {
+        p_community: communityId,
+        p_limit: PAGE,
+        p_offset: offset,
+      });
+
+      if (dbError) {
+        setError(dbError.message);
+        if (!append) setAnnouncements([]);
+      } else {
+        setError(null);
+        const rows = (data ?? []) as (Announcement & { total_count: number })[];
+        setTotal(rows[0]?.total_count ?? (append ? total : 0));
+        setAnnouncements((prev) => (append ? [...prev, ...rows] : rows));
+      }
       setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const { data, error: dbError } = await supabase.rpc('get_community_announcements', {
-      p_community: communityId,
-    });
-    if (dbError) {
-      setError(dbError.message);
-      setAnnouncements([]);
-    } else {
-      setError(null);
-      setAnnouncements((data ?? []) as Announcement[]);
-    }
-    setLoading(false);
-  }, [communityId]);
+      setLoadingMore(false);
+    },
+    [communityId, total]
+  );
+
+  const refresh = useCallback(() => fetchPage(0, false), [fetchPage]);
+  const loadMore = useCallback(
+    () => fetchPage(announcements.length, true),
+    [fetchPage, announcements.length]
+  );
 
   useEffect(() => {
-    void fetchAll();
-  }, [fetchAll]);
+    void fetchPage(0, false);
+    // fetchPage depends on `total`, which it also sets -- including it here
+    // would refetch page one every time a page lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [communityId]);
 
-  return { announcements, loading, error, refresh: fetchAll };
+  return {
+    announcements,
+    total,
+    hasMore: announcements.length < total,
+    loading,
+    loadingMore,
+    error,
+    refresh,
+    loadMore,
+  };
+}
+
+/**
+ * Edit a notice in place.
+ *
+ * Deliberately does NOT re-notify. The notification trigger is on INSERT
+ * only, so fixing a typo does not push another alert to every owner in the
+ * building -- which is what made "delete and repost" the previous
+ * workaround so unattractive.
+ */
+export async function updateAnnouncement(
+  id: string,
+  patch: { title: string; body: string; pinned: boolean }
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.from('community_announcements').update(patch).eq('id', id);
+  if (!error) return { error: null };
+  if (error.code === '42501') return { error: 'Only a society admin can edit a notice.' };
+  return { error: error.message };
 }
 
 export async function postAnnouncement(
@@ -559,34 +618,60 @@ export async function deleteAnnouncement(id: string): Promise<{ error: string | 
 /** Maintenance tickets for one society. Reading is free; raising needs a plan. */
 export function useTickets(communityId: string | undefined) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
-    const supabase = client();
-    if (!supabase || !communityId) {
+  const fetchPage = useCallback(
+    async (offset: number, append: boolean) => {
+      const supabase = client();
+      if (!supabase || !communityId) {
+        setLoading(false);
+        return;
+      }
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+
+      const { data, error: dbError } = await supabase.rpc('get_community_tickets', {
+        p_community: communityId,
+        p_limit: PAGE,
+        p_offset: offset,
+      });
+
+      if (dbError) {
+        setError(dbError.message);
+        if (!append) setTickets([]);
+      } else {
+        setError(null);
+        const rows = (data ?? []) as (Ticket & { total_count: number })[];
+        setTotal(rows[0]?.total_count ?? (append ? total : 0));
+        setTickets((prev) => (append ? [...prev, ...rows] : rows));
+      }
       setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const { data, error: dbError } = await supabase.rpc('get_community_tickets', {
-      p_community: communityId,
-    });
-    if (dbError) {
-      setError(dbError.message);
-      setTickets([]);
-    } else {
-      setError(null);
-      setTickets((data ?? []) as Ticket[]);
-    }
-    setLoading(false);
-  }, [communityId]);
+      setLoadingMore(false);
+    },
+    [communityId, total]
+  );
+
+  const refresh = useCallback(() => fetchPage(0, false), [fetchPage]);
+  const loadMore = useCallback(() => fetchPage(tickets.length, true), [fetchPage, tickets.length]);
 
   useEffect(() => {
-    void fetchAll();
-  }, [fetchAll]);
+    void fetchPage(0, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [communityId]);
 
-  return { tickets, loading, error, refresh: fetchAll };
+  return {
+    tickets,
+    total,
+    hasMore: tickets.length < total,
+    loading,
+    loadingMore,
+    error,
+    refresh,
+    loadMore,
+  };
 }
 
 export interface CreateTicketInput {
@@ -868,6 +953,8 @@ export interface CollectionRow {
   note: string | null;
   status: 'none' | 'claimed' | 'confirmed' | 'rejected';
   created_at: string | null;
+  confirmed_at: string | null;
+  confirmed_by_name: string | null;
 }
 
 export function useCollections(communityId: string | undefined) {

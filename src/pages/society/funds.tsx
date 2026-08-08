@@ -11,6 +11,8 @@ import {
   type CollectionRow,
 } from '@/hooks/useSociety';
 import { Notice, Field, EmptyState, inputCls } from './ui';
+import { buildContributionReceiptHtml } from '@/lib/documents/societyContributionReceipt';
+import { viewDocument } from '@/lib/viewDocument';
 
 const rupees = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
@@ -30,12 +32,16 @@ export function Funds({
   userId,
   isAdmin,
   isPaid,
+  societyName,
+  societyAddress,
 }: {
   list: ReturnType<typeof useCollections>;
   communityId: string;
   userId: string;
   isAdmin: boolean;
   isPaid: boolean;
+  societyName: string;
+  societyAddress: string;
 }) {
   const { collections, loading, error, refresh } = list;
   const [composing, setComposing] = useState(false);
@@ -93,6 +99,8 @@ export function Funds({
             userId={userId}
             isAdmin={isAdmin}
             onChanged={refresh}
+            societyName={societyName}
+            societyAddress={societyAddress}
           />
         ))
       )}
@@ -274,11 +282,15 @@ function CollectionCard({
   userId,
   isAdmin,
   onChanged,
+  societyName,
+  societyAddress,
 }: {
   collection: Collection;
   userId: string;
   isAdmin: boolean;
   onChanged: () => Promise<void>;
+  societyName: string;
+  societyAddress: string;
 }) {
   const { addToast } = useToast();
   const { rows, loading, refresh } = useCollectionStatus(c.id);
@@ -293,6 +305,33 @@ function CollectionCard({
   const pct = c.target_rupees ? Math.min(100, Math.round((collected / c.target_rupees) * 100)) : null;
 
   const mine = rows.find((r) => r.user_id === userId);
+
+  /**
+   * Only ever offered for a CONFIRMED contribution. A receipt for a claim
+   * would be a lie with a reference number on it -- nobody has checked
+   * that the money arrived yet.
+   */
+  const openReceipt = async (r: CollectionRow) => {
+    if (r.status !== 'confirmed' || !r.contribution_id) return;
+    const html = buildContributionReceiptHtml({
+      // Short and stable: the same contribution always yields the same
+      // number, so two copies of the receipt cannot disagree.
+      receiptNumber: `SC-${r.contribution_id.slice(0, 8).toUpperCase()}`,
+      societyName,
+      societyAddress,
+      collectionTitle: c.title,
+      collectionPurpose: c.purpose,
+      payerName: r.name ?? 'Owner',
+      payerUnits: r.units,
+      amountRupees: r.amount_rupees ?? 0,
+      reference: r.reference ?? '',
+      paidOn: r.created_at ?? '',
+      confirmedOn: r.confirmed_at ?? '',
+      confirmedByName: r.confirmed_by_name ?? '',
+    });
+    const failure = await viewDocument(html, `Receipt ${c.title}`);
+    if (failure) addToast(failure, 'error');
+  };
 
   const decide = async (r: CollectionRow, status: 'confirmed' | 'rejected') => {
     if (!r.contribution_id) return;
@@ -379,6 +418,7 @@ function CollectionCard({
               mine={mine}
               userId={userId}
               onSaved={refresh}
+              onReceipt={openReceipt}
             />
           )}
 
@@ -460,6 +500,15 @@ function CollectionCard({
                         ? 'not found'
                         : rupees(r.amount_rupees ?? 0)}
                   </span>
+                  {isAdmin && r.status === 'confirmed' && (
+                    <button
+                      onClick={() => void openReceipt(r)}
+                      className="text-gray-300 hover:text-charcoal flex-shrink-0"
+                      title="Receipt"
+                    >
+                      <i className="ri-file-text-line text-sm" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -476,11 +525,13 @@ function MyContribution({
   mine,
   userId,
   onSaved,
+  onReceipt,
 }: {
   collection: Collection;
   mine: CollectionRow | undefined;
   userId: string;
   onSaved: () => Promise<void>;
+  onReceipt: (r: CollectionRow) => Promise<void>;
 }) {
   const { addToast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -513,9 +564,15 @@ function MyContribution({
     return (
       <div className="mt-4 p-3 bg-green-50 rounded-lg flex items-center gap-2">
         <i className="ri-checkbox-circle-fill text-green-600" />
-        <span className="text-sm text-green-900">
+        <span className="text-sm text-green-900 flex-1">
           Your {rupees(mine.amount_rupees ?? 0)} is confirmed.
         </span>
+        <button
+          onClick={() => void onReceipt(mine)}
+          className="text-xs font-semibold text-green-800 underline flex-shrink-0"
+        >
+          Receipt
+        </button>
       </div>
     );
   }

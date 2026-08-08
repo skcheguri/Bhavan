@@ -885,6 +885,8 @@ export type Database = {
           id: string
           plan: string
           purchased_by: string | null
+          renewal_reminded_for: string | null
+          renewal_reminder_stage: number
           status: string
           unit_count: number | null
           updated_at: string
@@ -897,6 +899,8 @@ export type Database = {
           id?: string
           plan?: string
           purchased_by?: string | null
+          renewal_reminded_for?: string | null
+          renewal_reminder_stage?: number
           status?: string
           unit_count?: number | null
           updated_at?: string
@@ -909,6 +913,8 @@ export type Database = {
           id?: string
           plan?: string
           purchased_by?: string | null
+          renewal_reminded_for?: string | null
+          renewal_reminder_stage?: number
           status?: string
           unit_count?: number | null
           updated_at?: string
@@ -3254,6 +3260,8 @@ export type Database = {
         Args: { p_collection: string }
         Returns: {
           amount_rupees: number
+          confirmed_at: string
+          confirmed_by_name: string
           contribution_id: string
           created_at: string
           name: string
@@ -3265,7 +3273,7 @@ export type Database = {
         }[]
       }
       get_community_announcements: {
-        Args: { p_community: string }
+        Args: { p_community: string; p_limit?: number; p_offset?: number }
         Returns: {
           author_id: string
           author_name: string
@@ -3275,10 +3283,12 @@ export type Database = {
           id: string
           pinned: boolean
           title: string
+          total_count: number
+          updated_at: string
         }[]
       }
       get_community_members: {
-        Args: { p_community: string }
+        Args: { p_community: string; p_limit?: number; p_offset?: number }
         Returns: {
           approved_at: string
           avatar_url: string
@@ -3291,12 +3301,13 @@ export type Database = {
           rejection_reason: string
           role: string
           status: string
+          total_count: number
           unit_numbers: string[]
           user_id: string
         }[]
       }
       get_community_tickets: {
-        Args: { p_community: string }
+        Args: { p_community: string; p_limit?: number; p_offset?: number }
         Returns: {
           admin_notes: string
           category: string
@@ -3313,6 +3324,7 @@ export type Database = {
           resolved_at: string
           status: string
           title: string
+          total_count: number
         }[]
       }
       get_my_profile: {
@@ -3410,6 +3422,7 @@ export type Database = {
         Args: { p_device_name?: string; p_token: string }
         Returns: undefined
       }
+      run_society_renewal_reminders: { Args: never; Returns: number }
       set_aadhaar_verification_status: {
         Args: { p_status: string }
         Returns: undefined

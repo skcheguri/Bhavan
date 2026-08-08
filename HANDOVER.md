@@ -212,10 +212,15 @@ is lifecycle and polish rather than function:
   the KYC provider is not contracted and requiring it would block every
   join with the cause buried in an RLS denial. One clause, one function,
   when the provider lands.
-- **A notice cannot be edited**, only deleted and reposted.
-- **No receipt for a confirmed contribution.** Societies will ask for one.
-- **No pagination anywhere.** A 200-flat building loads every member,
-  ticket and notice at once. Fine at current scale, not at launch scale.
+- ~~A notice cannot be edited.~~ Done: admins edit in place, the row is
+  marked "edited", and editing deliberately does not re-notify.
+- ~~No receipt for a confirmed contribution.~~ Done: a printable receipt
+  that states plainly Bhavan never held the money.
+- ~~No pagination anywhere.~~ Done for notices and issues (20 per page,
+  "show older"). The member directory keeps a 500-row cap rather than
+  paging, because the pending-request count on the Members tab is computed
+  from those rows and paging would make an admin see "2 waiting" when
+  there were thirty.
 - **Two mobile checks outstanding** — MOBILE_TESTING §5e.10 and §5e.11.
 
 One thing that is easy to misread as a gap and is not: fund collections
