@@ -1,7 +1,7 @@
 # Bhavan — Architecture
 
 Counts and statuses verified against the repo and the live Supabase
-project on 2026-08-04. See [HANDOVER.md](HANDOVER.md) for what is left to
+project on 2026-08-08. See [HANDOVER.md](HANDOVER.md) for what is left to
 do and why.
 
 **Status key** — `✅` live and verified · `🟡` built, not wired up · `⛔` not started
@@ -10,19 +10,19 @@ do and why.
 flowchart TD
   subgraph CLIENT["Clients — one React 19 + Vite codebase"]
     WEB["✅ Web app — all roles<br/><small>public · tenant · owner · admin</small>"]
-    CAP["🟡 Capacitor shell<br/><small>android/ + ios/ scaffolded, plugins wired<br/>never built or run on a device</small>"]
+    CAP["🟡 Capacitor shell<br/><small>Android built and walked on an emulator<br/>iOS never built · not submitted to any store</small>"]
   end
 
   subgraph SUPA["Supabase — the backend"]
-    DB["✅ Postgres + RLS<br/><small>39 tables · 134 policies · 9 migrations<br/>authorization lives here, not in the client</small>"]
+    DB["✅ Postgres + RLS<br/><small>48 tables · 153 policies · 26 migrations<br/>authorization lives here, not in the client</small>"]
     AUTH["✅ Auth — email + Google<br/><small>admin requires TOTP (aal2)<br/>🟡 phone OTP: hook written, no SMS provider</small>"]
     STORE["✅ Storage + Realtime<br/><small>ownership-documents bucket<br/>realtime used only for chat</small>"]
-    FN["✅ Edge functions (11)<br/><small>payments · subscriptions · push · KYC<br/>contact limits · geocode · admin</small>"]
-    CRON["✅ Scheduled jobs (pg_cron)<br/><small>error-rate check · expire subscriptions<br/>purge unconfirmed accounts</small>"]
+    FN["✅ Edge functions (14)<br/><small>payments · subscriptions · society plans<br/>Razorpay webhook · push · KYC · geocode</small>"]
+    CRON["✅ Scheduled jobs (4, pg_cron)<br/><small>error rate · cron health · expire subscriptions<br/>purge unconfirmed accounts</small>"]
   end
 
   subgraph EXT["External services"]
-    RZP["✅ Razorpay<br/><small>HMAC verified server-side, unit tested<br/>⛔ no webhook — recovery relies on the client returning</small>"]
+    RZP["🟡 Razorpay<br/><small>HMAC verified server-side, unit tested<br/>webhook built + deployed, NOT yet configured<br/>in the Razorpay dashboard — see HANDOVER 4.3</small>"]
     GOOG["✅ Google OAuth<br/><small>via Supabase Auth</small>"]
     FCM["✅ Firebase Cloud Messaging<br/><small>web push verified end to end<br/>native path never executed</small>"]
     AADH["🟡 Aadhaar KYC<br/><small>function built, no provider contract or keys</small>"]
@@ -30,7 +30,7 @@ flowchart TD
   end
 
   subgraph CI["CI — GitHub Actions, every push and PR"]
-    GATE["✅ verify + e2e<br/><small>typecheck · lint · 97 unit tests · build<br/>Playwright: 32 tests, 7 run unconfigured</small>"]
+    GATE["✅ verify + e2e<br/><small>typecheck · lint · 110 unit tests · build<br/>Playwright: 50 tests across 7 specs</small>"]
   end
 
   subgraph DEPLOY["Deployment"]
@@ -54,10 +54,54 @@ flowchart TD
   classDef ok fill:#d9f2e6,stroke:#2f7d5d,color:#14452f
   classDef partial fill:#fdf0d5,stroke:#c08a2e,color:#6b4a10
   classDef none fill:#fbe0dc,stroke:#c0564a,color:#6b1e16
-  class WEB,DB,AUTH,STORE,FN,CRON,RZP,GOOG,FCM,GATE,VERCEL ok
-  class CAP,AADH,SMS partial
+  class WEB,DB,AUTH,STORE,FN,CRON,GOOG,FCM,GATE,VERCEL ok
+  class CAP,AADH,SMS,RZP partial
   class STORES none
 ```
+
+## The society feature
+
+Added after the diagram above was first drawn, and worth its own note
+because it is the only part of Bhavan with a second, building-scoped
+notion of "admin".
+
+```mermaid
+flowchart TD
+  V["Verified owner<br/><small>role=owner + an admin-approved property</small>"]
+  V -->|"join code"| M["community_members<br/><small>member · admin · pending</small>"]
+  V -->|"register"| C["communities<br/><small>pending until Bhavan reviews</small>"]
+  C -->|"activated by /admin/societies"| M
+
+  M --> N["community_announcements<br/><small>FREE · admins post</small>"]
+  M --> T["community_tickets + comments<br/><small>PAID · shared property</small>"]
+  M --> F["community_collections + contributions<br/><small>PAID to start · ledger only</small>"]
+
+  S["community_subscriptions"] -->|"community_is_paid()"| T
+  S -->|"community_is_paid()"| F
+  RZ["verify-society-subscription"] -->|"only writer"| S
+
+  classDef free fill:#d9f2e6,stroke:#2f7d5d,color:#14452f
+  classDef paid fill:#fdf0d5,stroke:#c08a2e,color:#6b4a10
+  class V,M,C,N free
+  class T,F,S,RZ paid
+```
+
+Four things that are easy to get wrong when changing it:
+
+- **A society admin is a membership row, never `users.role`.** That role is
+  the PLATFORM admin and grants every user, listing and error log in
+  Bhavan. Confusing the two would hand a building's committee the company.
+- **Entitlements are `community_is_paid(community_id)`** — a property of
+  the building, never of the person. One subscription covers every
+  verified owner in it.
+- **`community_subscriptions` has no INSERT or UPDATE policy for anyone.**
+  `verify-society-subscription` is the only thing that can create one. If
+  a client ever manages to write there, every paid feature is free.
+- **Fund collections are a ledger, not a payment path.** Owners pay the
+  society's own UPI id directly; Bhavan records who says they paid and
+  what an admin confirmed. Taking the money into a Bhavan account would be
+  payment-aggregator activity under the RBI framework. Migration 085 says
+  so at the top.
 
 ## Corrections against the previous diagram
 

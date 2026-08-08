@@ -14,6 +14,12 @@ An Indian rental marketplace. Tenants find listings and request to
 connect; owners approve; the pair then get chat, a rental agreement, rent
 receipts, rent payments and maintenance requests.
 
+On top of that sits **Societies** (`/society`) — a paid product for an
+apartment complex or villa community: verified owners of one building in
+one group, with notices, shared maintenance and fund collections. It is
+additive; none of the rental flows changed. See
+[WORKFLOWS.md](WORKFLOWS.md) §5.
+
 | Layer | Choice |
 |---|---|
 | Frontend | React 19 + TypeScript + Vite, Tailwind, react-router 8 |
@@ -21,10 +27,10 @@ receipts, rent payments and maintenance requests.
 | Payments | Razorpay (orders + HMAC signature verification, server-side only) |
 | Push | Firebase Cloud Messaging (HTTP v1) for web; Capacitor for native |
 | Hosting | Vercel, deployed from GitHub Actions after CI passes |
-| Mobile | Capacitor — **configured but never generated, see §4** |
+| Mobile | Capacitor — Android builds and runs; iOS never built, see §4 |
 
-Scale: 157 source files, 9 migrations (001 is a squashed baseline), 11
-edge functions, 97 unit tests, 32 E2E tests.
+Scale: 26 migrations (001 is a squashed baseline), 14 edge functions,
+48 tables, 153 RLS policies, 110 unit tests, 50 E2E tests.
 
 ### Security model — read this first
 
@@ -90,6 +96,10 @@ Genuinely working and verified against a live database:
 - Server-side rate limiting, error logging, error-rate alerting
 - RLS audited across all tables; several real holes closed (migrations 047–053)
 - CI gating deploys; DB rebuildable from `supabase/migrations/`
+- Societies: join by code behind the existing owner verification, Bhavan
+  review queue, member admin, notices, maintenance with discussion, and a
+  fund-collection ledger — all entitlement-gated in RLS, 18 E2E tests, and
+  walked on an Android emulator
 
 ---
 
@@ -188,6 +198,30 @@ dashboard shows deliveries, the secret is wrong. Check the function logs,
 not the table.
 
 **Push delivery — actively broken, under investigation.** See §5.
+
+### 4.3b Societies: what is not finished
+
+The feature works end to end and is covered by E2E tests. What is missing
+is lifecycle and polish rather than function:
+
+- **No renewal reminder.** A society plan runs a year and then simply
+  stops working. `community_is_paid()` tests `current_period_end` directly
+  so access lapses on the correct day, but nobody is warned, and no cron
+  marks the row expired — the `status` column goes stale for reporting.
+- **Aadhaar is not in the join gate.** `is_verified_owner()` requires an
+  admin-approved property, deliberately not `verified_aadhaar`, because
+  the KYC provider is not contracted and requiring it would block every
+  join with the cause buried in an RLS denial. One clause, one function,
+  when the provider lands.
+- **A notice cannot be edited**, only deleted and reposted.
+- **No receipt for a confirmed contribution.** Societies will ask for one.
+- **No pagination anywhere.** A 200-flat building loads every member,
+  ticket and notice at once. Fine at current scale, not at launch scale.
+- **Two mobile checks outstanding** — MOBILE_TESTING §5e.10 and §5e.11.
+
+One thing that is easy to misread as a gap and is not: fund collections
+are a **ledger**, not a payment path. That is a legal boundary, explained
+in migration 085 and ARCHITECTURE.md.
 
 ### 4.4 Auth configuration is wrong in production
 

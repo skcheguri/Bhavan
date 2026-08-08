@@ -1,8 +1,10 @@
 # Bhavan — current workflows
 
-What the app does **today**, before any community/complex work. Drawn from
-the code, not from the plan, so it can serve as the baseline that any
-proposed change is measured against.
+What the app does **today**, drawn from the code rather than the plan.
+
+Sections 1-4 are the original rental product. Section 5 was written as
+"where a community feature would attach" while it was still a proposal;
+it now describes what was built.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces are built and
 [HANDOVER.md](HANDOVER.md) for what is finished versus what only looks it.
@@ -129,55 +131,83 @@ flowchart LR
   class E1,E2,E3,E4 fn
 ```
 
-Two known gaps, both recorded in the handover: there is **no Razorpay
-webhook**, so recovery depends on the client returning from checkout; and
-**Pro entitlements are enforced in React**, not in the database.
+Both gaps this section used to record have moved.
+
+A **Razorpay webhook** now exists and is deployed, covering rent, Pro and
+society payments. It is not yet configured in the Razorpay dashboard, so
+until that is done fulfilment still depends on the client returning from
+checkout. HANDOVER 4.3 has the two steps.
+
+The claim that **Pro entitlements are enforced in React** was wrong when
+it was written, and correcting it is worth keeping visible: they were not
+enforced anywhere. Every free-tier limit was Infinity and no code path
+read an entitlement. Migration 073 added `has_pro()` as the server-side
+check; society entitlements were built on it from the start.
 
 ---
 
-## 5. Where a community feature would attach
+## 5. Societies — an apartment complex or villa community
 
-Nothing above changes. The community model is additive — new tables, new
-routes, and it reuses the notification pipeline and the admin review queue
-that already exist.
+Built after sections 1-4 and additive: nothing above changed. A society is
+a group of **verified owners** in one building, reached at `/society`.
 
 ```mermaid
 flowchart TD
-  subgraph EX["Exists today — unchanged"]
-    X1["users / auth"]
-    X2["Admin review queue"]
-    X3["Notifications + push"]
-    X4["Razorpay + signature verification"]
-    X5["Document storage"]
+  subgraph JOIN["Getting in"]
+    A["Verified owner<br/><small>role=owner + an admin-approved property</small>"]
+    A -->|"has a join code"| B["Request to join"]
+    A -->|"no society yet"| C["Register one<br/><small>arrives pending</small>"]
+    C --> D["Bhavan reviews<br/>/admin/societies"]
+    D -->|approved| E["Society is live<br/><small>code resolves · founder becomes admin</small>"]
+    B --> F["Society admin approves"]
+    F --> G["Member"]
+    E --> G
   end
 
-  subgraph NEW["New — additive"]
-    N1["communities<br/><small>join code · Bhavan-reviewed</small>"]
-    N2["community_members<br/><small>unit · role · approval</small>"]
-    N3["community_tickets<br/><small>building-level, PAID</small>"]
-    N4["community_announcements"]
-    N5["community_subscriptions<br/><small>paid by an admin, per building</small>"]
+  subgraph USE["Inside a society"]
+    G --> H["Notices<br/><small>FREE · admins post, everyone is notified</small>"]
+    G --> I["Maintenance<br/><small>PAID · shared property, with discussion</small>"]
+    G --> J["Funds<br/><small>PAID to start · who has paid, who has not</small>"]
   end
 
-  X1 --> N2
-  X2 -->|"reviews the first owner"| N1
-  N1 --> N2
-  N2 --> N3
-  N2 --> N4
-  N3 --> X3
-  N4 --> X3
-  N5 -->|"unlocks"| N3
-  X4 --> N5
-  X5 --> N1
+  K["Society plan<br/><small>Rs 5,899/yr per building</small>"] -->|"unlocks for everyone"| I
+  K --> J
 
-  classDef ok fill:#d9f2e6,stroke:#2f7d5d,color:#14452f
-  classDef new fill:#e8e6f5,stroke:#5b53a3,color:#241f5c
+  classDef free fill:#d9f2e6,stroke:#2f7d5d,color:#14452f
   classDef paid fill:#fdf0d5,stroke:#c08a2e,color:#6b4a10
-  class X1,X2,X3,X4,X5 ok
-  class N1,N2,N4 new
-  class N3,N5 paid
+  classDef queue fill:#e8e6f5,stroke:#5b53a3,color:#241f5c
+  class A,B,C,E,F,G,H free
+  class I,J,K paid
+  class D queue
 ```
 
-The only existing thing that needs touching is moving Pro entitlement
-checks out of React and into RLS — and that is a fix to a known weakness,
-not a change in behaviour.
+**Why the free/paid line sits there.** A society that does nothing until
+someone pays is one nobody finishes setting up, and an admin cannot show
+the other owners it is worth funding before asking them to fund it. So the
+group, the join code and notices are free; the operational tooling is not.
+One subscription covers the whole building — the check is
+`community_is_paid(community_id)` and never anything about the individual.
+
+**Guards, all in Postgres**
+
+| Guard | Why it exists |
+|---|---|
+| Joining requires a verified property | The code proves you know the building; verification proves you own a flat in it |
+| Join requests land member/pending whatever the client sends | Otherwise anyone with the code appoints themselves |
+| A society can never lose its last admin | Both demotion and deletion; otherwise nobody can run it |
+| Members are removed by admins, never by themselves | Leaving would erase you from the "who has not paid" list |
+| Only a verified Razorpay callback can mark a building paid | `community_subscriptions` has no client INSERT or UPDATE policy |
+| A contribution always lands as `claimed` | A claim is not money until an admin finds it in the account |
+
+**What this deliberately is not.** Fund collections are a ledger. Owners
+pay the society's own UPI id from their own app; Bhavan records who says
+they paid and what the admin confirmed, and never touches the money.
+Taking it into a Bhavan account and forwarding it would be payment
+aggregator activity under the RBI framework. If in-app payment is wanted
+later, the route is Razorpay Route with each society onboarded as a linked
+account.
+
+There is also no group chat, on purpose: every one of these buildings
+already has a WhatsApp group, and what WhatsApp is bad at is a notice that
+does not scroll away and an issue with a status. Discussion is attached to
+the ticket it is about, where it self-archives when the issue resolves.
