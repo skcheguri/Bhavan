@@ -9,6 +9,8 @@ Bhavan is a web platform that connects renters with landlords and fellow tenants
 > For how the pieces fit together, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 >
 > Testing the Android app: **[MOBILE_TESTING.md](MOBILE_TESTING.md)**.
+>
+> Current user journeys, as built: **[WORKFLOWS.md](WORKFLOWS.md)**.
 
 ---
 
