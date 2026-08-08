@@ -160,12 +160,32 @@ only Twilio/MessageBird/Vonage). Needs an MSG91 account, DLT template
 registration (mandatory in India, and slow), and the hook enabled in
 Supabase Auth settings.
 
-**Razorpay — verify the mode.** Signature verification is implemented and
-unit-tested, but I could not read the configured keys (Supabase secrets).
-Confirm whether `RAZORPAY_KEY_ID` is test or live, complete Razorpay KYC,
-and note that **no webhook is configured** — payment recovery currently
-depends on the client returning from checkout. A webhook is the standard
-safety net for the case where the user closes the tab mid-payment.
+**Razorpay — verify the mode, and finish the webhook setup.** Signature
+verification is implemented and unit-tested. Confirm whether
+`RAZORPAY_KEY_ID` is test or live, and complete Razorpay KYC.
+
+The webhook now exists (`razorpay-webhook`, deployed) and covers rent, Pro
+and society payments, but **it does not work until two things are done in
+the Razorpay dashboard**, and until then it fails in the way that looks
+exactly like it was never called:
+
+1. Add the endpoint under Settings → Webhooks:
+   `https://edythmogblkmsjfcbatc.supabase.co/functions/v1/razorpay-webhook`
+   subscribed to **`payment.captured`**.
+2. Take the webhook secret Razorpay shows you and set it:
+   `npx supabase secrets set RAZORPAY_WEBHOOK_SECRET=<value> --project-ref edythmogblkmsjfcbatc`
+
+That secret is **not** `RAZORPAY_KEY_SECRET` — they are different values,
+and using the key secret rejects every delivery with a 401. The secret
+currently set is a placeholder from testing and must be replaced.
+
+Two things to know when checking it works. The function is deployed with
+`--no-verify-jwt`, which is required: Razorpay sends no Supabase JWT, so
+the default gateway check would reject every delivery before the function
+runs. And a rejected signature is deliberately not recorded in
+`razorpay_webhook_events` — so if the table stays empty while Razorpay's
+dashboard shows deliveries, the secret is wrong. Check the function logs,
+not the table.
 
 **Push delivery — actively broken, under investigation.** See §5.
 

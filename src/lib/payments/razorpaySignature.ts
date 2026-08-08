@@ -38,3 +38,27 @@ export async function verifyRazorpaySignature(
   const expected = await hmacSha256Hex(keySecret, `${orderId}|${paymentId}`);
   return safeEqual(expected, signature);
 }
+
+/**
+ * Verifies a Razorpay WEBHOOK signature (the x-razorpay-signature header).
+ *
+ * Different from the Checkout signature above in two ways that both
+ * matter. The message is the entire raw request body rather than
+ * `orderId|paymentId`, and the secret is the webhook secret configured in
+ * the Razorpay dashboard -- NOT the API key secret. Using the key secret
+ * here fails silently in the sense that every legitimate delivery is
+ * rejected, which looks like "Razorpay never called us".
+ *
+ * The body must be the exact bytes received. Parsing to JSON and
+ * re-serialising changes key order and whitespace, and the digest with it,
+ * so callers have to hold on to the raw text.
+ */
+export async function verifyRazorpayWebhookSignature(
+  webhookSecret: string,
+  rawBody: string,
+  signature: string
+): Promise<boolean> {
+  if (!webhookSecret || !rawBody || !signature) return false;
+  const expected = await hmacSha256Hex(webhookSecret, rawBody);
+  return safeEqual(expected, signature);
+}

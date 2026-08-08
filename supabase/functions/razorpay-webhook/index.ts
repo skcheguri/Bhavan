@@ -1,0 +1,361 @@
+// Razorpay webhook: the safety net under every payment in Bhavan.
+//
+// Until now fulfilment depended entirely on the customer's browser
+// surviving the round trip from Razorpay back to the app. If it did not --
+// tab closed, phone died, tunnel, a crash on the success screen -- the
+// money was taken and nothing was granted, and the only recovery was the
+// customer noticing and coming back. This endpoint is Razorpay telling us
+// directly, and it does not care what the browser did.
+//
+// DEPLOY WITH --no-verify-jwt. Razorpay sends no Supabase JWT, so with the
+// default gateway check every delivery is rejected before this code runs,
+// and it looks exactly like Razorpay never calling. The signature below is
+// the authentication; the JWT gate would only be in its way.
+//
+// Requires RAZORPAY_WEBHOOK_SECRET -- the secret from the webhook
+// configuration in the Razorpay dashboard, NOT RAZORPAY_KEY_SECRET. They
+// are different values and using the key secret rejects every legitimate
+// delivery.
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyRazorpayWebhookSignature } from "../../../src/lib/payments/razorpaySignature.ts";
+
+const WEBHOOK_SECRET = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ?? "";
+
+// Only events that mean "money has actually moved". order.paid is
+// deliberately not handled: it fires alongside payment.captured for the
+// same order, and handling both would be two deliveries racing to fulfil
+// one purchase. The idempotency ledger would catch it, but not needing to
+// be caught is better.
+const HANDLED = new Set(["payment.captured"]);
+
+interface Fulfilment {
+  target: string;
+  status: "processed" | "ignored" | "failed";
+  error?: string;
+}
+
+Deno.serve(async (req) => {
+  // No CORS headers anywhere in this file on purpose. This endpoint is
+  // called server-to-server by Razorpay; a browser has no business here,
+  // and advertising otherwise only invites people to try.
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  if (!WEBHOOK_SECRET) {
+    // 500 rather than 501: Razorpay retries on 5xx, so once the secret is
+    // configured the deliveries that arrived meanwhile are replayed
+    // instead of being lost.
+    console.error("RAZORPAY_WEBHOOK_SECRET is not set");
+    return new Response("Webhook not configured", { status: 500 });
+  }
+
+  // The exact bytes, before any parsing. Re-serialising a parsed object
+  // changes key order and whitespace and therefore the digest.
+  const rawBody = await req.text();
+  const signature = req.headers.get("x-razorpay-signature") ?? "";
+
+  const signatureOk = await verifyRazorpayWebhookSignature(WEBHOOK_SECRET, rawBody, signature);
+  if (!signatureOk) {
+    // 401 and nothing else. Not retryable, and no detail about why -- an
+    // unauthenticated caller learns nothing from this response.
+    console.warn("Rejected a webhook delivery with an invalid signature");
+    return new Response("Invalid signature", { status: 401 });
+  }
+
+  const serviceClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+  );
+
+  let event: Record<string, unknown>;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return new Response("Malformed payload", { status: 400 });
+  }
+
+  const eventType = String(event.event ?? "");
+  // Razorpay's per-delivery id. Falling back to the payment id keeps the
+  // ledger keyed on something stable if the header is ever absent.
+  const payment =
+    ((event.payload as Record<string, Record<string, Record<string, unknown>>>)?.payment?.entity) ??
+    {};
+  const paymentId = String(payment.id ?? "");
+  const orderId = String(payment.order_id ?? "");
+  const eventId = req.headers.get("x-razorpay-event-id") ?? `${eventType}:${paymentId}`;
+
+  // Claim this event. The insert IS the idempotency check: two concurrent
+  // deliveries of the same event both see "not processed" if we read
+  // first, so one of them has to lose a unique constraint instead.
+  const { error: claimError } = await serviceClient
+    .from("razorpay_webhook_events")
+    .insert({
+      event_id: eventId,
+      event_type: eventType,
+      order_id: orderId || null,
+      payment_id: paymentId || null,
+      status: "received",
+      payload: event,
+    });
+
+  if (claimError) {
+    if (claimError.code === "23505") {
+      // Already seen. 200 so Razorpay stops retrying.
+      return new Response(JSON.stringify({ ok: true, duplicate: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    console.error("Could not record webhook event:", claimError.message);
+    // 500 so it is retried -- losing the ledger row means losing the
+    // ability to fulfil safely.
+    return new Response("Could not record event", { status: 500 });
+  }
+
+  const finish = async (result: Fulfilment) => {
+    await serviceClient
+      .from("razorpay_webhook_events")
+      .update({
+        target: result.target,
+        status: result.status,
+        error: result.error ?? null,
+        processed_at: new Date().toISOString(),
+      })
+      .eq("event_id", eventId);
+
+    // Always 200 once the event is recorded, even for `failed`. Razorpay
+    // retrying will not fix a fulfilment bug, and the row is now a durable
+    // record someone can act on. Retries would just bury it.
+    return new Response(JSON.stringify({ ok: true, ...result }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  if (!HANDLED.has(eventType)) {
+    return finish({ target: "none", status: "ignored" });
+  }
+  if (!orderId) {
+    return finish({ target: "none", status: "ignored", error: "No order id on this payment." });
+  }
+
+  try {
+    // Route by our own records rather than by the order's notes. Notes are
+    // set at order creation and are not authoritative; a row in our
+    // database that references this order id is.
+    const { data: invoice } = await serviceClient
+      .from("billing_history")
+      .select("id, owner_id, community_id, plan, status, razorpay_payment_id")
+      .eq("razorpay_order_id", orderId)
+      .maybeSingle();
+
+    if (invoice) {
+      return finish(
+        invoice.community_id
+          ? await fulfilSociety(serviceClient, invoice, paymentId)
+          : await fulfilPro(serviceClient, invoice, paymentId)
+      );
+    }
+
+    const { data: rent } = await serviceClient
+      .from("rent_payments")
+      .select("id, status")
+      .eq("razorpay_order_id", orderId)
+      .maybeSingle();
+
+    if (rent) return finish(await fulfilRent(serviceClient, rent, paymentId));
+
+    // A captured payment we cannot place. Worth recording loudly: it means
+    // either an order created outside this app, or a row that went missing.
+    return finish({
+      target: "unknown",
+      status: "failed",
+      error: `No invoice or rent payment references order ${orderId}.`,
+    });
+  } catch (err) {
+    return finish({ target: "unknown", status: "failed", error: (err as Error).message });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/* Fulfilment                                                          */
+/*                                                                     */
+/* These repeat what the verify-* functions do on the browser path.     */
+/* Both paths can run for the same purchase -- whoever gets there first */
+/* wins the compare-and-set below and the other becomes a no-op, which  */
+/* is exactly the property that makes having two paths safe.            */
+/* ------------------------------------------------------------------ */
+
+const MONTHS: Record<string, number> = {
+  pro_monthly: 1,
+  pro_annual: 12,
+  society_annual: 12,
+};
+
+/** Marks the invoice paid. Returns false if someone else already did. */
+async function claimInvoice(
+  client: ReturnType<typeof createClient>,
+  invoiceId: string,
+  paymentId: string
+): Promise<boolean> {
+  const { data: claimed } = await client
+    .from("billing_history")
+    .update({
+      status: "paid",
+      razorpay_payment_id: paymentId,
+      paid_at: new Date().toISOString(),
+    })
+    .eq("id", invoiceId)
+    .eq("status", "pending")
+    .select("id");
+  return !!claimed && claimed.length > 0;
+}
+
+/** Extends from the existing end when still active, so early renewal loses nothing. */
+function periodEndFrom(existingEnd: string | null, active: boolean, months: number): Date {
+  const now = new Date();
+  const end = existingEnd ? new Date(existingEnd) : null;
+  const from = active && end && end > now ? end : now;
+  const result = new Date(from);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
+
+async function fulfilPro(
+  client: ReturnType<typeof createClient>,
+  invoice: Record<string, string | null>,
+  paymentId: string
+): Promise<Fulfilment> {
+  const months = MONTHS[String(invoice.plan)];
+  if (!months) return { target: "pro", status: "failed", error: `Unknown plan ${invoice.plan}` };
+
+  if (!(await claimInvoice(client, String(invoice.id), paymentId))) {
+    // The browser path already finished this one.
+    return { target: "pro", status: "ignored", error: "Already fulfilled." };
+  }
+
+  const { data: sub } = await client
+    .from("owner_subscriptions")
+    .select("status, current_period_end")
+    .eq("owner_id", invoice.owner_id)
+    .maybeSingle();
+
+  const now = new Date();
+  const end = periodEndFrom(
+    (sub?.current_period_end as string) ?? null,
+    sub?.status === "active",
+    months
+  );
+
+  const { error } = await client.from("owner_subscriptions").upsert(
+    {
+      owner_id: invoice.owner_id,
+      plan: invoice.plan,
+      status: "active",
+      current_period_start: now.toISOString(),
+      current_period_end: end.toISOString(),
+      cancel_at_period_end: false,
+      updated_at: now.toISOString(),
+    },
+    { onConflict: "owner_id" }
+  );
+  if (error) return { target: "pro", status: "failed", error: error.message };
+
+  return { target: "pro", status: "processed" };
+}
+
+async function fulfilSociety(
+  client: ReturnType<typeof createClient>,
+  invoice: Record<string, string | null>,
+  paymentId: string
+): Promise<Fulfilment> {
+  const months = MONTHS[String(invoice.plan)];
+  if (!months) return { target: "society", status: "failed", error: `Unknown plan ${invoice.plan}` };
+
+  if (!(await claimInvoice(client, String(invoice.id), paymentId))) {
+    return { target: "society", status: "ignored", error: "Already fulfilled." };
+  }
+
+  const { data: sub } = await client
+    .from("community_subscriptions")
+    .select("status, current_period_end")
+    .eq("community_id", invoice.community_id)
+    .maybeSingle();
+
+  const now = new Date();
+  const end = periodEndFrom(
+    (sub?.current_period_end as string) ?? null,
+    sub?.status === "active",
+    months
+  );
+
+  const { count } = await client
+    .from("community_members")
+    .select("id", { count: "exact", head: true })
+    .eq("community_id", invoice.community_id)
+    .eq("status", "approved");
+
+  const { error } = await client.from("community_subscriptions").upsert(
+    {
+      community_id: invoice.community_id,
+      plan: "standard",
+      status: "active",
+      purchased_by: invoice.owner_id,
+      unit_count: count ?? null,
+      current_period_start: now.toISOString(),
+      current_period_end: end.toISOString(),
+      updated_at: now.toISOString(),
+    },
+    { onConflict: "community_id" }
+  );
+  if (error) return { target: "society", status: "failed", error: error.message };
+
+  // Best effort. A failed notification must not mark a paid purchase failed.
+  try {
+    const { data: members } = await client
+      .from("community_members")
+      .select("user_id")
+      .eq("community_id", invoice.community_id)
+      .eq("status", "approved");
+    if (members?.length) {
+      await client.from("notifications").insert(
+        members.map((m: { user_id: string }) => ({
+          user_id: m.user_id,
+          type: "platform",
+          title: "Your society plan is active",
+          message: "Maintenance issues can now be raised by every owner here.",
+          action_url: "/society",
+        }))
+      );
+    }
+  } catch (err) {
+    console.warn("society activation notification failed:", (err as Error).message);
+  }
+
+  return { target: "society", status: "processed" };
+}
+
+async function fulfilRent(
+  client: ReturnType<typeof createClient>,
+  rent: Record<string, string | null>,
+  paymentId: string
+): Promise<Fulfilment> {
+  const { data: claimed, error } = await client
+    .from("rent_payments")
+    .update({
+      status: "paid",
+      razorpay_payment_id: paymentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", rent.id)
+    .neq("status", "paid")
+    .select("id");
+
+  if (error) return { target: "rent", status: "failed", error: error.message };
+  if (!claimed || claimed.length === 0) {
+    return { target: "rent", status: "ignored", error: "Already marked paid." };
+  }
+  return { target: "rent", status: "processed" };
+}

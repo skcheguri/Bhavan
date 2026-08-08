@@ -103,6 +103,36 @@ for your case, since forcing history can diverge local and remote state.
 - If webhooks are failing platform-wide (not one payment), that's SEV1 —
   tenants may believe they've paid when the record hasn't updated.
 
+**"I paid and got nothing."** Start in `razorpay_webhook_events`, which is
+one row per delivery Razorpay made to us:
+
+```sql
+select event_id, event_type, target, status, error, created_at
+from razorpay_webhook_events
+where order_id = 'order_XXXX' or payment_id = 'pay_XXXX';
+```
+
+Read it like this:
+
+| What you see | What it means |
+|---|---|
+| `processed` | We fulfilled it. The problem is downstream — check the subscription or `rent_payments` row itself. |
+| `ignored`, "Already fulfilled" | The browser path got there first. Not a fault. |
+| `failed` | We took the money and could not place it. This is the row to act on; `error` says why. |
+| **no row at all** | Razorpay never reached us, or the signature was rejected. |
+
+That last case is the one that misleads. A rejected signature is
+deliberately **not** recorded (otherwise anyone could fill the table), so
+"no row" covers both "Razorpay never called" and "our webhook secret is
+wrong". Distinguish them in Razorpay's dashboard: if it shows successful
+deliveries and the table is empty, the secret is wrong — check the
+function logs, which say so explicitly.
+
+Both fulfilment paths are idempotent, so replaying a delivery from
+Razorpay's dashboard is safe: the invoice claim is a compare-and-set, and
+a repeat becomes `ignored` rather than granting a second period. Prefer
+replaying to hand-editing status columns.
+
 ### Scheduled jobs stopped (pg_cron / pg_net)
 
 Four jobs run inside Postgres. A fifth thing to know: `check-cron-health`
