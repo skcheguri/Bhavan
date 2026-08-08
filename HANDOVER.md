@@ -194,8 +194,12 @@ Two things to know when checking it works. The function is deployed with
 the default gateway check would reject every delivery before the function
 runs. And a rejected signature is deliberately not recorded in
 `razorpay_webhook_events` — so if the table stays empty while Razorpay's
-dashboard shows deliveries, the secret is wrong. Check the function logs,
-not the table.
+dashboard shows deliveries, the secret is wrong.
+
+A rejected signature IS now recorded, as one `signature.rejected` row per
+hour -- capped that way so nobody can flood the table by POSTing garbage,
+while still answering "did anything reach us at all". So an empty table
+really does mean Razorpay never called.
 
 **Push delivery — actively broken, under investigation.** See §5.
 

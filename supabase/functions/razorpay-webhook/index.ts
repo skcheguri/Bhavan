@@ -56,18 +56,45 @@ Deno.serve(async (req) => {
   const rawBody = await req.text();
   const signature = req.headers.get("x-razorpay-signature") ?? "";
 
-  const signatureOk = await verifyRazorpayWebhookSignature(WEBHOOK_SECRET, rawBody, signature);
-  if (!signatureOk) {
-    // 401 and nothing else. Not retryable, and no detail about why -- an
-    // unauthenticated caller learns nothing from this response.
-    console.warn("Rejected a webhook delivery with an invalid signature");
-    return new Response("Invalid signature", { status: 401 });
-  }
-
   const serviceClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
   );
+
+  const signatureOk = await verifyRazorpayWebhookSignature(WEBHOOK_SECRET, rawBody, signature);
+  if (!signatureOk) {
+    // Record ONE row per hour, whatever the volume.
+    //
+    // Originally this recorded nothing, so that nobody could flood the
+    // table by POSTing garbage. That was right about the flooding and
+    // wrong about everything else: a mismatched secret -- the single most
+    // likely misconfiguration -- became invisible, and "no rows" meant
+    // both "Razorpay never called" and "Razorpay called and we rejected
+    // it". Those need completely different fixes.
+    //
+    // The hour-stamped event_id is what keeps both properties: the unique
+    // constraint collapses any number of rejected deliveries into one row,
+    // so the table can never grow faster than 24 rows a day, and the
+    // question "did anything reach us?" is answerable again.
+    const hourKey = `unverified:${new Date().toISOString().slice(0, 13)}`;
+    await serviceClient
+      .from("razorpay_webhook_events")
+      .insert({
+        event_id: hourKey,
+        event_type: "signature.rejected",
+        target: "unauthenticated",
+        status: "failed",
+        error:
+          "A delivery arrived but its signature did not verify. If this is Razorpay, " +
+          "RAZORPAY_WEBHOOK_SECRET does not match the secret set on the webhook.",
+      })
+      // A second rejection in the same hour is the same fact; nothing to add.
+      .then(() => undefined, () => undefined);
+
+    // 401 and no detail. An unauthenticated caller learns nothing from
+    // the response itself.
+    return new Response("Invalid signature", { status: 401 });
+  }
 
   let event: Record<string, unknown>;
   try {
