@@ -383,7 +383,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
-          join_code: string
+          join_code?: string
           kind?: string
           name: string
           proof_doc_url?: string | null
