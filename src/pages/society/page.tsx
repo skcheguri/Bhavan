@@ -13,6 +13,8 @@ import {
   decideMembership,
   setMemberRole,
   updateMyUnits,
+  startSocietyPlanCheckout,
+  SOCIETY_PLAN,
   useAnnouncements,
   useTickets,
   postAnnouncement,
@@ -84,6 +86,7 @@ export default function SocietyPage() {
         membership={membership}
         userId={user.id}
         isPaid={isPaid}
+        onRefresh={refresh}
       />
     );
   }
@@ -459,11 +462,13 @@ function SocietyHome({
   membership,
   userId,
   isPaid,
+  onRefresh,
 }: {
   society: Society;
   membership: SocietyMember;
   userId: string;
   isPaid: boolean;
+  onRefresh: () => Promise<void>;
 }) {
   const isAdmin = membership.role === 'admin';
   const [tab, setTab] = useState<SocietyTab>('overview');
@@ -589,7 +594,12 @@ function SocietyHome({
             </p>
           </div>
 
-          <PlanCard isPaid={isPaid} isAdmin={isAdmin} />
+          <PlanCard
+            isPaid={isPaid}
+            isAdmin={isAdmin}
+            communityId={society.id}
+            onPaid={onRefresh}
+          />
         </div>
       )}
     </Shell>
@@ -599,8 +609,36 @@ function SocietyHome({
 type SocietyTab = 'overview' | 'notices' | 'maintenance' | 'members';
 
 
-/** What the building is on, and what that unlocks. */
-function PlanCard({ isPaid, isAdmin }: { isPaid: boolean; isAdmin: boolean }) {
+/** What the building is on, what that unlocks, and how to buy it. */
+function PlanCard({
+  isPaid,
+  isAdmin,
+  communityId,
+  onPaid,
+}: {
+  isPaid: boolean;
+  isAdmin: boolean;
+  communityId: string;
+  onPaid: () => Promise<void>;
+}) {
+  const { addToast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const buy = async () => {
+    setBusy(true);
+    const { error, cancelled } = await startSocietyPlanCheckout(communityId);
+    setBusy(false);
+    // Closing the Razorpay window is not a failure -- nothing happened,
+    // and saying "something went wrong" would be a lie.
+    if (cancelled) return;
+    if (error) {
+      addToast(error, 'error');
+      return;
+    }
+    addToast('Society plan active. Every owner here can now report issues.', 'success');
+    await onPaid();
+  };
+
   if (isPaid) {
     return (
       <Notice tone="success" icon="ri-checkbox-circle-line" title="Society plan active">
@@ -617,9 +655,21 @@ function PlanCard({ isPaid, isAdmin }: { isPaid: boolean; isAdmin: boolean }) {
         fixed — for every verified owner in the building.
       </p>
       {isAdmin ? (
-        <p className="mt-2 font-semibold">
-          One subscription covers the whole society. Members pay nothing extra.
-        </p>
+        <>
+          <p className="mt-2 font-semibold">
+            ₹{SOCIETY_PLAN.totalRupees.toLocaleString('en-IN')} for {SOCIETY_PLAN.period}, whatever
+            the size of your society — ₹{SOCIETY_PLAN.baseRupees.toLocaleString('en-IN')} plus ₹
+            {SOCIETY_PLAN.gstRupees} GST. One subscription covers everyone; members pay nothing
+            extra.
+          </p>
+          <button
+            onClick={() => void buy()}
+            disabled={busy}
+            className="mt-3 px-5 py-2.5 bg-charcoal text-white rounded-lg text-sm font-semibold disabled:opacity-40"
+          >
+            {busy ? 'Opening payment…' : 'Start the society plan'}
+          </button>
+        </>
       ) : (
         <p className="mt-2">Ask a society admin to start one.</p>
       )}

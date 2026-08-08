@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
+import { getSupabase, isSupabaseConnected, functionErrorMessage } from '@/lib/supabase';
+import { loadRazorpayScript } from '@/lib/razorpay';
 
 /**
  * The apartment complex / villa community feature.
@@ -581,4 +582,121 @@ export async function setTicketStatus(
 
   const { error } = await supabase.from('community_tickets').update(patch).eq('id', ticketId);
   return { error: error ? error.message : null };
+}
+
+/* ------------------------------------------------------------------ */
+/* Society plan checkout                                               */
+/* ------------------------------------------------------------------ */
+
+export const SOCIETY_PLAN = {
+  id: 'society_annual' as const,
+  baseRupees: 4999,
+  gstRupees: 900,
+  totalRupees: 5899,
+  period: 'a year',
+};
+
+/**
+ * Buy or renew the society plan.
+ *
+ * Deliberately a copy of the Pro flow's shape rather than a shared
+ * abstraction: the two differ in who is authorised (an admin of one
+ * building, not an owner), what is credited (a community, not a user),
+ * and what the recovery text should say. Merging them would mean a
+ * function with two of everything, on the one code path where a subtle
+ * mistake costs somebody real money.
+ *
+ * Resolves { cancelled: true } when the admin closes the Razorpay window
+ * without paying -- nothing happened, and that is not an error.
+ */
+export async function startSocietyPlanCheckout(
+  communityId: string
+): Promise<{ error: string | null; cancelled?: boolean }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { data: orderData, error: orderError } = await supabase.functions.invoke(
+    'create-society-subscription-order',
+    { body: { plan: SOCIETY_PLAN.id, communityId } }
+  );
+  if (orderError || !orderData?.orderId) {
+    return {
+      error:
+        (await functionErrorMessage(orderError)) ||
+        'Could not start this purchase. Please try again.',
+    };
+  }
+
+  // Recovery: a previous attempt was paid but never verified because the
+  // browser closed mid-checkout. Reopening Razorpay would fail -- it
+  // refuses an already-paid order -- so finish the activation instead.
+  // The order id is present on this response too, which is why the guard
+  // above lets it through.
+  if (orderData.alreadyPaid) {
+    const { data: recovered, error: recoverError } = await supabase.functions.invoke(
+      'verify-society-subscription',
+      {
+        body: {
+          billingRowId: orderData.billingRowId,
+          razorpay_order_id: orderData.orderId,
+          razorpay_payment_id: orderData.paymentId,
+          recoverPaidOrder: true,
+        },
+      }
+    );
+    if (recoverError || !recovered?.success) {
+      return {
+        error:
+          (await functionErrorMessage(recoverError)) ||
+          'This society plan has already been paid for but we could not activate it automatically. Please contact support.',
+      };
+    }
+    return { error: null };
+  }
+
+  const scriptLoaded = await loadRazorpayScript();
+  if (!scriptLoaded || !window.Razorpay) {
+    return { error: 'Could not load the payment window. Check your connection and try again.' };
+  }
+
+  return new Promise((resolve) => {
+    const razorpay = new window.Razorpay!({
+      key: orderData.keyId,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      order_id: orderData.orderId,
+      name: 'Bhavan',
+      description: orderData.planLabel,
+      prefill: { name: orderData.ownerName, email: orderData.ownerEmail },
+      theme: { color: '#f59e0b' },
+      handler: async (response: {
+        razorpay_order_id: string;
+        razorpay_payment_id: string;
+        razorpay_signature: string;
+      }) => {
+        const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+          'verify-society-subscription',
+          {
+            body: {
+              billingRowId: orderData.billingRowId,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            },
+          }
+        );
+        if (verifyError || !verifyData?.success) {
+          resolve({
+            error:
+              (await functionErrorMessage(verifyError)) ||
+              'We could not confirm this payment. If money was deducted, contact support and your society plan will be activated manually.',
+          });
+          return;
+        }
+        resolve({ error: null });
+      },
+      modal: { ondismiss: () => resolve({ error: null, cancelled: true }) },
+    });
+    razorpay.open();
+  });
 }
