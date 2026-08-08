@@ -204,10 +204,9 @@ not the table.
 The feature works end to end and is covered by E2E tests. What is missing
 is lifecycle and polish rather than function:
 
-- **No renewal reminder.** A society plan runs a year and then simply
-  stops working. `community_is_paid()` tests `current_period_end` directly
-  so access lapses on the correct day, but nobody is warned, and no cron
-  marks the row expired — the `status` column goes stale for reporting.
+- ~~No renewal reminder.~~ Done: `society-renewal-reminders` runs daily at
+  04:00, warns admins at 14 and 3 days, then marks lapsed plans `expired`
+  and tells every member. Registered with the cron watchdog.
 - **Aadhaar is not in the join gate.** `is_verified_owner()` requires an
   admin-approved property, deliberately not `verified_aadhaar`, because
   the KYC provider is not contracted and requiring it would block every
