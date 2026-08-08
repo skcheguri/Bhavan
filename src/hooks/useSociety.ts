@@ -700,3 +700,83 @@ export async function startSocietyPlanCheckout(
     razorpay.open();
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* Ticket comments                                                     */
+/* ------------------------------------------------------------------ */
+
+export interface TicketComment {
+  id: string;
+  ticket_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  author_name: string | null;
+  author_avatar: string | null;
+  author_units: string[];
+}
+
+/**
+ * The discussion on one issue. Loaded per ticket rather than with the
+ * list -- a society with forty open issues should not fetch every thread
+ * to render a page where most are collapsed.
+ */
+export function useTicketComments(ticketId: string | undefined) {
+  const [comments, setComments] = useState<TicketComment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAll = useCallback(async () => {
+    const supabase = client();
+    if (!supabase || !ticketId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error: dbError } = await supabase.rpc('get_ticket_comments', {
+      p_ticket: ticketId,
+    });
+    if (dbError) {
+      setError(dbError.message);
+      setComments([]);
+    } else {
+      setError(null);
+      setComments((data ?? []) as TicketComment[]);
+    }
+    setLoading(false);
+  }, [ticketId]);
+
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
+
+  return { comments, loading, error, refresh: fetchAll };
+}
+
+export async function postTicketComment(
+  ticketId: string,
+  userId: string,
+  body: string
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase
+    .from('community_ticket_comments')
+    .insert({ ticket_id: ticketId, author_id: userId, body });
+
+  if (!error) return { error: null };
+  // Membership was already proven to see the thread, so an RLS refusal
+  // here means the society's plan has lapsed.
+  if (error.code === '42501') {
+    return { error: 'Your society needs an active plan to add comments.' };
+  }
+  return { error: error.message };
+}
+
+export async function deleteTicketComment(id: string): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase.from('community_ticket_comments').delete().eq('id', id);
+  return { error: error ? error.message : null };
+}

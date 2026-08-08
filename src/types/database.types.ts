@@ -121,6 +121,7 @@ export type Database = {
           amount: number
           billing_period_end: string | null
           billing_period_start: string | null
+          community_id: string | null
           created_at: string | null
           currency: string | null
           gst_amount: number | null
@@ -140,6 +141,7 @@ export type Database = {
           amount: number
           billing_period_end?: string | null
           billing_period_start?: string | null
+          community_id?: string | null
           created_at?: string | null
           currency?: string | null
           gst_amount?: number | null
@@ -159,6 +161,7 @@ export type Database = {
           amount?: number
           billing_period_end?: string | null
           billing_period_start?: string | null
+          community_id?: string | null
           created_at?: string | null
           currency?: string | null
           gst_amount?: number | null
@@ -175,6 +178,13 @@ export type Database = {
           total_amount?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "billing_history_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "billing_history_owner_id_fkey"
             columns: ["owner_id"]
@@ -775,6 +785,52 @@ export type Database = {
             columns: ["purchased_by"]
             isOneToOne: false
             referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_ticket_comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          ticket_id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          ticket_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_ticket_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_ticket_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_ticket_comments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "community_tickets"
             referencedColumns: ["id"]
           },
         ]
@@ -1881,6 +1937,48 @@ export type Database = {
           created_at?: string | null
           device_fingerprint?: string | null
           id?: string
+        }
+        Relationships: []
+      }
+      razorpay_webhook_events: {
+        Row: {
+          created_at: string
+          error: string | null
+          event_id: string
+          event_type: string
+          id: string
+          order_id: string | null
+          payload: Json | null
+          payment_id: string | null
+          processed_at: string | null
+          status: string
+          target: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          event_id: string
+          event_type: string
+          id?: string
+          order_id?: string | null
+          payload?: Json | null
+          payment_id?: string | null
+          processed_at?: string | null
+          status?: string
+          target?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          event_id?: string
+          event_type?: string
+          id?: string
+          order_id?: string | null
+          payload?: Json | null
+          payment_id?: string | null
+          processed_at?: string | null
+          status?: string
+          target?: string | null
         }
         Relationships: []
       }
@@ -3088,6 +3186,19 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_ticket_comments: {
+        Args: { p_ticket: string }
+        Returns: {
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_units: string[]
+          body: string
+          created_at: string
+          id: string
+          ticket_id: string
+        }[]
+      }
       has_admin_role: { Args: { uid?: string }; Returns: boolean }
       has_community_application: {
         Args: { p_community: string }
@@ -3140,6 +3251,7 @@ export type Database = {
         Args: { p_status: string }
         Returns: undefined
       }
+      ticket_community: { Args: { p_ticket: string }; Returns: string }
       unregister_push_tokens: { Args: { p_token?: string }; Returns: undefined }
     }
     Enums: {

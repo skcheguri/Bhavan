@@ -5,12 +5,16 @@ import {
   deleteAnnouncement,
   createTicket,
   setTicketStatus,
+  useTicketComments,
+  postTicketComment,
+  deleteTicketComment,
   TICKET_CATEGORIES,
   type useAnnouncements,
   type useTickets,
   type Announcement,
   type Ticket,
   type TicketStatus,
+  type TicketComment,
 } from '@/hooks/useSociety';
 import { Notice, Field, EmptyState, inputCls } from './ui';
 
@@ -442,9 +446,171 @@ export function Maintenance({
                   ))}
                 </div>
               )}
+
+              <TicketThread
+                ticketId={t.id}
+                userId={userId}
+                isAdmin={isAdmin}
+                canComment={isPaid}
+              />
             </div>
           );
         })
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Ticket discussion                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The thread on one issue, collapsed until asked for.
+ *
+ * Collapsed by default because the maintenance tab is a list you scan to
+ * find what is still broken -- expanding every discussion inline turns
+ * that into a wall. The count on the toggle is what tells you a thread is
+ * worth opening.
+ */
+export function TicketThread({
+  ticketId,
+  userId,
+  isAdmin,
+  canComment,
+}: {
+  ticketId: string;
+  userId: string;
+  isAdmin: boolean;
+  canComment: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const { addToast } = useToast();
+
+  // Only fetched once opened, so a list of forty issues does not pull
+  // forty threads to render a page.
+  const { comments, loading, error, refresh } = useTicketComments(open ? ticketId : undefined);
+
+  const submit = async () => {
+    const body = draft.trim();
+    if (!body) return;
+    setBusy(true);
+    const { error: e } = await postTicketComment(ticketId, userId, body);
+    setBusy(false);
+    if (e) {
+      setErr(e);
+      return;
+    }
+    setDraft('');
+    setErr(null);
+    await refresh();
+  };
+
+  const remove = async (c: TicketComment) => {
+    const { error: e } = await deleteTicketComment(c.id);
+    if (e) addToast(e, 'error');
+    else await refresh();
+  };
+
+  return (
+    <div className="mt-3 pt-3 border-t border-gray-100">
+      <button
+        onClick={() => setOpen(!open)}
+        className="text-xs font-semibold text-charcoal/60 hover:text-charcoal flex items-center gap-1.5"
+      >
+        <i className={open ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} />
+        {open ? 'Hide discussion' : 'Discussion'}
+        {open && comments.length > 0 && ` (${comments.length})`}
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {loading ? (
+            <div className="h-10 bg-lightgray rounded-lg animate-pulse" />
+          ) : error ? (
+            <p className="text-sm text-red-600">{error}</p>
+          ) : (
+            <>
+              {comments.length === 0 && (
+                <p className="text-xs text-gray-400 mb-3">
+                  Nothing yet. Add what you know — whether it affects your block, or what a
+                  contractor said.
+                </p>
+              )}
+
+              <ul className="space-y-3 mb-3">
+                {comments.map((c) => (
+                  <li key={c.id} className="flex items-start gap-2.5">
+                    <img
+                      src={c.author_avatar || '/placeholders/avatar.svg'}
+                      alt=""
+                      className="w-7 h-7 rounded-full object-cover flex-shrink-0 bg-lightgray mt-0.5"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-charcoal/50">
+                        <span className="font-semibold text-charcoal/80">
+                          {c.author_name ?? 'An owner'}
+                        </span>
+                        {c.author_units.length > 0 && ` · ${c.author_units.join(', ')}`}
+                        {' · '}
+                        {new Date(c.created_at).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                        })}
+                      </p>
+                      <p className="text-sm text-charcoal/80 whitespace-pre-wrap">{c.body}</p>
+                    </div>
+                    {(c.author_id === userId || isAdmin) && (
+                      <button
+                        onClick={() => void remove(c)}
+                        className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                        title="Delete"
+                      >
+                        <i className="ri-delete-bin-line text-sm" />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              {canComment ? (
+                <div className="flex gap-2">
+                  <input
+                    value={draft}
+                    onChange={(e) => {
+                      setDraft(e.target.value);
+                      setErr(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void submit();
+                      }
+                    }}
+                    placeholder="Add what you know…"
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+                  />
+                  <button
+                    onClick={() => void submit()}
+                    disabled={busy || !draft.trim()}
+                    className="px-4 py-2 bg-charcoal text-white rounded-lg text-sm font-semibold disabled:opacity-30"
+                  >
+                    {busy ? '…' : 'Send'}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">
+                  Your society needs an active plan to add comments.
+                </p>
+              )}
+
+              {err && <p className="text-sm text-red-600 mt-2">{err}</p>}
+            </>
+          )}
+        </div>
       )}
     </div>
   );
