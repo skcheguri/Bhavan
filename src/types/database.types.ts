@@ -507,6 +507,79 @@ export type Database = {
           },
         ]
       }
+      community_collections: {
+        Row: {
+          community_id: string
+          created_at: string
+          created_by: string
+          deadline: string | null
+          id: string
+          mode: string
+          payee_name: string | null
+          per_flat_rupees: number | null
+          purpose: string
+          status: string
+          target_rupees: number | null
+          title: string
+          updated_at: string
+          upi_id: string | null
+        }
+        Insert: {
+          community_id: string
+          created_at?: string
+          created_by: string
+          deadline?: string | null
+          id?: string
+          mode?: string
+          payee_name?: string | null
+          per_flat_rupees?: number | null
+          purpose: string
+          status?: string
+          target_rupees?: number | null
+          title: string
+          updated_at?: string
+          upi_id?: string | null
+        }
+        Update: {
+          community_id?: string
+          created_at?: string
+          created_by?: string
+          deadline?: string | null
+          id?: string
+          mode?: string
+          payee_name?: string | null
+          per_flat_rupees?: number | null
+          purpose?: string
+          status?: string
+          target_rupees?: number | null
+          title?: string
+          updated_at?: string
+          upi_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_collections_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_collections_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_collections_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_comments: {
         Row: {
           author_id: string
@@ -549,6 +622,81 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_contributions: {
+        Row: {
+          amount_rupees: number
+          collection_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          id: string
+          note: string | null
+          reference: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount_rupees: number
+          collection_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          reference?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount_rupees?: number
+          collection_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          reference?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_contributions_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "community_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_contributions_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_contributions_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_contributions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_contributions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
             referencedColumns: ["id"]
           },
         ]
@@ -3088,6 +3236,7 @@ export type Database = {
       }
       check_cron_health_and_alert: { Args: never; Returns: undefined }
       check_error_rate_and_alert: { Args: never; Returns: string }
+      collection_community: { Args: { p_collection: string }; Returns: string }
       community_is_paid: { Args: { p_community: string }; Returns: boolean }
       delete_my_account: { Args: never; Returns: undefined }
       expire_lapsed_subscriptions: { Args: never; Returns: number }
@@ -3101,6 +3250,20 @@ export type Database = {
         }[]
       }
       generate_join_code: { Args: never; Returns: string }
+      get_collection_status: {
+        Args: { p_collection: string }
+        Returns: {
+          amount_rupees: number
+          contribution_id: string
+          created_at: string
+          name: string
+          note: string
+          reference: string
+          status: string
+          units: string[]
+          user_id: string
+        }[]
+      }
       get_community_announcements: {
         Args: { p_community: string }
         Returns: {

@@ -780,3 +780,212 @@ export async function deleteTicketComment(id: string): Promise<{ error: string |
   const { error } = await supabase.from('community_ticket_comments').delete().eq('id', id);
   return { error: error ? error.message : null };
 }
+
+/* ------------------------------------------------------------------ */
+/* Fund collections                                                    */
+/*                                                                     */
+/* Bhavan handles no money here. The society publishes its own UPI id,  */
+/* owners pay it directly, and this records who says they paid and what */
+/* the admin confirmed. See migration 085 before changing that.        */
+/* ------------------------------------------------------------------ */
+
+export interface Collection {
+  id: string;
+  community_id: string;
+  created_by: string;
+  title: string;
+  purpose: string;
+  target_rupees: number | null;
+  mode: 'per_flat' | 'open';
+  per_flat_rupees: number | null;
+  upi_id: string | null;
+  payee_name: string | null;
+  deadline: string | null;
+  status: 'open' | 'closed';
+  created_at: string;
+}
+
+/** One approved member and their payment, or the absence of one. */
+export interface CollectionRow {
+  user_id: string;
+  name: string | null;
+  units: string[];
+  contribution_id: string | null;
+  amount_rupees: number | null;
+  reference: string | null;
+  note: string | null;
+  status: 'none' | 'claimed' | 'confirmed' | 'rejected';
+  created_at: string | null;
+}
+
+export function useCollections(communityId: string | undefined) {
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAll = useCallback(async () => {
+    const supabase = client();
+    if (!supabase || !communityId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error: dbError } = await supabase
+      .from('community_collections')
+      .select('*')
+      .eq('community_id', communityId)
+      .order('status', { ascending: true })
+      .order('created_at', { ascending: false });
+
+    if (dbError) {
+      setError(dbError.message);
+      setCollections([]);
+    } else {
+      setError(null);
+      setCollections((data ?? []) as Collection[]);
+    }
+    setLoading(false);
+  }, [communityId]);
+
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
+
+  return { collections, loading, error, refresh: fetchAll };
+}
+
+/**
+ * Every approved member and what they have (or have not) paid.
+ *
+ * Deliberately keyed on members rather than contributions: the missing
+ * payments are what a treasurer is chasing, and a list of contributions
+ * cannot show an absence.
+ */
+export function useCollectionStatus(collectionId: string | undefined) {
+  const [rows, setRows] = useState<CollectionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAll = useCallback(async () => {
+    const supabase = client();
+    if (!supabase || !collectionId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error: dbError } = await supabase.rpc('get_collection_status', {
+      p_collection: collectionId,
+    });
+    if (dbError) {
+      setError(dbError.message);
+      setRows([]);
+    } else {
+      setError(null);
+      setRows((data ?? []) as CollectionRow[]);
+    }
+    setLoading(false);
+  }, [collectionId]);
+
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
+
+  return { rows, loading, error, refresh: fetchAll };
+}
+
+export interface CreateCollectionInput {
+  title: string;
+  purpose: string;
+  mode: 'per_flat' | 'open';
+  perFlatRupees?: number;
+  targetRupees?: number;
+  upiId?: string;
+  payeeName?: string;
+  deadline?: string;
+}
+
+export async function createCollection(
+  communityId: string,
+  userId: string,
+  input: CreateCollectionInput
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.from('community_collections').insert({
+    community_id: communityId,
+    created_by: userId,
+    title: input.title,
+    purpose: input.purpose,
+    mode: input.mode,
+    per_flat_rupees: input.perFlatRupees ?? null,
+    target_rupees: input.targetRupees ?? null,
+    upi_id: input.upiId ?? null,
+    payee_name: input.payeeName ?? null,
+    deadline: input.deadline ?? null,
+  });
+
+  if (!error) return { error: null };
+  if (error.code === '42501') {
+    return { error: 'Your society needs an active plan to start a collection.' };
+  }
+  return { error: error.message };
+}
+
+export async function closeCollection(
+  id: string,
+  status: 'open' | 'closed'
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase.from('community_collections').update({ status }).eq('id', id);
+  return { error: error ? error.message : null };
+}
+
+/**
+ * Record that you have paid. Always lands as `claimed` whatever is sent --
+ * a trigger rewrites it -- because a claim is not money until an admin
+ * has found it in the account.
+ */
+export async function recordContribution(
+  collectionId: string,
+  userId: string,
+  amountRupees: number,
+  reference?: string,
+  note?: string
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.from('community_contributions').upsert(
+    {
+      collection_id: collectionId,
+      user_id: userId,
+      amount_rupees: amountRupees,
+      reference: reference ?? null,
+      note: note ?? null,
+    },
+    { onConflict: 'collection_id,user_id' }
+  );
+
+  if (!error) return { error: null };
+  if (error.code === '42501') return { error: 'Only members of this society can contribute.' };
+  return { error: error.message };
+}
+
+/** Admin-only in practice: a trigger rejects a status change from anyone else. */
+export async function decideContribution(
+  contributionId: string,
+  status: 'confirmed' | 'rejected',
+  adminId: string
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase
+    .from('community_contributions')
+    .update({ status, confirmed_by: adminId })
+    .eq('id', contributionId);
+
+  return { error: error ? error.message : null };
+}

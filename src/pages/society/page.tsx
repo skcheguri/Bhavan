@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { Shell, PageTitle, Notice, Field, Pip, inputCls } from './ui';
 import { Notices, Maintenance } from './panels';
+import { Funds } from './funds';
 import {
   useSociety,
   useSocietyMembers,
@@ -17,6 +18,7 @@ import {
   SOCIETY_PLAN,
   useAnnouncements,
   useTickets,
+  useCollections,
   postAnnouncement,
   deleteAnnouncement,
   createTicket,
@@ -484,10 +486,12 @@ function SocietyHome({
   const ticketList = useTickets(society.id);
   const openTickets = ticketList.tickets.filter((t) => t.status !== 'resolved').length;
   const noticeList = useAnnouncements(society.id);
+  const collectionList = useCollections(society.id);
+  const openCollections = collectionList.collections.filter((c) => c.status === 'open').length;
 
   const tabs: SocietyTab[] = isAdmin
-    ? ['overview', 'notices', 'maintenance', 'members']
-    : ['overview', 'notices', 'maintenance'];
+    ? ['overview', 'notices', 'maintenance', 'funds', 'members']
+    : ['overview', 'notices', 'maintenance', 'funds'];
 
   const copyCode = () => {
     void navigator.clipboard?.writeText(society.join_code);
@@ -522,7 +526,7 @@ function SocietyHome({
               tab === t ? 'bg-charcoal text-white' : 'text-gray-500 hover:text-charcoal'
             }`}
           >
-            {t === 'notices' ? 'Notices' : t === 'maintenance' ? 'Maintenance' : t}
+            {t === 'notices' ? 'Notices' : t === 'maintenance' ? 'Maintenance' : t === 'funds' ? 'Funds' : t}
             {/* Counts are the only thing telling anyone there is something
                 to do here. Without them these tabs never get opened. */}
             {t === 'members' && pendingCount > 0 && (
@@ -530,6 +534,9 @@ function SocietyHome({
             )}
             {t === 'maintenance' && openTickets > 0 && (
               <Pip active={tab === t}>{openTickets}</Pip>
+            )}
+            {t === 'funds' && openCollections > 0 && (
+              <Pip active={tab === t}>{openCollections}</Pip>
             )}
           </button>
         ))}
@@ -545,6 +552,14 @@ function SocietyHome({
       ) : tab === 'maintenance' ? (
         <Maintenance
           list={ticketList}
+          communityId={society.id}
+          userId={userId}
+          isAdmin={isAdmin}
+          isPaid={isPaid}
+        />
+      ) : tab === 'funds' ? (
+        <Funds
+          list={collectionList}
           communityId={society.id}
           userId={userId}
           isAdmin={isAdmin}
@@ -606,7 +621,7 @@ function SocietyHome({
   );
 }
 
-type SocietyTab = 'overview' | 'notices' | 'maintenance' | 'members';
+type SocietyTab = 'overview' | 'notices' | 'maintenance' | 'funds' | 'members';
 
 
 /** What the building is on, what that unlocks, and how to buy it. */
