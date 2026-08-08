@@ -16,6 +16,7 @@ import { useOwnerMaintenanceRequests } from '@/hooks/useMaintenanceRequests';
 import { useOwnerConnectionRequests } from '@/hooks/useConnectionRequests';
 import NotificationBell from './components/NotificationBell';
 import RequestsTab from './components/RequestsTab';
+import SocietyIssuesCard from './components/SocietyIssuesCard';
 import InquiriesTab from './components/InquiriesTab';
 import ChatTab from './components/ChatTab';
 import { useOwnerListings, type ListingFromDB } from '@/hooks/useListings';
@@ -628,6 +629,10 @@ export default function OwnerProfile() {
 
             {/* Right sidebar */}
             <div className="space-y-6">
+              {/* Renders nothing unless this owner is an approved member of
+                  a society, which is most owners. */}
+              <SocietyIssuesCard userId={user.id} />
+
               {/* Verification */}
               <div className="bg-white rounded-3xl border border-black/5 p-5">
                 <h3 className="text-sm font-bold text-charcoal mb-4">Verification Status</h3>
