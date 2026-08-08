@@ -119,14 +119,25 @@ Read it like this:
 | `processed` | We fulfilled it. The problem is downstream — check the subscription or `rent_payments` row itself. |
 | `ignored`, "Already fulfilled" | The browser path got there first. Not a fault. |
 | `failed` | We took the money and could not place it. This is the row to act on; `error` says why. |
-| **no row at all** | Razorpay never reached us, or the signature was rejected. |
+| `failed`, target `unauthenticated` | Something called and its signature did not verify. Almost always the secret. |
+| **no row at all** | Razorpay never reached us at all. |
 
-That last case is the one that misleads. A rejected signature is
-deliberately **not** recorded (otherwise anyone could fill the table), so
-"no row" covers both "Razorpay never called" and "our webhook secret is
-wrong". Distinguish them in Razorpay's dashboard: if it shows successful
-deliveries and the table is empty, the secret is wrong — check the
-function logs, which say so explicitly.
+Rejected signatures are recorded too, as a single `signature.rejected`
+row per hour. Collapsing them that way is what lets the table stay
+answerable without becoming floodable: nobody can grow it faster than 24
+rows a day by POSTing garbage at a public endpoint, and the question that
+matters when nothing is being fulfilled — did anything reach us at all? —
+still has an answer.
+
+So a `failed` row with target `unauthenticated` means
+`RAZORPAY_WEBHOOK_SECRET` almost certainly does not match the secret set
+on the webhook in Razorpay. Genuinely no rows means Razorpay never called:
+check the endpoint URL and the subscribed events in its dashboard.
+
+The Supabase CLI in use here has **no `functions logs` subcommand** —
+earlier revisions of this runbook said to run one. Edge function logs live
+in the dashboard under Edge Functions → razorpay-webhook → Logs, but with
+rejections recorded the database usually answers the question first.
 
 Both fulfilment paths are idempotent, so replaying a delivery from
 Razorpay's dashboard is safe: the invoice claim is a compare-and-set, and
