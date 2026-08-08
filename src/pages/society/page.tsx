@@ -545,7 +545,11 @@ function SocietyHome({
         )}
       </div>
 
-      <div className="flex gap-1 p-1 bg-white rounded-xl border border-black/5 mb-6 overflow-x-auto sm:inline-flex">
+      {/* Wraps rather than scrolls. On a phone five tabs do not fit, and
+          horizontal scroll gave no hint that Funds and Members existed --
+          verified on a Pixel, where an admin could not see a waiting join
+          request because its tab was off-screen. Two rows show everything. */}
+      <div className="flex flex-wrap gap-1 p-1 bg-white rounded-xl border border-black/5 mb-6 sm:inline-flex sm:flex-nowrap">
         {tabs.map((t) => (
           <button
             key={t}

@@ -152,6 +152,41 @@ across a city for a flat that is gone.
 5d.6 is the one that matters: a cache outliving sign-out would show one
 person's saved flats and rental agreement to the next.
 
+## 5e. My Society (native)
+
+Walked on a Pixel emulator, Android 17, debug build. Everything below was
+seen working unless marked otherwise.
+
+The reason this section exists: the whole society feature was built and
+verified in a browser, and the one defect it had was invisible there.
+
+| # | Check | Status |
+|---|---|---|
+| 5e.1 | "My Society" appears in the mobile menu for an owner, and not when signed out | verified |
+| 5e.2 | All five tabs visible without scrolling | verified after fix |
+| 5e.3 | Counts on Maintenance, Funds and Members render on load | verified |
+| 5e.4 | Overview: join code, Copy, address, plan card | verified |
+| 5e.5 | Maintenance: report button, open/urgent badges, reporter with unit, status buttons wrap | verified |
+| 5e.6 | Discussion thread: avatar, name, unit, date, delete, input + Send | verified |
+| 5e.7 | Funds: progress bar, "0 paid · 1 not yet", UPI block, "I've paid" | verified |
+| 5e.8 | Members: pending request with Approve/Reject, admin shield, "You" | verified |
+| 5e.9 | Hardware back navigates in-app rather than killing the app | verified |
+| 5e.10 | Posting a comment with the soft keyboard open | NOT verified — see below |
+| 5e.11 | Society switcher with two societies on a narrow screen | NOT verified — needs an owner in two buildings |
+
+**The defect this pass caught (5e.2).** The tab bar used
+`overflow-x-auto`, which is fine on a desktop and wrong on a phone: five
+tabs do not fit in 1080px, so Funds and Members sat off-screen with no
+indication they existed. An admin would not have seen a waiting join
+request, because its tab was invisible. Nothing about that is reproducible
+in a browser at desktop width. Fixed by letting the bar wrap to two rows
+on small screens.
+
+**Still to check by hand.** 5e.10 matters because the comment input sits
+at the bottom of an expanded card: confirm the field is not hidden behind
+the soft keyboard on a short device, and that Enter submits. 5e.11 needs
+a test account that is a member of two societies.
+
 ## 6. Payments — the highest-consequence path
 
 **Confirm Razorpay is in test mode before anyone taps Pay.**
