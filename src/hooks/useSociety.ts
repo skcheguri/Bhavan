@@ -63,6 +63,8 @@ interface UseSocietyReturn {
   membership: SocietyMember | null;
   /** Whether they have cleared Bhavan's owner verification. */
   verifiedOwner: boolean;
+  /** Whether the SOCIETY has an active plan. Never about this user. */
+  isPaid: boolean;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -84,6 +86,7 @@ export function useSociety(userId: string | undefined): UseSocietyReturn {
   const [society, setSociety] = useState<Society | null>(null);
   const [membership, setMembership] = useState<SocietyMember | null>(null);
   const [verifiedOwner, setVerifiedOwner] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,6 +141,14 @@ export function useSociety(userId: string | undefined): UseSocietyReturn {
       const { community, ...member } = row;
       setMembership(member);
       setSociety(community);
+      // Asked of the database, for the same reason as the verification
+      // gate: the client is never the authority on what has been paid for.
+      if (community) {
+        const { data: paid } = await supabase.rpc('community_is_paid', {
+          p_community: community.id,
+        });
+        setIsPaid(paid === true);
+      }
     } else {
       // No membership: fall back to a society they registered and are
       // still waiting on. A society they created that has been approved
@@ -152,7 +163,7 @@ export function useSociety(userId: string | undefined): UseSocietyReturn {
     void fetchAll();
   }, [fetchAll]);
 
-  return { society, membership, verifiedOwner, loading, error, refresh: fetchAll };
+  return { society, membership, verifiedOwner, isPaid, loading, error, refresh: fetchAll };
 }
 
 /**
@@ -380,5 +391,194 @@ export async function setMemberRole(
     .update({ role })
     .eq('id', memberId);
 
+  return { error: error ? error.message : null };
+}
+
+/* ------------------------------------------------------------------ */
+/* Announcements (free) and maintenance tickets (paid)                 */
+/* ------------------------------------------------------------------ */
+
+export interface Announcement {
+  id: string;
+  community_id: string;
+  author_id: string;
+  title: string;
+  body: string;
+  pinned: boolean;
+  created_at: string;
+  author_name: string | null;
+}
+
+export type TicketStatus = 'open' | 'acknowledged' | 'in_progress' | 'resolved';
+
+export interface Ticket {
+  id: string;
+  community_id: string;
+  raised_by: string;
+  category: string;
+  title: string;
+  description: string;
+  location: string | null;
+  priority: 'low' | 'medium' | 'high';
+  status: TicketStatus;
+  images: string[];
+  admin_notes: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  raised_by_name: string | null;
+  raised_by_units: string[];
+}
+
+export const TICKET_CATEGORIES = [
+  { value: 'lift', label: 'Lift', icon: 'ri-riding-line' },
+  { value: 'water', label: 'Water', icon: 'ri-drop-line' },
+  { value: 'electricity', label: 'Electricity', icon: 'ri-flashlight-line' },
+  { value: 'security', label: 'Security', icon: 'ri-shield-check-line' },
+  { value: 'parking', label: 'Parking', icon: 'ri-car-line' },
+  { value: 'cleaning', label: 'Cleaning', icon: 'ri-brush-line' },
+  { value: 'common_area', label: 'Common area', icon: 'ri-community-line' },
+  { value: 'other', label: 'Other', icon: 'ri-more-line' },
+] as const;
+
+/** Announcements for one society. Reading is free; only admins can post. */
+export function useAnnouncements(communityId: string | undefined) {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAll = useCallback(async () => {
+    const supabase = client();
+    if (!supabase || !communityId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error: dbError } = await supabase.rpc('get_community_announcements', {
+      p_community: communityId,
+    });
+    if (dbError) {
+      setError(dbError.message);
+      setAnnouncements([]);
+    } else {
+      setError(null);
+      setAnnouncements((data ?? []) as Announcement[]);
+    }
+    setLoading(false);
+  }, [communityId]);
+
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
+
+  return { announcements, loading, error, refresh: fetchAll };
+}
+
+export async function postAnnouncement(
+  communityId: string,
+  authorId: string,
+  title: string,
+  body: string,
+  pinned = false
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.from('community_announcements').insert({
+    community_id: communityId,
+    author_id: authorId,
+    title,
+    body,
+    pinned,
+  });
+
+  if (!error) return { error: null };
+  if (error.code === '42501') return { error: 'Only a society admin can post a notice.' };
+  return { error: error.message };
+}
+
+export async function deleteAnnouncement(id: string): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase.from('community_announcements').delete().eq('id', id);
+  return { error: error ? error.message : null };
+}
+
+/** Maintenance tickets for one society. Reading is free; raising needs a plan. */
+export function useTickets(communityId: string | undefined) {
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAll = useCallback(async () => {
+    const supabase = client();
+    if (!supabase || !communityId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error: dbError } = await supabase.rpc('get_community_tickets', {
+      p_community: communityId,
+    });
+    if (dbError) {
+      setError(dbError.message);
+      setTickets([]);
+    } else {
+      setError(null);
+      setTickets((data ?? []) as Ticket[]);
+    }
+    setLoading(false);
+  }, [communityId]);
+
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
+
+  return { tickets, loading, error, refresh: fetchAll };
+}
+
+export interface CreateTicketInput {
+  category: string;
+  title: string;
+  description: string;
+  location?: string;
+  priority: 'low' | 'medium' | 'high';
+}
+
+export async function createTicket(
+  communityId: string,
+  userId: string,
+  input: CreateTicketInput
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.from('community_tickets').insert({
+    community_id: communityId,
+    raised_by: userId,
+    ...input,
+  });
+
+  if (!error) return { error: null };
+  // The only RLS refusal on this path that a member can actually hit is
+  // the entitlement -- membership was already proven to load this screen.
+  if (error.code === '42501') {
+    return { error: 'Your society needs an active plan before issues can be raised.' };
+  }
+  return { error: error.message };
+}
+
+/** Admin-only in practice: a trigger rejects a status change from anyone else. */
+export async function setTicketStatus(
+  ticketId: string,
+  status: TicketStatus,
+  adminNotes?: string
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const patch: Record<string, unknown> = { status };
+  if (adminNotes !== undefined) patch.admin_notes = adminNotes;
+
+  const { error } = await supabase.from('community_tickets').update(patch).eq('id', ticketId);
   return { error: error ? error.message : null };
 }

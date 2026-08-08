@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
+import { Shell, PageTitle, Notice, Field, Pip, inputCls } from './ui';
+import { Notices, Maintenance } from './panels';
 import {
   useSociety,
   useSocietyMembers,
@@ -11,9 +13,19 @@ import {
   decideMembership,
   setMemberRole,
   updateMyUnits,
+  useAnnouncements,
+  useTickets,
+  postAnnouncement,
+  deleteAnnouncement,
+  createTicket,
+  setTicketStatus,
+  TICKET_CATEGORIES,
   type Society,
   type SocietyPreview,
   type SocietyMember,
+  type Announcement,
+  type Ticket,
+  type TicketStatus,
 } from '@/hooks/useSociety';
 
 /**
@@ -27,7 +39,8 @@ import {
  */
 export default function SocietyPage() {
   const { user } = useAuth();
-  const { society, membership, verifiedOwner, loading, error, refresh } = useSociety(user?.id);
+  const { society, membership, verifiedOwner, isPaid, loading, error, refresh } =
+    useSociety(user?.id);
 
   if (!user) return <SignedOut />;
 
@@ -65,7 +78,14 @@ export default function SocietyPage() {
   if (membership && society) {
     if (membership.status === 'pending') return <Pending society={society} membership={membership} />;
     if (membership.status === 'rejected') return <Rejected society={society} membership={membership} />;
-    return <SocietyHome society={society} membership={membership} userId={user.id} />;
+    return (
+      <SocietyHome
+        society={society}
+        membership={membership}
+        userId={user.id}
+        isPaid={isPaid}
+      />
+    );
   }
 
   if (!verifiedOwner) return <NotEligible />;
@@ -76,53 +96,6 @@ export default function SocietyPage() {
 /* ------------------------------------------------------------------ */
 /* Layout helpers                                                      */
 /* ------------------------------------------------------------------ */
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-[70vh] bg-lightgray/40">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">{children}</div>
-    </div>
-  );
-}
-
-function PageTitle({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="mb-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-charcoal">{title}</h1>
-      {subtitle && <p className="text-sm text-gray-500 mt-1.5">{subtitle}</p>}
-    </div>
-  );
-}
-
-function Notice({
-  tone,
-  icon,
-  title,
-  children,
-}: {
-  tone: 'info' | 'warn' | 'error' | 'success';
-  icon: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  const tones = {
-    info: 'bg-blue-50 border-blue-100 text-blue-900',
-    warn: 'bg-amber-50 border-amber-100 text-amber-900',
-    error: 'bg-red-50 border-red-100 text-red-900',
-    success: 'bg-green-50 border-green-100 text-green-900',
-  };
-  return (
-    <div className={`rounded-xl border p-5 ${tones[tone]}`}>
-      <div className="flex items-start gap-3">
-        <i className={`${icon} text-lg mt-0.5 flex-shrink-0`} />
-        <div className="min-w-0">
-          <p className="font-semibold text-sm">{title}</p>
-          <div className="text-sm mt-1 opacity-90">{children}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* Entry states                                                        */
@@ -406,26 +379,6 @@ function CreateForm({ userId, onDone }: { userId: string; onDone: () => Promise<
   );
 }
 
-const inputCls =
-  'w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30';
-
-function Field({
-  label,
-  children,
-  className = '',
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <label className="block text-sm font-semibold text-charcoal mb-1.5">{label}</label>
-      {children}
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /* Waiting states                                                      */
 /* ------------------------------------------------------------------ */
@@ -505,13 +458,15 @@ function SocietyHome({
   society,
   membership,
   userId,
+  isPaid,
 }: {
   society: Society;
   membership: SocietyMember;
   userId: string;
+  isPaid: boolean;
 }) {
   const isAdmin = membership.role === 'admin';
-  const [tab, setTab] = useState<'overview' | 'members'>('overview');
+  const [tab, setTab] = useState<SocietyTab>('overview');
   const [units, setUnits] = useState(membership.unit_numbers);
   const { addToast } = useToast();
 
@@ -520,6 +475,14 @@ function SocietyHome({
   // an admin there is anything to do.
   const memberList = useSocietyMembers(isAdmin ? society.id : undefined);
   const pendingCount = memberList.members.filter((m) => m.status === 'pending').length;
+
+  const ticketList = useTickets(society.id);
+  const openTickets = ticketList.tickets.filter((t) => t.status !== 'resolved').length;
+  const noticeList = useAnnouncements(society.id);
+
+  const tabs: SocietyTab[] = isAdmin
+    ? ['overview', 'notices', 'maintenance', 'members']
+    : ['overview', 'notices', 'maintenance'];
 
   const copyCode = () => {
     void navigator.clipboard?.writeText(society.join_code);
@@ -545,34 +508,46 @@ function SocietyHome({
         )}
       </div>
 
-      {isAdmin && (
-        <div className="flex gap-1 p-1 bg-white rounded-xl border border-black/5 mb-6 sm:inline-flex">
-          {(['overview', 'members'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 sm:flex-none px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-colors ${
-                tab === t ? 'bg-charcoal text-white' : 'text-gray-500 hover:text-charcoal'
-              }`}
-            >
-              {t}
-              {/* Without a count here an admin has no reason to open the tab,
-                  and join requests sit unanswered while the applicant waits. */}
-              {t === 'members' && pendingCount > 0 && (
-                <span
-                  className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[11px] ${
-                    tab === t ? 'bg-white/20' : 'bg-brand text-white'
-                  }`}
-                >
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-1 p-1 bg-white rounded-xl border border-black/5 mb-6 overflow-x-auto sm:inline-flex">
+        {tabs.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-shrink-0 px-4 sm:px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-colors ${
+              tab === t ? 'bg-charcoal text-white' : 'text-gray-500 hover:text-charcoal'
+            }`}
+          >
+            {t === 'notices' ? 'Notices' : t === 'maintenance' ? 'Maintenance' : t}
+            {/* Counts are the only thing telling anyone there is something
+                to do here. Without them these tabs never get opened. */}
+            {t === 'members' && pendingCount > 0 && (
+              <Pip active={tab === t}>{pendingCount}</Pip>
+            )}
+            {t === 'maintenance' && openTickets > 0 && (
+              <Pip active={tab === t}>{openTickets}</Pip>
+            )}
+          </button>
+        ))}
+      </div>
 
-      {tab === 'overview' || !isAdmin ? (
+      {tab === 'notices' ? (
+        <Notices
+          list={noticeList}
+          communityId={society.id}
+          userId={userId}
+          isAdmin={isAdmin}
+        />
+      ) : tab === 'maintenance' ? (
+        <Maintenance
+          list={ticketList}
+          communityId={society.id}
+          userId={userId}
+          isAdmin={isAdmin}
+          isPaid={isPaid}
+        />
+      ) : tab === 'members' ? (
+        <Members list={memberList} adminId={userId} myMemberId={membership.id} />
+      ) : (
         <div className="space-y-4">
           {units.length === 0 && (
             <SetMyUnits
@@ -614,15 +589,41 @@ function SocietyHome({
             </p>
           </div>
 
-          <Notice tone="info" icon="ri-rocket-line" title="Coming next">
-            Building maintenance tickets and announcements for every owner are on the way. Your
-            society is set up and ready for them.
-          </Notice>
+          <PlanCard isPaid={isPaid} isAdmin={isAdmin} />
         </div>
-      ) : (
-        <Members list={memberList} adminId={userId} myMemberId={membership.id} />
       )}
     </Shell>
+  );
+}
+
+type SocietyTab = 'overview' | 'notices' | 'maintenance' | 'members';
+
+
+/** What the building is on, and what that unlocks. */
+function PlanCard({ isPaid, isAdmin }: { isPaid: boolean; isAdmin: boolean }) {
+  if (isPaid) {
+    return (
+      <Notice tone="success" icon="ri-checkbox-circle-line" title="Society plan active">
+        Maintenance tickets are open to every verified owner here, at no extra cost to them.
+      </Notice>
+    );
+  }
+
+  return (
+    <Notice tone="info" icon="ri-vip-crown-line" title="Notices are free. Maintenance needs a plan.">
+      <p>
+        Your owners' group, the join code and notices all work as they are. A society plan adds
+        shared maintenance tickets — one record of what's broken, who's on it, and when it was
+        fixed — for every verified owner in the building.
+      </p>
+      {isAdmin ? (
+        <p className="mt-2 font-semibold">
+          One subscription covers the whole society. Members pay nothing extra.
+        </p>
+      ) : (
+        <p className="mt-2">Ask a society admin to start one.</p>
+      )}
+    </Notice>
   );
 }
 

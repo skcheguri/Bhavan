@@ -442,6 +442,61 @@ export type Database = {
           },
         ]
       }
+      community_announcements: {
+        Row: {
+          author_id: string
+          body: string
+          community_id: string
+          created_at: string
+          id: string
+          pinned: boolean
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          community_id: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          community_id?: string
+          created_at?: string
+          id?: string
+          pinned?: boolean
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_announcements_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_announcements_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_announcements_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_comments: {
         Row: {
           author_id: string
@@ -718,6 +773,79 @@ export type Database = {
           {
             foreignKeyName: "community_subscriptions_purchased_by_fkey"
             columns: ["purchased_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_tickets: {
+        Row: {
+          admin_notes: string | null
+          category: string
+          community_id: string
+          created_at: string
+          description: string
+          id: string
+          images: string[]
+          location: string | null
+          priority: string
+          raised_by: string
+          resolved_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          category?: string
+          community_id: string
+          created_at?: string
+          description: string
+          id?: string
+          images?: string[]
+          location?: string | null
+          priority?: string
+          raised_by: string
+          resolved_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          category?: string
+          community_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          images?: string[]
+          location?: string | null
+          priority?: string
+          raised_by?: string
+          resolved_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_tickets_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_tickets_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_tickets_raised_by_fkey"
+            columns: ["raised_by"]
             isOneToOne: false
             referencedRelation: "users_public"
             referencedColumns: ["id"]
@@ -2875,6 +3003,19 @@ export type Database = {
         }[]
       }
       generate_join_code: { Args: never; Returns: string }
+      get_community_announcements: {
+        Args: { p_community: string }
+        Returns: {
+          author_id: string
+          author_name: string
+          body: string
+          community_id: string
+          created_at: string
+          id: string
+          pinned: boolean
+          title: string
+        }[]
+      }
       get_community_members: {
         Args: { p_community: string }
         Returns: {
@@ -2891,6 +3032,26 @@ export type Database = {
           status: string
           unit_numbers: string[]
           user_id: string
+        }[]
+      }
+      get_community_tickets: {
+        Args: { p_community: string }
+        Returns: {
+          admin_notes: string
+          category: string
+          community_id: string
+          created_at: string
+          description: string
+          id: string
+          images: string[]
+          location: string
+          priority: string
+          raised_by: string
+          raised_by_name: string
+          raised_by_units: string[]
+          resolved_at: string
+          status: string
+          title: string
         }[]
       }
       get_my_profile: {
