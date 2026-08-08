@@ -2875,6 +2875,24 @@ export type Database = {
         }[]
       }
       generate_join_code: { Args: never; Returns: string }
+      get_community_members: {
+        Args: { p_community: string }
+        Returns: {
+          approved_at: string
+          avatar_url: string
+          community_id: string
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string
+          rejection_reason: string
+          role: string
+          status: string
+          unit_numbers: string[]
+          user_id: string
+        }[]
+      }
       get_my_profile: {
         Args: never
         Returns: {
@@ -2910,6 +2928,10 @@ export type Database = {
         }
       }
       has_admin_role: { Args: { uid?: string }; Returns: boolean }
+      has_community_application: {
+        Args: { p_community: string }
+        Returns: boolean
+      }
       has_pro: { Args: { p_user?: string }; Returns: boolean }
       increment_listing_counter: {
         Args: { p_counter: string; p_delta?: number; p_listing_id: string }

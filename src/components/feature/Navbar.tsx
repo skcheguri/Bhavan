@@ -233,6 +233,12 @@ export default function Navbar({ sticky = false }: Props) {
                     {/* Owner-specific items */}
                     {isOwner && (
                       <div className="py-2 border-b border-black/5">
+                        <Link to="/society" className="flex items-center gap-3 px-4 py-2 hover:bg-lightgray transition-colors cursor-pointer">
+                          <div className="w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0 bg-brand/10">
+                            <i className="ri-building-2-line text-sm text-brand" />
+                          </div>
+                          <span className="text-sm text-charcoal font-medium">My Society</span>
+                        </Link>
                         <Link to="/subscription" className="flex items-center gap-3 px-4 py-2 hover:bg-lightgray transition-colors cursor-pointer">
                           <div className={`w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0 ${isPro ? 'bg-amber-50' : 'bg-brand/10'}`}>
                             <i className={`ri-vip-crown-line text-sm ${isPro ? 'text-amber-600' : 'text-brand'}`} />
@@ -346,6 +352,15 @@ export default function Navbar({ sticky = false }: Props) {
                     {item.label}
                   </Link>
                 ))}
+
+                {isOwner && (
+                  <Link to="/society" className="flex items-center gap-3 py-2.5 text-sm text-charcoal font-medium border-t border-gray-50 mt-1" onClick={() => setMobileOpen(false)}>
+                    <div className="w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0 bg-brand/10">
+                      <i className="ri-building-2-line text-sm text-brand" />
+                    </div>
+                    My Society
+                  </Link>
+                )}
 
                 {isOwner && (
                   <Link to="/subscription" className="flex items-center gap-3 py-2.5 text-sm text-charcoal font-medium border-t border-gray-50 mt-1" onClick={() => setMobileOpen(false)}>

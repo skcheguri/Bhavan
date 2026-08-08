@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAdminBrokerReports } from '@/hooks/useBrokerReport';
 import { useAdminPropertyVerification } from '@/hooks/useAdminPropertyVerification';
+import { useAdminSocieties } from '@/hooks/useAdminSocieties';
 import { useAdminListingReports } from '@/hooks/useListingReports';
 import { useAdminPurgedAccounts } from '@/hooks/useAdminPurgedAccounts';
 import { useAdminCommunityModeration } from '@/hooks/useCommunity';
@@ -36,6 +37,7 @@ export default function AdminDashboard() {
 
   const pendingReports = reports.filter((r) => r.status === 'pending').length;
   const pendingPropertyVerifications = propertyVerificationRequests.filter((r) => r.status === 'pending').length;
+  const { pendingCount: pendingSocieties } = useAdminSocieties();
   const pendingListingReports = listingReports.filter((r) => r.status === 'pending').length;
   const flaggedPosts = communityPosts.filter((p) => p.report_count > 0 && !p.hidden).length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
@@ -105,6 +107,14 @@ export default function AdminDashboard() {
       color: 'bg-green-50 text-green-600',
       to: '/admin/property-verification',
       description: 'Review ownership documents submitted by landlords.',
+    },
+    {
+      title: 'Society Approvals',
+      count: pendingSocieties,
+      icon: 'ri-building-2-line',
+      color: 'bg-blue-50 text-blue-600',
+      to: '/admin/societies',
+      description: 'Apartment complexes and villa communities awaiting review before their join code goes live.',
     },
     {
       title: 'Listing Reports',

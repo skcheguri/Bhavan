@@ -109,6 +109,8 @@ const ROUTE_META: [string, RouteMeta][] = [
   ['/auth/callback', { title: 'Signing In…', noindex: true }],
   ['/reset-password', { title: 'Reset Password', noindex: true }],
   ['/aadhaar-verify', { title: 'Aadhaar Verification', noindex: true }],
+  // Owner-only, and its contents belong to one building. Never indexed.
+  ['/society', { title: 'My Society', noindex: true }],
   ['/tenant-profile', { title: 'Tenant Dashboard', noindex: true }],
   ['/owner-profile', { title: 'Owner Dashboard', noindex: true }],
   ['/scan/', { title: 'Property QR', noindex: true }],

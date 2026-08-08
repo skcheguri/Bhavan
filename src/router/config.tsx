@@ -17,6 +17,7 @@ const ServerError = lazy(() => import("../pages/ServerError"));
 const Listings = lazy(() => import("../pages/listings/page"));
 const ListingDetail = lazy(() => import("../pages/listing-detail/page"));
 const Community = lazy(() => import("../pages/community/page"));
+const Society = lazy(() => import("../pages/society/page"));
 const About = lazy(() => import("../pages/about/page"));
 const Contact = lazy(() => import("../pages/contact/page"));
 const AuthCallback = lazy(() => import("../pages/auth-callback/page"));
@@ -45,6 +46,7 @@ const AdminPropertyVerification = lazy(() => import("../pages/admin/property-ver
 const AdminListingReports = lazy(() => import("../pages/admin/listing-reports/page"));
 const AdminPurgedAccounts = lazy(() => import("../pages/admin/purged-accounts/page"));
 const AdminCommunity = lazy(() => import("../pages/admin/community/page"));
+const AdminSocieties = lazy(() => import("../pages/admin/societies/page"));
 const AdminUsers = lazy(() => import("../pages/admin/users/page"));
 const AdminListings = lazy(() => import("../pages/admin/listings/page"));
 const AdminSupport = lazy(() => import("../pages/admin/support/page"));
@@ -70,6 +72,10 @@ const routes: RouteObject[] = [
   {
     path: "/community",
     element: <Community />,
+  },
+  {
+    path: "/society",
+    element: <Society />,
   },
   {
     path: "/about",
@@ -202,6 +208,10 @@ const routes: RouteObject[] = [
   {
     path: "/admin/community",
     element: <RequireAdmin><AdminCommunity /></RequireAdmin>,
+  },
+  {
+    path: "/admin/societies",
+    element: <RequireAdmin><AdminSocieties /></RequireAdmin>,
   },
   {
     path: "/admin/users",
