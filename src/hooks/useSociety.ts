@@ -466,7 +466,7 @@ export interface Announcement {
 /** How many rows a "show more" list asks for at a time. */
 const PAGE = 20;
 
-export type TicketStatus = 'open' | 'acknowledged' | 'in_progress' | 'resolved';
+export type TicketStatus = 'open' | 'assigned' | 'acknowledged' | 'in_progress' | 'resolved';
 
 export interface Ticket {
   id: string;
@@ -484,6 +484,12 @@ export interface Ticket {
   created_at: string;
   raised_by_name: string | null;
   raised_by_units: string[];
+  assigned_vendor_id: string | null;
+  assigned_vendor_name: string | null;
+  assigned_vendor_phone: string | null;
+  assigned_vendor_trade: string | null;
+  assigned_at: string | null;
+  vendor_would_use_again: boolean | null;
 }
 
 export const TICKET_CATEGORIES = [
@@ -1126,5 +1132,195 @@ export async function decideContribution(
     .update({ status, confirmed_by: adminId })
     .eq('id', contributionId);
 
+  return { error: error ? error.message : null };
+}
+
+/* ------------------------------------------------------------------ */
+/* Service vendors -- the people a society already calls               */
+/*                                                                     */
+/* No accounts, no login, no fourth role. A vendor is a name, a trade   */
+/* and a phone number an admin keeps in a list; the app puts that name  */
+/* on the ticket and offers to dial it.                                */
+/* ------------------------------------------------------------------ */
+
+export interface ServiceVendor {
+  id: string;
+  /** Exactly one of these is set -- a vendor belongs to a society or an owner. */
+  community_id: string | null;
+  owner_id: string | null;
+  name: string;
+  trade: string;
+  phone: string;
+  notes: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+/**
+ * A contractor list, scoped either to a society or to one owner.
+ *
+ * Most owners on Bhavan are not in a society, and their tenant's leaking
+ * tap hangs for the same reason a society ticket did -- so the same list
+ * has to serve both, keyed on whichever scope the caller has.
+ */
+export function useVendors(scope: { communityId?: string; ownerId?: string }) {
+  const communityId = scope.communityId;
+  const ownerId = scope.ownerId;
+  const [vendors, setVendors] = useState<ServiceVendor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAll = useCallback(async () => {
+    const supabase = client();
+    if (!supabase || (!communityId && !ownerId)) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const query = supabase
+      .from('service_vendors')
+      .select('*')
+      .order('active', { ascending: false })
+      .order('name', { ascending: true });
+
+    const { data, error: dbError } = communityId
+      ? await query.eq('community_id', communityId)
+      : await query.eq('owner_id', ownerId!);
+
+    if (dbError) {
+      setError(dbError.message);
+      setVendors([]);
+    } else {
+      setError(null);
+      setVendors((data ?? []) as ServiceVendor[]);
+    }
+    setLoading(false);
+  }, [communityId, ownerId]);
+
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
+
+  return { vendors, loading, error, refresh: fetchAll };
+}
+
+export async function addVendor(
+  scope: { communityId?: string; ownerId?: string },
+  userId: string,
+  input: { name: string; trade: string; phone: string; notes?: string }
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.from('service_vendors').insert({
+    // Exactly one, enforced by a CHECK in the database too.
+    community_id: scope.communityId ?? null,
+    owner_id: scope.communityId ? null : (scope.ownerId ?? null),
+    created_by: userId,
+    name: input.name,
+    trade: input.trade,
+    phone: input.phone,
+    notes: input.notes ?? null,
+  });
+
+  if (!error) return { error: null };
+  if (error.code === '42501') {
+    return { error: 'Your society needs an active plan to keep a contractor list.' };
+  }
+  return { error: error.message };
+}
+
+/**
+ * Retire a vendor rather than delete them. Old tickets still name the
+ * person who did the work, and history should not rewrite itself because
+ * a society changed plumber.
+ */
+export async function setVendorActive(
+  id: string,
+  active: boolean
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase.from('service_vendors').update({ active }).eq('id', id);
+  return { error: error ? error.message : null };
+}
+
+/** Assign, or pass null to unassign. Admin-only, enforced by a trigger. */
+export async function assignTicketVendor(
+  ticketId: string,
+  vendorId: string | null
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase
+    .from('community_tickets')
+    .update({ assigned_vendor_id: vendorId })
+    .eq('id', ticketId);
+
+  return { error: error ? error.message : null };
+}
+
+/**
+ * A wa.me link, not a tel: link.
+ *
+ * Indian trades run on WhatsApp, and this needs no SMS provider, no
+ * template approval and no DLT registration -- it opens from the admin's
+ * own phone. Digits only, with 91 assumed when no country code is given.
+ */
+export function whatsappLink(phone: string, message: string): string {
+  const digits = phone.replace(/\D/g, '');
+  const withCode = digits.length === 10 ? `91${digits}` : digits;
+  return `https://wa.me/${withCode}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Record whether the contractor would be used again.
+ *
+ * Asked of whoever engaged them -- the society admin or the landlord --
+ * because that is the person deciding whether to ring them next time.
+ * Nothing surfaces it yet; it is collected now so that neighbourhood
+ * recommendations have history to work from when they arrive, rather
+ * than launching empty and being useless for a year.
+ */
+export async function rateTicketVendor(
+  ticketId: string,
+  wouldUseAgain: boolean
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase
+    .from('community_tickets')
+    .update({ vendor_would_use_again: wouldUseAgain })
+    .eq('id', ticketId);
+  return { error: error ? error.message : null };
+}
+
+/** The same question on a tenant's request, answered by the landlord. */
+export async function rateRequestVendor(
+  requestId: string,
+  wouldUseAgain: boolean
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase
+    .from('maintenance_requests')
+    .update({ vendor_would_use_again: wouldUseAgain })
+    .eq('id', requestId);
+  return { error: error ? error.message : null };
+}
+
+/** Assign a contractor to a tenant's request, or pass null to unassign. */
+export async function assignRequestVendor(
+  requestId: string,
+  vendorId: string | null
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase
+    .from('maintenance_requests')
+    .update({ assigned_vendor_id: vendorId })
+    .eq('id', requestId);
+  // "That contractor is not on your list" arrives already phrased.
   return { error: error ? error.message : null };
 }

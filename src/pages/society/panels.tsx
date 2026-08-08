@@ -6,6 +6,12 @@ import {
   deleteAnnouncement,
   createTicket,
   setTicketStatus,
+  useVendors,
+  addVendor,
+  setVendorActive,
+  assignTicketVendor,
+  rateTicketVendor,
+  whatsappLink,
   useTicketComments,
   postTicketComment,
   deleteTicketComment,
@@ -16,6 +22,7 @@ import {
   type Ticket,
   type TicketStatus,
   type TicketComment,
+  type ServiceVendor,
 } from '@/hooks/useSociety';
 import { Notice, Field, EmptyState, inputCls } from './ui';
 
@@ -240,6 +247,7 @@ export function Notices({
 
 const STATUS_STYLE: Record<TicketStatus, string> = {
   open: 'bg-red-50 text-red-600',
+  assigned: 'bg-purple-50 text-purple-600',
   acknowledged: 'bg-amber-50 text-amber-600',
   in_progress: 'bg-blue-50 text-blue-600',
   resolved: 'bg-green-50 text-green-600',
@@ -247,6 +255,7 @@ const STATUS_STYLE: Record<TicketStatus, string> = {
 
 const ALL_STATUSES: { value: TicketStatus; label: string }[] = [
   { value: 'open', label: 'open' },
+  { value: 'assigned', label: 'assigned' },
   { value: 'acknowledged', label: 'acknowledged' },
   { value: 'in_progress', label: 'in progress' },
   { value: 'resolved', label: 'resolved' },
@@ -266,6 +275,7 @@ export function Maintenance({
   isPaid: boolean;
 }) {
   const { tickets, loading, loadingMore, error, refresh, loadMore, hasMore } = list;
+  const vendorList = useVendors({ communityId });
   const { addToast } = useToast();
   const [composing, setComposing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -338,6 +348,15 @@ export function Maintenance({
           <i className="ri-add-line mr-1.5" />
           Report an issue
         </button>
+      )}
+
+      {isAdmin && (
+        <Contractors
+          list={vendorList}
+          communityId={communityId}
+          userId={userId}
+          isPaid={isPaid}
+        />
       )}
 
       {composing && (
@@ -474,6 +493,59 @@ export function Maintenance({
                   <p className="text-xs font-semibold text-charcoal">From your admin</p>
                   <p className="text-sm text-gray-600">{t.admin_notes}</p>
                 </div>
+              )}
+
+              <Assignment
+                ticket={t}
+                vendors={vendorList.vendors}
+                isAdmin={isAdmin}
+                busy={busyId === t.id}
+                onAssign={async (vendorId) => {
+                  setBusyId(t.id);
+                  const { error: e } = await assignTicketVendor(t.id, vendorId);
+                  setBusyId(null);
+                  if (e) addToast(e, 'error');
+                  else await refresh();
+                }}
+              />
+
+              {/* Asked once, only when there is something to judge: a
+                  finished job done by a named contractor. */}
+              {isAdmin &&
+                t.status === 'resolved' &&
+                t.assigned_vendor_id &&
+                t.vendor_would_use_again === null && (
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-charcoal/60">
+                      Would you use {t.assigned_vendor_name} again?
+                    </span>
+                    {[true, false].map((yes) => (
+                      <button
+                        key={String(yes)}
+                        onClick={async () => {
+                          const { error: e } = await rateTicketVendor(t.id, yes);
+                          if (e) addToast(e, 'error');
+                          else await refresh();
+                        }}
+                        className="px-3 py-1 border border-gray-200 rounded-lg text-xs font-semibold text-charcoal hover:bg-lightgray"
+                      >
+                        {yes ? 'Yes' : 'No'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+              {t.vendor_would_use_again !== null && t.assigned_vendor_id && (
+                <p className="mt-3 text-xs text-charcoal/40">
+                  <i
+                    className={
+                      t.vendor_would_use_again
+                        ? 'ri-thumb-up-line mr-1'
+                        : 'ri-thumb-down-line mr-1'
+                    }
+                  />
+                  {t.vendor_would_use_again ? 'Would use again' : 'Would not use again'}
+                </p>
               )}
 
               {isAdmin && (
@@ -663,6 +735,256 @@ export function TicketThread({
 
               {err && <p className="text-sm text-red-600 mt-2">{err}</p>}
             </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Assignment                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Who is dealing with this, on the card.
+ *
+ * The WhatsApp link is the whole point of the feature for a member: an
+ * issue with a name and a working "message him" button has stopped
+ * hanging, even though nothing about the vendor changed. No account, no
+ * app, no onboarding -- the tradesman never knows Bhavan exists.
+ */
+function Assignment({
+  ticket: t,
+  vendors,
+  isAdmin,
+  busy,
+  onAssign,
+}: {
+  ticket: Ticket;
+  vendors: ServiceVendor[];
+  isAdmin: boolean;
+  busy: boolean;
+  onAssign: (vendorId: string | null) => Promise<void>;
+}) {
+  if (t.assigned_vendor_id) {
+    return (
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <span className="px-2.5 py-1 rounded-lg bg-lightgray text-xs text-charcoal">
+          <i className="ri-user-settings-line mr-1" />
+          {t.assigned_vendor_name}
+          {t.assigned_vendor_trade && t.assigned_vendor_trade !== 'other' && (
+            <span className="text-charcoal/50"> · {t.assigned_vendor_trade.replace('_', ' ')}</span>
+          )}
+        </span>
+
+        {t.assigned_vendor_phone && (
+          <a
+            href={whatsappLink(
+              t.assigned_vendor_phone,
+              `Regarding "${t.title}"${t.location ? ` at ${t.location}` : ''}.`
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-semibold text-green-700 hover:underline"
+          >
+            <i className="ri-whatsapp-line mr-1" />
+            WhatsApp
+          </a>
+        )}
+        {t.assigned_vendor_phone && (
+          <a
+            href={`tel:${t.assigned_vendor_phone}`}
+            className="text-xs font-semibold text-charcoal/60 hover:underline"
+          >
+            <i className="ri-phone-line mr-1" />
+            Call
+          </a>
+        )}
+
+        {isAdmin && (
+          <button
+            onClick={() => void onAssign(null)}
+            disabled={busy}
+            className="text-xs text-gray-300 hover:text-red-500 disabled:opacity-40"
+          >
+            Unassign
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (!isAdmin || t.status === 'resolved') return null;
+
+  // Matching trade first: the answer to "who do we call about a lift" is
+  // usually the lift company, and making an admin hunt for them in an
+  // alphabetical list is how this stops being used.
+  const active = vendors.filter((v) => v.active);
+  const sorted = [
+    ...active.filter((v) => v.trade === t.category),
+    ...active.filter((v) => v.trade !== t.category),
+  ];
+
+  if (sorted.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <select
+        value=""
+        disabled={busy}
+        onChange={(e) => e.target.value && void onAssign(e.target.value)}
+        className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-charcoal disabled:opacity-40"
+      >
+        <option value="">Assign to…</option>
+        {sorted.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name}
+            {v.trade !== 'other' ? ` (${v.trade.replace('_', ' ')})` : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* The society's contractor list                                       */
+/* ------------------------------------------------------------------ */
+
+function Contractors({
+  list,
+  communityId,
+  userId,
+  isPaid,
+}: {
+  list: ReturnType<typeof useVendors>;
+  communityId: string;
+  userId: string;
+  isPaid: boolean;
+}) {
+  const { vendors, refresh } = list;
+  const { addToast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: '', trade: 'other', phone: '' });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!form.name.trim() || !form.phone.trim()) {
+      setErr('A name and a phone number are the whole point.');
+      return;
+    }
+    setBusy(true);
+    const { error } = await addVendor({ communityId }, userId, {
+      name: form.name.trim(),
+      trade: form.trade,
+      phone: form.phone.trim(),
+    });
+    setBusy(false);
+    if (error) {
+      setErr(error);
+      return;
+    }
+    setForm({ name: '', trade: 'other', phone: '' });
+    setErr(null);
+    addToast('Contractor added.', 'success');
+    await refresh();
+  };
+
+  const retire = async (v: ServiceVendor) => {
+    const { error } = await setVendorActive(v.id, !v.active);
+    if (error) addToast(error, 'error');
+    else await refresh();
+  };
+
+  const activeCount = vendors.filter((v) => v.active).length;
+
+  return (
+    <div className="bg-white rounded-xl border border-black/5 p-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 text-sm font-semibold text-charcoal"
+      >
+        <i className={open ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} />
+        Contractors
+        <span className="text-xs font-normal text-charcoal/40">
+          {activeCount === 0 ? 'nobody added yet' : `${activeCount} on the list`}
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-4">
+          <p className="text-xs text-charcoal/50 mb-3">
+            The people your society already calls. They do not need the app — adding them here puts
+            a name and a WhatsApp button on the issue.
+          </p>
+
+          {vendors.length > 0 && (
+            <ul className="space-y-2 mb-4">
+              {vendors.map((v) => (
+                <li key={v.id} className={`flex items-center gap-2 ${v.active ? '' : 'opacity-40'}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-charcoal truncate">
+                      {v.name}
+                      {v.trade !== 'other' && (
+                        <span className="text-charcoal/50"> · {v.trade.replace('_', ' ')}</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-charcoal/40">{v.phone}</p>
+                  </div>
+                  <button
+                    onClick={() => void retire(v)}
+                    className="text-xs font-semibold text-charcoal/40 hover:text-charcoal flex-shrink-0"
+                  >
+                    {v.active ? 'Retire' : 'Restore'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {isPaid ? (
+            <>
+              <div className="grid sm:grid-cols-3 gap-2">
+                <input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Name"
+                  className={inputCls}
+                />
+                <select
+                  value={form.trade}
+                  onChange={(e) => setForm({ ...form, trade: e.target.value })}
+                  className={inputCls}
+                >
+                  {TICKET_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="Phone"
+                  className={inputCls}
+                />
+              </div>
+              {err && <p className="text-sm text-red-600 mt-2">{err}</p>}
+              <button
+                onClick={() => void submit()}
+                disabled={busy}
+                className="mt-3 px-4 py-2 bg-charcoal text-white rounded-lg text-sm font-semibold disabled:opacity-40"
+              >
+                {busy ? 'Adding…' : 'Add contractor'}
+              </button>
+            </>
+          ) : (
+            <p className="text-xs text-charcoal/40">
+              Keeping a contractor list is part of the society plan.
+            </p>
           )}
         </div>
       )}

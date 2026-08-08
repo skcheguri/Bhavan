@@ -992,6 +992,8 @@ export type Database = {
       community_tickets: {
         Row: {
           admin_notes: string | null
+          assigned_at: string | null
+          assigned_vendor_id: string | null
           category: string
           community_id: string
           created_at: string
@@ -1005,9 +1007,12 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          vendor_would_use_again: boolean | null
         }
         Insert: {
           admin_notes?: string | null
+          assigned_at?: string | null
+          assigned_vendor_id?: string | null
           category?: string
           community_id: string
           created_at?: string
@@ -1021,9 +1026,12 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          vendor_would_use_again?: boolean | null
         }
         Update: {
           admin_notes?: string | null
+          assigned_at?: string | null
+          assigned_vendor_id?: string | null
           category?: string
           community_id?: string
           created_at?: string
@@ -1037,8 +1045,16 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          vendor_would_use_again?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "community_tickets_assigned_vendor_id_fkey"
+            columns: ["assigned_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "service_vendors"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "community_tickets_community_id_fkey"
             columns: ["community_id"]
@@ -1566,6 +1582,8 @@ export type Database = {
       maintenance_requests: {
         Row: {
           agreement_id: string | null
+          assigned_at: string | null
+          assigned_vendor_id: string | null
           category: string
           created_at: string | null
           description: string
@@ -1582,9 +1600,12 @@ export type Database = {
           title: string | null
           unit: string | null
           updated_at: string | null
+          vendor_would_use_again: boolean | null
         }
         Insert: {
           agreement_id?: string | null
+          assigned_at?: string | null
+          assigned_vendor_id?: string | null
           category: string
           created_at?: string | null
           description: string
@@ -1601,9 +1622,12 @@ export type Database = {
           title?: string | null
           unit?: string | null
           updated_at?: string | null
+          vendor_would_use_again?: boolean | null
         }
         Update: {
           agreement_id?: string | null
+          assigned_at?: string | null
+          assigned_vendor_id?: string | null
           category?: string
           created_at?: string | null
           description?: string
@@ -1620,6 +1644,7 @@ export type Database = {
           title?: string | null
           unit?: string | null
           updated_at?: string | null
+          vendor_would_use_again?: boolean | null
         }
         Relationships: [
           {
@@ -1627,6 +1652,13 @@ export type Database = {
             columns: ["agreement_id"]
             isOneToOne: false
             referencedRelation: "rental_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_requests_assigned_vendor_id_fkey"
+            columns: ["assigned_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "service_vendors"
             referencedColumns: ["id"]
           },
           {
@@ -2675,6 +2707,84 @@ export type Database = {
           },
         ]
       }
+      service_vendors: {
+        Row: {
+          active: boolean
+          community_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          notes: string | null
+          owner_id: string | null
+          phone: string
+          trade: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          community_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          owner_id?: string | null
+          phone: string
+          trade?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          community_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string
+          trade?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_vendors_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_vendors_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_vendors_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_vendors_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_vendors_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       soft_block_states: {
         Row: {
           aadhaar_re_verified: boolean | null
@@ -3310,6 +3420,11 @@ export type Database = {
         Args: { p_community: string; p_limit?: number; p_offset?: number }
         Returns: {
           admin_notes: string
+          assigned_at: string
+          assigned_vendor_id: string
+          assigned_vendor_name: string
+          assigned_vendor_phone: string
+          assigned_vendor_trade: string
           category: string
           community_id: string
           created_at: string
@@ -3325,6 +3440,7 @@ export type Database = {
           status: string
           title: string
           total_count: number
+          vendor_would_use_again: boolean
         }[]
       }
       get_my_profile: {

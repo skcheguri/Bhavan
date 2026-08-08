@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useOwnerMaintenanceRequests } from '@/hooks/useMaintenanceRequests';
+import { useOwnerMaintenanceRequests, type MaintenanceRequest } from '@/hooks/useMaintenanceRequests';
+import {
+  useVendors,
+  addVendor,
+  setVendorActive,
+  assignRequestVendor,
+  rateRequestVendor,
+  whatsappLink,
+  type ServiceVendor,
+} from '@/hooks/useSociety';
+import { useToast } from '@/hooks/useToast';
 
 type FilterStatus = 'all' | 'pending' | 'acknowledged' | 'in_progress' | 'resolved';
 
@@ -44,7 +54,8 @@ function timeAgo(isoDate: string) {
 
 export default function RequestsTab() {
   const { user } = useAuth();
-  const { requests, loading, error, updateStatus } = useOwnerMaintenanceRequests(user?.id);
+  const { requests, loading, error, updateStatus, refresh } = useOwnerMaintenanceRequests(user?.id);
+  const vendorList = useVendors({ ownerId: user?.id });
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [sortBy, setSortBy] = useState<'date' | 'priority'>('priority');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -134,6 +145,8 @@ export default function RequestsTab() {
           </div>
         </div>
       )}
+
+      {user && <OwnerContractors list={vendorList} ownerId={user.id} />}
 
       {/* Filter + Sort bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -234,6 +247,12 @@ export default function RequestsTab() {
                   </div>
                 )}
 
+                <RequestVendor
+                  request={req}
+                  vendors={vendorList.vendors}
+                  onChanged={refresh}
+                />
+
                 <div className="mt-4 flex items-center gap-2 flex-wrap">
                   {req.status !== 'resolved' ? (
                     <>
@@ -275,6 +294,281 @@ export default function RequestsTab() {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Contractors, for an owner who is not in a society                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Who is dealing with this request.
+ *
+ * Same shape as the society version and for the same reason: a request
+ * with a name and a working "message him" button has stopped hanging,
+ * even though nothing about the plumber changed. The tradesman never
+ * installs anything and never knows Bhavan exists.
+ */
+function RequestVendor({
+  request: req,
+  vendors,
+  onChanged,
+}: {
+  request: MaintenanceRequest;
+  vendors: ServiceVendor[];
+  onChanged: () => Promise<void> | void;
+}) {
+  const { addToast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const assign = async (vendorId: string | null) => {
+    setBusy(true);
+    const { error } = await assignRequestVendor(req.id, vendorId);
+    setBusy(false);
+    if (error) addToast(error, 'error');
+    else await onChanged();
+  };
+
+  const rate = async (yes: boolean) => {
+    const { error } = await rateRequestVendor(req.id, yes);
+    if (error) addToast(error, 'error');
+    else await onChanged();
+  };
+
+  if (req.assigned_vendor_id && req.vendor) {
+    return (
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <span className="px-2.5 py-1 rounded-lg bg-lightgray text-xs text-charcoal">
+          <i className="ri-user-settings-line mr-1" />
+          {req.vendor.name}
+        </span>
+        <a
+          href={whatsappLink(
+            req.vendor.phone,
+            `Regarding "${req.title}"${req.unit ? ` at ${req.unit}` : ''}.`
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-semibold text-green-700 hover:underline"
+        >
+          <i className="ri-whatsapp-line mr-1" />
+          WhatsApp
+        </a>
+        <a
+          href={`tel:${req.vendor.phone}`}
+          className="text-xs font-semibold text-charcoal/60 hover:underline"
+        >
+          <i className="ri-phone-line mr-1" />
+          Call
+        </a>
+        {req.status !== 'resolved' && (
+          <button
+            onClick={() => void assign(null)}
+            disabled={busy}
+            className="text-xs text-charcoal/30 hover:text-red-500 disabled:opacity-40"
+          >
+            Unassign
+          </button>
+        )}
+
+        {req.status === 'resolved' && req.vendor_would_use_again === null && (
+          <>
+            <span className="text-xs text-charcoal/50 ml-1">Use again?</span>
+            {[true, false].map((yes) => (
+              <button
+                key={String(yes)}
+                onClick={() => void rate(yes)}
+                className="px-2.5 py-1 border border-gray-200 rounded-lg text-xs font-semibold text-charcoal hover:bg-lightgray"
+              >
+                {yes ? 'Yes' : 'No'}
+              </button>
+            ))}
+          </>
+        )}
+        {req.vendor_would_use_again !== null && (
+          <span className="text-xs text-charcoal/40">
+            <i
+              className={
+                req.vendor_would_use_again ? 'ri-thumb-up-line mr-1' : 'ri-thumb-down-line mr-1'
+              }
+            />
+            {req.vendor_would_use_again ? 'Would use again' : 'Would not use again'}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (req.status === 'resolved') return null;
+
+  // Matching trade first. Making an owner hunt for their plumber in an
+  // alphabetical list of everyone is how this stops being used.
+  const active = vendors.filter((v) => v.active);
+  const sorted = [
+    ...active.filter((v) => v.trade === req.category),
+    ...active.filter((v) => v.trade !== req.category),
+  ];
+  if (sorted.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <select
+        value=""
+        disabled={busy}
+        onChange={(e) => e.target.value && void assign(e.target.value)}
+        className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-charcoal disabled:opacity-40"
+      >
+        <option value="">Assign to…</option>
+        {sorted.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name}
+            {v.trade !== 'other' ? ` (${v.trade.replace('_', ' ')})` : ''}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** The owner's own list of people they already call. */
+export function OwnerContractors({
+  list,
+  ownerId,
+}: {
+  list: ReturnType<typeof useVendors>;
+  ownerId: string;
+}) {
+  const { vendors, refresh } = list;
+  const { addToast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: '', trade: 'plumbing', phone: '' });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const TRADES = [
+    'plumbing',
+    'electrical',
+    'water',
+    'elevator',
+    'carpentry',
+    'painting',
+    'ac',
+    'security',
+    'housekeeping',
+    'other',
+  ];
+
+  const submit = async () => {
+    if (!form.name.trim() || !form.phone.trim()) {
+      setErr('A name and a phone number are the whole point.');
+      return;
+    }
+    setBusy(true);
+    const { error } = await addVendor({ ownerId }, ownerId, {
+      name: form.name.trim(),
+      trade: form.trade,
+      phone: form.phone.trim(),
+    });
+    setBusy(false);
+    if (error) {
+      setErr(error);
+      return;
+    }
+    setForm({ name: '', trade: 'plumbing', phone: '' });
+    setErr(null);
+    addToast('Contractor added.', 'success');
+    await refresh();
+  };
+
+  const activeCount = vendors.filter((v) => v.active).length;
+  const inputCls =
+    'w-full px-3 py-2 border border-black/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/30';
+
+  return (
+    <div className="bg-white rounded-2xl border border-black/5 p-4 mb-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 text-sm font-bold text-charcoal"
+      >
+        <i className={open ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} />
+        My contractors
+        <span className="text-xs font-normal text-charcoal/40">
+          {activeCount === 0 ? 'nobody added yet' : `${activeCount} on the list`}
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-4">
+          <p className="text-xs text-charcoal/50 mb-3">
+            The plumber and electrician you already call. They do not need the app — adding them
+            here lets you attach a name and a WhatsApp button to a tenant's request.
+          </p>
+
+          {vendors.length > 0 && (
+            <ul className="space-y-2 mb-4">
+              {vendors.map((v) => (
+                <li key={v.id} className={`flex items-center gap-2 ${v.active ? '' : 'opacity-40'}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-charcoal truncate">
+                      {v.name}
+                      {v.trade !== 'other' && (
+                        <span className="text-charcoal/50"> · {v.trade}</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-charcoal/40">{v.phone}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const { error } = await setVendorActive(v.id, !v.active);
+                      if (error) addToast(error, 'error');
+                      else await refresh();
+                    }}
+                    className="text-xs font-semibold text-charcoal/40 hover:text-charcoal flex-shrink-0"
+                  >
+                    {v.active ? 'Retire' : 'Restore'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="grid sm:grid-cols-3 gap-2">
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Name"
+              className={inputCls}
+            />
+            <select
+              value={form.trade}
+              onChange={(e) => setForm({ ...form, trade: e.target.value })}
+              className={inputCls}
+            >
+              {TRADES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <input
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="Phone"
+              className={inputCls}
+            />
+          </div>
+          {err && <p className="text-sm text-red-600 mt-2">{err}</p>}
+          <button
+            onClick={() => void submit()}
+            disabled={busy}
+            className="mt-3 px-4 py-2 bg-charcoal text-white rounded-lg text-sm font-semibold disabled:opacity-40"
+          >
+            {busy ? 'Adding…' : 'Add contractor'}
+          </button>
         </div>
       )}
     </div>

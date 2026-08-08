@@ -19,6 +19,17 @@ export interface MaintenanceRequest {
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
+  // Level 1 of the service-provider work: a name and a phone number the
+  // owner already had, attached to the request. No vendor account exists.
+  assigned_vendor_id: string | null;
+  assigned_at: string | null;
+  vendor_would_use_again: boolean | null;
+  vendor?: {
+    id: string;
+    name: string;
+    phone: string;
+    trade: string;
+  } | null;
 }
 
 export interface CreateMaintenanceRequestInput {
@@ -149,7 +160,7 @@ export function useOwnerMaintenanceRequests(ownerId: string | undefined) {
 
     const { data, error: dbError } = await supabase
       .from('maintenance_requests')
-      .select('*, tenant:users_public!maintenance_requests_tenant_id_fkey(name, avatar_url), agreement:rental_agreements!maintenance_requests_agreement_id_fkey(property_address, flat_number)')
+      .select('*, tenant:users_public!maintenance_requests_tenant_id_fkey(name, avatar_url), agreement:rental_agreements!maintenance_requests_agreement_id_fkey(property_address, flat_number), vendor:service_vendors!maintenance_requests_assigned_vendor_id_fkey(id, name, phone, trade)')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
 
@@ -178,6 +189,10 @@ export function useOwnerMaintenanceRequests(ownerId: string | undefined) {
           created_at: String(row.created_at),
           updated_at: String(row.updated_at),
           resolved_at: (row.resolved_at as string | null) ?? null,
+          assigned_vendor_id: (row.assigned_vendor_id as string | null) ?? null,
+          assigned_at: (row.assigned_at as string | null) ?? null,
+          vendor_would_use_again: (row.vendor_would_use_again as boolean | null) ?? null,
+          vendor: (row.vendor as OwnerMaintenanceRequest['vendor']) ?? null,
           tenant_name: tenant.name ?? 'Unknown',
           tenant_avatar: tenant.avatar_url ?? null,
           property_name: agreement.property_address || agreement.flat_number || 'Unknown property',
