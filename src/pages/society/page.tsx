@@ -13,6 +13,7 @@ import {
   createSociety,
   decideMembership,
   setMemberRole,
+  removeMembership,
   updateMyUnits,
   startSocietyPlanCheckout,
   SOCIETY_PLAN,
@@ -27,6 +28,7 @@ import {
   type Society,
   type SocietyPreview,
   type SocietyMember,
+  type SocietyMembership,
   type Announcement,
   type Ticket,
   type TicketStatus,
@@ -43,7 +45,7 @@ import {
  */
 export default function SocietyPage() {
   const { user } = useAuth();
-  const { society, membership, verifiedOwner, isPaid, loading, error, refresh } =
+  const { society, membership, memberships, selectSociety, verifiedOwner, isPaid, loading, error, refresh } =
     useSociety(user?.id);
 
   if (!user) return <SignedOut />;
@@ -86,6 +88,8 @@ export default function SocietyPage() {
       <SocietyHome
         society={society}
         membership={membership}
+        memberships={memberships}
+        onSwitch={selectSociety}
         userId={user.id}
         isPaid={isPaid}
         onRefresh={refresh}
@@ -462,12 +466,16 @@ function Rejected({ society, membership }: { society: Society; membership: Socie
 function SocietyHome({
   society,
   membership,
+  memberships,
+  onSwitch,
   userId,
   isPaid,
   onRefresh,
 }: {
   society: Society;
   membership: SocietyMember;
+  memberships: SocietyMembership[];
+  onSwitch: (communityId: string) => void;
   userId: string;
   isPaid: boolean;
   onRefresh: () => Promise<void>;
@@ -504,6 +512,26 @@ function SocietyHome({
 
   return (
     <Shell>
+      {/* Only rendered when the owner actually has more than one building.
+          A picker with a single entry is furniture. */}
+      {memberships.length > 1 && (
+        <div className="flex gap-1 p-1 bg-white rounded-xl border border-black/5 mb-4 overflow-x-auto sm:inline-flex">
+          {memberships.map((m) => (
+            <button
+              key={m.society.id}
+              onClick={() => onSwitch(m.society.id)}
+              className={`flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                m.society.id === society.id
+                  ? 'bg-charcoal text-white'
+                  : 'text-gray-500 hover:text-charcoal'
+              }`}
+            >
+              {m.society.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-charcoal truncate">{society.name}</h1>
@@ -786,6 +814,22 @@ function Members({
     await act(m.id, () => decideMembership(m.id, 'rejected', adminId, reason || undefined));
   };
 
+  // Both destructive and both irreversible from the app, so both confirm.
+  // The wording says what survives, because "remove" reads like it erases
+  // the person's history and it does not.
+  const removeMember = async (m: SocietyMember) => {
+    const who = m.user?.name ?? 'this owner';
+    if (
+      !window.confirm(
+        `Remove ${who} from the society? They lose access to notices, issues and collections. Anything they reported or paid stays on the record.`
+      )
+    ) {
+      return;
+    }
+    await act(m.id, () => removeMembership(m.id));
+  };
+
+
   if (loading) return <div className="h-32 bg-gray-100 rounded-xl animate-pulse" />;
   if (error) return <Notice tone="error" icon="ri-error-warning-line" title="Couldn't load members">{error}</Notice>;
 
@@ -832,23 +876,27 @@ function Members({
           {approved.map((m) => (
             <MemberRow key={m.id} member={m} busy={busyId === m.id}>
               {m.id === myMemberId ? (
+                // Leaving lives on Overview, which every member can reach.
                 <span className="text-xs text-gray-400 px-2">You</span>
-              ) : m.role === 'admin' ? (
-                <button
-                  onClick={() => void act(m.id, () => setMemberRole(m.id, 'member'))}
-                  disabled={busyId === m.id}
-                  className="px-3 py-1.5 border border-gray-200 text-charcoal rounded-lg text-xs font-semibold disabled:opacity-40"
-                >
-                  Remove admin
-                </button>
               ) : (
-                <button
-                  onClick={() => void act(m.id, () => setMemberRole(m.id, 'admin'))}
-                  disabled={busyId === m.id}
-                  className="px-3 py-1.5 border border-gray-200 text-charcoal rounded-lg text-xs font-semibold disabled:opacity-40"
-                >
-                  Make admin
-                </button>
+                <>
+                  <button
+                    onClick={() =>
+                      void act(m.id, () => setMemberRole(m.id, m.role === 'admin' ? 'member' : 'admin'))
+                    }
+                    disabled={busyId === m.id}
+                    className="px-3 py-1.5 border border-gray-200 text-charcoal rounded-lg text-xs font-semibold disabled:opacity-40"
+                  >
+                    {m.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                  </button>
+                  <button
+                    onClick={() => void removeMember(m)}
+                    disabled={busyId === m.id}
+                    className="px-3 py-1.5 border border-gray-200 text-charcoal/60 rounded-lg text-xs font-semibold disabled:opacity-40 hover:border-red-300 hover:text-red-600"
+                  >
+                    Remove
+                  </button>
+                </>
               )}
             </MemberRow>
           ))}

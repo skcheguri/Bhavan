@@ -58,10 +58,14 @@ export interface SocietyMember {
 }
 
 interface UseSocietyReturn {
-  /** The society this user belongs to, if any. */
+  /** The society currently being viewed, if any. */
   society: Society | null;
-  /** Their membership row. May be pending or rejected. */
+  /** Their membership row in that society. May be pending or rejected. */
   membership: SocietyMember | null;
+  /** Every society this user belongs to. One entry for most owners. */
+  memberships: SocietyMembership[];
+  /** Switch which society is being viewed. */
+  selectSociety: (communityId: string) => void;
   /** Whether they have cleared Bhavan's owner verification. */
   verifiedOwner: boolean;
   /** Whether the SOCIETY has an active plan. Never about this user. */
@@ -69,6 +73,12 @@ interface UseSocietyReturn {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+}
+
+/** A membership plus the society it is in, as the switcher needs them. */
+export interface SocietyMembership {
+  member: SocietyMember;
+  society: Society;
 }
 
 const NOT_CONNECTED = 'Not connected to the database.';
@@ -86,10 +96,13 @@ function client() {
 export function useSociety(userId: string | undefined): UseSocietyReturn {
   const [society, setSociety] = useState<Society | null>(null);
   const [membership, setMembership] = useState<SocietyMember | null>(null);
+  const [memberships, setMemberships] = useState<SocietyMembership[]>([]);
   const [verifiedOwner, setVerifiedOwner] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Which society is on screen. Null means "whichever is first".
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     const supabase = client();
@@ -113,12 +126,15 @@ export function useSociety(userId: string | undefined): UseSocietyReturn {
     // had silently failed, and would file it again.
     const [{ data: gate }, { data: rows, error: dbError }, { data: created }] = await Promise.all([
       supabase.rpc('is_verified_owner', { p_user: userId }),
+      // No limit. An owner with flats in two buildings has two
+      // memberships, and capping this at one silently hid the second --
+      // they could see only whichever they joined most recently, with no
+      // indication the other existed.
       supabase
         .from('community_members')
         .select('*, community:communities(*)')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1),
+        .order('created_at', { ascending: true }),
       supabase
         .from('communities')
         .select('*')
@@ -137,34 +153,53 @@ export function useSociety(userId: string | undefined): UseSocietyReturn {
       return;
     }
 
-    const row = rows?.[0] as (SocietyMember & { community: Society | null }) | undefined;
-    if (row) {
-      const { community, ...member } = row;
-      setMembership(member);
-      setSociety(community);
+    const all = (rows ?? []) as (SocietyMember & { community: Society | null })[];
+    const usable: SocietyMembership[] = all
+      .filter((r) => r.community)
+      .map(({ community, ...member }) => ({ member, society: community as Society }));
+    setMemberships(usable);
+
+    // Keep showing whichever society was selected if it is still there,
+    // so a refresh after approving a member does not jump the admin back
+    // to a different building.
+    const current =
+      usable.find((m) => m.society.id === selectedId) ?? usable[0] ?? null;
+
+    if (current) {
+      setMembership(current.member);
+      setSociety(current.society);
       // Asked of the database, for the same reason as the verification
       // gate: the client is never the authority on what has been paid for.
-      if (community) {
-        const { data: paid } = await supabase.rpc('community_is_paid', {
-          p_community: community.id,
-        });
-        setIsPaid(paid === true);
-      }
+      const { data: paid } = await supabase.rpc('community_is_paid', {
+        p_community: current.society.id,
+      });
+      setIsPaid(paid === true);
     } else {
       // No membership: fall back to a society they registered and are
       // still waiting on. A society they created that has been approved
       // always has a membership row, so anything found here is unreviewed.
       setMembership(null);
       setSociety((created?.[0] as Society | undefined) ?? null);
+      setIsPaid(false);
     }
     setLoading(false);
-  }, [userId]);
+  }, [userId, selectedId]);
 
   useEffect(() => {
     void fetchAll();
   }, [fetchAll]);
 
-  return { society, membership, verifiedOwner, isPaid, loading, error, refresh: fetchAll };
+  return {
+    society,
+    membership,
+    memberships,
+    selectSociety: setSelectedId,
+    verifiedOwner,
+    isPaid,
+    loading,
+    error,
+    refresh: fetchAll,
+  };
 }
 
 /**
@@ -347,6 +382,23 @@ export async function updateMyUnits(
     .update({ unit_numbers: unitNumbers })
     .eq('id', memberId);
 
+  return { error: error ? error.message : null };
+}
+
+/**
+ * Remove a membership: an admin removing someone, or a member leaving.
+ *
+ * The society keeps its history. Tickets, comments and contributions
+ * reference the user rather than the membership row, so an issue does not
+ * stop having been reported because the reporter moved out, and a
+ * confirmed contribution stays in the ledger the treasurer reconciled.
+ */
+export async function removeMembership(memberId: string): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.from('community_members').delete().eq('id', memberId);
+  // Postgres phrases the only-admin refusal for a reader already.
   return { error: error ? error.message : null };
 }
 
