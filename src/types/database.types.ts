@@ -359,6 +359,89 @@ export type Database = {
           },
         ]
       }
+      communities: {
+        Row: {
+          address: string
+          city: string | null
+          created_at: string
+          created_by: string
+          id: string
+          join_code: string
+          kind: string
+          name: string
+          proof_doc_url: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          state: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          city?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          join_code: string
+          kind?: string
+          name: string
+          proof_doc_url?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          state?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          city?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          join_code?: string
+          kind?: string
+          name?: string
+          proof_doc_url?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          state?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "communities_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communities_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communities_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communities_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_comments: {
         Row: {
           author_id: string
@@ -401,6 +484,87 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_members: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          community_id: string
+          created_at: string
+          id: string
+          proof_doc_url: string | null
+          rejection_reason: string | null
+          role: string
+          status: string
+          unit_numbers: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          community_id: string
+          created_at?: string
+          id?: string
+          proof_doc_url?: string | null
+          rejection_reason?: string | null
+          role?: string
+          status?: string
+          unit_numbers?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          community_id?: string
+          created_at?: string
+          id?: string
+          proof_doc_url?: string | null
+          rejection_reason?: string | null
+          role?: string
+          status?: string
+          unit_numbers?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_members_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_members_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_members_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
             referencedColumns: ["id"]
           },
         ]
@@ -493,6 +657,67 @@ export type Database = {
           {
             foreignKeyName: "community_posts_author_id_fkey"
             columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_subscriptions: {
+        Row: {
+          community_id: string
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan: string
+          purchased_by: string | null
+          status: string
+          unit_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          community_id: string
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan?: string
+          purchased_by?: string | null
+          status?: string
+          unit_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          community_id?: string
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan?: string
+          purchased_by?: string | null
+          status?: string
+          unit_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_subscriptions_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: true
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_subscriptions_purchased_by_fkey"
+            columns: ["purchased_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_subscriptions_purchased_by_fkey"
+            columns: ["purchased_by"]
             isOneToOne: false
             referencedRelation: "users_public"
             referencedColumns: ["id"]
@@ -2637,8 +2862,19 @@ export type Database = {
       }
       check_cron_health_and_alert: { Args: never; Returns: undefined }
       check_error_rate_and_alert: { Args: never; Returns: string }
+      community_is_paid: { Args: { p_community: string }; Returns: boolean }
       delete_my_account: { Args: never; Returns: undefined }
       expire_lapsed_subscriptions: { Args: never; Returns: number }
+      find_community_by_code: {
+        Args: { p_code: string }
+        Returns: {
+          city: string
+          id: string
+          kind: string
+          name: string
+        }[]
+      }
+      generate_join_code: { Args: never; Returns: string }
       get_my_profile: {
         Args: never
         Returns: {
@@ -2674,6 +2910,7 @@ export type Database = {
         }
       }
       has_admin_role: { Args: { uid?: string }; Returns: boolean }
+      has_pro: { Args: { p_user?: string }; Returns: boolean }
       increment_listing_counter: {
         Args: { p_counter: string; p_delta?: number; p_listing_id: string }
         Returns: undefined
@@ -2683,6 +2920,9 @@ export type Database = {
         Returns: undefined
       }
       is_admin: { Args: { uid?: string }; Returns: boolean }
+      is_community_admin: { Args: { p_community: string }; Returns: boolean }
+      is_community_member: { Args: { p_community: string }; Returns: boolean }
+      is_verified_owner: { Args: { p_user?: string }; Returns: boolean }
       mark_aadhaar_verified: { Args: { p_last4: string }; Returns: undefined }
       notify_agreement_shared: {
         Args: { p_agreement_id: string }
