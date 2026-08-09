@@ -11,17 +11,17 @@ export const inputCls =
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[70vh] bg-lightgray/40">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">{children}</div>
+    <div className="min-h-[70vh] bg-offwhite">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16">{children}</div>
     </div>
   );
 }
 
 export function PageTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="mb-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-charcoal">{title}</h1>
-      {subtitle && <p className="text-sm text-gray-500 mt-1.5">{subtitle}</p>}
+    <div className="mb-8">
+      <h1 className="text-2xl sm:text-[2rem] font-semibold text-charcoal tracking-[-.03em] leading-tight">{title}</h1>
+      {subtitle && <p className="text-[15px] text-charcoal/55 mt-2 max-w-[60ch]">{subtitle}</p>}
     </div>
   );
 }
@@ -44,7 +44,7 @@ export function Notice({
     success: 'bg-green-50 border-green-100 text-green-900',
   };
   return (
-    <div className={`rounded-xl border p-5 ${tones[tone]}`}>
+    <div className={`rounded-2xl border p-5 sm:p-6 ${tones[tone]}`}>
       <div className="flex items-start gap-3">
         <i className={`${icon} text-lg mt-0.5 flex-shrink-0`} />
         <div className="min-w-0">
@@ -77,8 +77,8 @@ export function Field({
 export function Pip({ active, children }: { active: boolean; children: React.ReactNode }) {
   return (
     <span
-      className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[11px] ${
-        active ? 'bg-white/20' : 'bg-brand text-white'
+      className={`ml-1.5 min-w-[18px] px-1.5 h-[18px] inline-flex items-center justify-center rounded-full text-[10px] font-semibold tabular-nums ${
+        active ? 'bg-charcoal/10 text-charcoal' : 'bg-lightgray text-charcoal/60'
       }`}
     >
       {children}

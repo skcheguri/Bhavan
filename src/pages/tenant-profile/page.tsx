@@ -259,7 +259,7 @@ export default function TenantProfile() {
         )}
 
         {/* Profile Header */}
-        <div className="bg-white rounded-3xl border border-black/5 overflow-hidden mb-6">
+        <div className="bg-white rounded-2xl border border-black/5 overflow-hidden mb-6">
           {/* Cover */}
           <div className="h-32 md:h-44 relative overflow-hidden">
             <img
@@ -345,21 +345,21 @@ export default function TenantProfile() {
         </div>
 
         {/* Tabs */}
-        <div className="sticky top-0 z-30 flex gap-1 bg-white rounded-xl border border-black/5 p-1.5 mb-6 overflow-x-auto shadow-sm">
+        <div className="sticky top-0 z-30 flex gap-1 bg-offwhite/90 backdrop-blur-md border-b border-black/5 py-2 mb-8 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 md:flex-1 ${
+              className={`relative flex items-center justify-center gap-2 px-5 py-3 rounded-full text-sm transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 md:flex-1 ${
                 activeTab === tab.id
-                  ? 'bg-brand text-white'
-                  : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+                  ? 'bg-lightgray text-charcoal font-semibold'
+                  : 'text-charcoal/60 font-medium hover:text-charcoal'
               }`}
             >
               <i className={`${tab.icon} text-sm`} />
               {tab.label}
               {tab.badge != null && tab.badge > 0 && (
-                <span className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${activeTab === tab.id ? 'bg-white text-brand' : 'bg-brand text-white'}`}>
+                <span className="ml-0.5 min-w-[18px] px-1.5 h-[18px] rounded-full bg-charcoal/10 text-charcoal text-[10px] font-semibold flex items-center justify-center tabular-nums">
                   {tab.badge}
                 </span>
               )}
@@ -369,11 +369,11 @@ export default function TenantProfile() {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left column */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-8">
               {/* Personal Details */}
-              <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
                 <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                   <div className="w-6 h-6 flex items-center justify-center">
                     <i className="ri-user-line text-brand" />
@@ -541,7 +541,7 @@ export default function TenantProfile() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6">
                     {[
                       { label: 'Full Name', value: user.name, icon: 'ri-user-line' },
                       { label: 'Email', value: user.email, icon: 'ri-mail-line' },
@@ -554,14 +554,9 @@ export default function TenantProfile() {
                       { label: 'Aadhaar', value: user.aadhaarLast4 ? `XXXX XXXX ${user.aadhaarLast4}` : 'Not verified', icon: 'ri-shield-user-line' },
                       { label: 'Member Since', value: user.joinedAt, icon: 'ri-time-line' },
                     ].map((field) => (
-                      <div key={field.label} className="flex items-start gap-3">
-                        <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-brand/10 flex-shrink-0 mt-0.5">
-                          <i className={`${field.icon} text-sm text-brand`} />
-                        </div>
-                        <div>
-                          <p className="text-xs text-charcoal/40 font-medium">{field.label}</p>
-                          <p className="text-sm font-semibold text-charcoal mt-0.5">{field.value}</p>
-                        </div>
+                      <div key={field.label}>
+                        <p className="text-[13px] text-charcoal/50">{field.label}</p>
+                        <p className="text-[15px] text-charcoal mt-1">{field.value}</p>
                       </div>
                     ))}
                   </div>
@@ -570,7 +565,7 @@ export default function TenantProfile() {
 
               {/* Current Flat Card - only show if there's a real active agreement */}
               {activeAgreement && (
-                <div className="bg-white rounded-3xl border border-black/5 p-6">
+                <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
                   <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                     <div className="w-6 h-6 flex items-center justify-center">
                       <i className="ri-home-4-line text-brand" />
@@ -617,8 +612,8 @@ export default function TenantProfile() {
             {/* Right column */}
             <div className="space-y-6">
               {/* Verification Status */}
-              <div className="bg-white rounded-3xl border border-black/5 p-5">
-                <h3 className="text-sm font-bold text-charcoal mb-4">Verification Status</h3>
+              <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+                <h3 className="text-[15px] font-semibold text-charcoal mb-5">Verification Status</h3>
                 <div className="space-y-3">
                   {[
                     { label: 'Email Verified', done: user.verifiedEmail, icon: 'ri-mail-check-line' },
@@ -628,10 +623,8 @@ export default function TenantProfile() {
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-7 h-7 flex items-center justify-center rounded-lg ${item.done ? 'bg-green-50' : 'bg-lightgray'}`}>
-                          <i className={`${item.icon} text-sm ${item.done ? 'text-green-600' : 'text-charcoal/40'}`} />
-                        </div>
-                        <span className="text-sm text-charcoal font-medium">{item.label}</span>
+                        <i className={`${item.icon} text-base ${item.done ? 'text-green-600' : 'text-charcoal/30'}`} />
+                        <span className="text-[15px] text-charcoal">{item.label}</span>
                       </div>
                       {item.done ? (
                         <i className="ri-checkbox-circle-fill text-green-500 text-base" />
@@ -652,8 +645,8 @@ export default function TenantProfile() {
               </div>
 
               {/* Quick Actions */}
-              <div className="bg-white rounded-3xl border border-black/5 p-5">
-                <h3 className="text-sm font-bold text-charcoal mb-4">Quick Actions</h3>
+              <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+                <h3 className="text-[15px] font-semibold text-charcoal mb-5">Quick Actions</h3>
                 <div className="space-y-1">
                   {[
                     { to: '/rent-payment', icon: 'ri-money-rupee-circle-line', label: 'Pay Rent', color: 'bg-red-50 text-red-500' },
@@ -712,7 +705,7 @@ export default function TenantProfile() {
               </Link>
             </div>
             {savedLoading ? (
-              <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
+              <div className="bg-white rounded-2xl border border-black/5 p-12 text-center">
                 <div className="w-12 h-12 flex items-center justify-center mx-auto mb-4">
                   <i className="ri-loader-4-line animate-spin text-brand text-3xl" />
                 </div>
@@ -721,7 +714,7 @@ export default function TenantProfile() {
             ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {savedListingsFromDB.map((listing) => (
-                <div key={listing.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden hover:border-brand/30 transition group">
+                <div key={listing.id} className="bg-white rounded-2xl border border-black/5 overflow-hidden hover:border-brand/30 transition group">
                   <div className="relative h-44 overflow-hidden">
                     <img
                       src={listing.images[0]}
@@ -791,7 +784,7 @@ export default function TenantProfile() {
             </div>
             )}
             {savedListingsFromDB.length === 0 && !savedLoading && (
-              <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
+              <div className="bg-white rounded-2xl border border-black/5 p-12 text-center">
                 <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
                   <i className="ri-bookmark-line text-2xl text-charcoal/40" />
                 </div>
@@ -819,7 +812,7 @@ export default function TenantProfile() {
         {activeTab === 'settings' && (
           <div className="max-w-2xl space-y-6">
             {/* Notifications */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-signal-tower-line text-brand" />
@@ -833,7 +826,7 @@ export default function TenantProfile() {
             </div>
 
             {/* Security */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <h2 className="text-base font-bold text-charcoal mb-4">Security</h2>
               <BiometricSetting />
               <button

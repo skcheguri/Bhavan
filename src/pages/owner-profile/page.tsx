@@ -346,7 +346,7 @@ export default function OwnerProfile() {
         )}
 
         {/* Profile Header */}
-        <div className="bg-white rounded-3xl border border-black/5 overflow-hidden mb-6">
+        <div className="bg-white rounded-2xl border border-black/5 overflow-hidden mb-6">
           <div className="h-32 md:h-44 relative overflow-hidden">
             <img
               src="/placeholders/photo.svg"
@@ -471,19 +471,19 @@ export default function OwnerProfile() {
         )}
 
         {/* Tabs */}
-        <div className="sticky top-0 z-30 flex gap-1 bg-white rounded-xl border border-black/5 p-1.5 mb-6 overflow-x-auto shadow-sm">
+        <div className="sticky top-0 z-30 flex gap-1 bg-offwhite/90 backdrop-blur-md border-b border-black/5 py-2 mb-8 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id); setActiveChatRequestId(null); }}
-              className={`relative flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 md:flex-1 ${
-                activeTab === tab.id ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+              className={`relative flex items-center justify-center gap-2 px-5 py-3 rounded-full text-sm transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 md:flex-1 ${
+                activeTab === tab.id ? 'bg-lightgray text-charcoal font-semibold' : 'text-charcoal/60 font-medium hover:text-charcoal'
               }`}
             >
               <i className={`${tab.icon} text-sm`} />
               {tab.label}
               {tab.badge != null && tab.badge > 0 && (
-                <span className={`absolute top-1.5 right-1.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center ${activeTab === tab.id ? 'bg-white text-amber-600' : 'bg-amber-500 text-white'}`}>
+                <span className="ml-0.5 min-w-[18px] px-1.5 h-[18px] rounded-full bg-charcoal/10 text-charcoal text-[10px] font-semibold flex items-center justify-center tabular-nums">
                   {tab.badge}
                 </span>
               )}
@@ -493,10 +493,10 @@ export default function OwnerProfile() {
 
         {/* Tab Content */}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-8">
               {/* Personal Info */}
-              <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
                 <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                   <div className="w-6 h-6 flex items-center justify-center">
                     <i className="ri-user-line text-amber-600" />
@@ -617,7 +617,7 @@ export default function OwnerProfile() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6">
                     {[
                       { label: 'Full Name', value: user.name, icon: 'ri-user-line' },
                       { label: 'Email', value: user.email, icon: 'ri-mail-line' },
@@ -628,14 +628,9 @@ export default function OwnerProfile() {
                       { label: 'Aadhaar', value: user.aadhaarLast4 ? `XXXX XXXX ${user.aadhaarLast4}` : 'Not verified', icon: 'ri-shield-user-line' },
                       { label: 'Member Since', value: user.joinedAt, icon: 'ri-time-line' },
                     ].map((field) => (
-                      <div key={field.label} className="flex items-start gap-3">
-                        <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-50 flex-shrink-0 mt-0.5">
-                          <i className={`${field.icon} text-sm text-amber-600`} />
-                        </div>
-                        <div>
-                          <p className="text-xs text-charcoal/40 font-medium">{field.label}</p>
-                          <p className="text-sm font-semibold text-charcoal mt-0.5">{field.value}</p>
-                        </div>
+                      <div key={field.label}>
+                        <p className="text-[13px] text-charcoal/50">{field.label}</p>
+                        <p className="text-[15px] text-charcoal mt-1">{field.value}</p>
                       </div>
                     ))}
                   </div>
@@ -650,8 +645,8 @@ export default function OwnerProfile() {
               <SocietyIssuesCard userId={user.id} />
 
               {/* Verification */}
-              <div className="bg-white rounded-3xl border border-black/5 p-5">
-                <h3 className="text-sm font-bold text-charcoal mb-4">Verification Status</h3>
+              <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+                <h3 className="text-[15px] font-semibold text-charcoal mb-5">Verification Status</h3>
                 <div className="space-y-3">
                   {[
                     { label: 'Email Verified', done: user.verifiedEmail, icon: 'ri-mail-check-line' },
@@ -660,10 +655,8 @@ export default function OwnerProfile() {
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-7 h-7 flex items-center justify-center rounded-lg ${item.done ? 'bg-green-50' : 'bg-lightgray'}`}>
-                          <i className={`${item.icon} text-sm ${item.done ? 'text-green-600' : 'text-charcoal/40'}`} />
-                        </div>
-                        <span className="text-sm text-charcoal font-medium">{item.label}</span>
+                        <i className={`${item.icon} text-base ${item.done ? 'text-green-600' : 'text-charcoal/30'}`} />
+                        <span className="text-[15px] text-charcoal">{item.label}</span>
                       </div>
                       {item.done ? (
                         <i className="ri-checkbox-circle-fill text-green-500 text-base" />
@@ -684,8 +677,8 @@ export default function OwnerProfile() {
               </div>
 
               {/* Quick Actions */}
-              <div className="bg-white rounded-3xl border border-black/5 p-5">
-                <h3 className="text-sm font-bold text-charcoal mb-4">Quick Actions</h3>
+              <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+                <h3 className="text-[15px] font-semibold text-charcoal mb-5">Quick Actions</h3>
                 <div className="space-y-2">
                   {[
                     { to: '/list-property', icon: 'ri-home-4-line', label: 'List a Property', color: 'bg-amber-50 text-amber-600' },
@@ -744,7 +737,7 @@ export default function OwnerProfile() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {myListings.map((listing) => (
-                <div key={listing.id} className="bg-white rounded-3xl border border-black/5 overflow-hidden hover:border-amber-200 transition group">
+                <div key={listing.id} className="bg-white rounded-2xl border border-black/5 overflow-hidden hover:border-amber-200 transition group">
                   <div className="relative h-44 overflow-hidden">
                     <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -831,12 +824,12 @@ export default function OwnerProfile() {
                 listings yet" for the whole fetch, then watched them
                 appear. */}
             {listingsLoading && myListings.length === 0 && (
-              <div className="bg-white rounded-3xl border border-black/5 p-12 text-center text-sm text-charcoal/40">
+              <div className="bg-white rounded-2xl border border-black/5 p-12 text-center text-sm text-charcoal/40">
                 Loading your listings…
               </div>
             )}
             {!listingsLoading && myListings.length === 0 && (
-              <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
+              <div className="bg-white rounded-2xl border border-black/5 p-12 text-center">
                 <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-amber-50 rounded-full">
                   <i className="ri-home-4-line text-2xl text-amber-500" />
                 </div>
@@ -855,7 +848,7 @@ export default function OwnerProfile() {
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-charcoal">Active Tenants ({tenantRows.length})</h2>
             </div>
-            <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px]">
                   <thead>
@@ -943,7 +936,7 @@ export default function OwnerProfile() {
                   { to: '/rent-receipts', icon: 'ri-file-text-line', label: 'Rent Receipt Generator', desc: 'Generate formatted rent receipts instantly', color: 'bg-amber-50 text-amber-600' },
                   { to: '/tax-forms', icon: 'ri-government-line', label: 'Tax & Legal Forms', desc: 'Income tax, TDS & HRA declaration forms', color: 'bg-teal-50 text-teal-600' },
                 ].map((tool) => (
-                  <Link key={tool.to} to={tool.to} className="bg-white rounded-3xl border border-black/5 p-5 hover:border-amber-200 transition group">
+                  <Link key={tool.to} to={tool.to} className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7 hover:border-amber-200 transition group">
                     <div className={`w-10 h-10 flex items-center justify-center rounded-xl mb-3 ${tool.color}`}>
                       <i className={`${tool.icon} text-lg`} />
                     </div>
@@ -961,7 +954,7 @@ export default function OwnerProfile() {
             <div>
               <h2 className="text-base font-bold text-charcoal mb-4">Rental Agreements</h2>
               {rentalAgreements.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-black/5 p-10 text-center">
+                <div className="bg-white rounded-2xl border border-black/5 p-10 text-center">
                   <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-amber-50 rounded-full">
                     <i className="ri-file-list-3-line text-2xl text-amber-500" />
                   </div>
@@ -972,7 +965,7 @@ export default function OwnerProfile() {
                   </Link>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
+                <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[640px]">
                       <thead>
@@ -1036,7 +1029,7 @@ export default function OwnerProfile() {
         {activeTab === 'billing' && (
           <div className="max-w-4xl space-y-6">
             {/* Plan Summary */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
                 <div>
                   <h2 className="text-base font-bold text-charcoal">Current Plan</h2>
@@ -1101,7 +1094,7 @@ export default function OwnerProfile() {
             </div>
 
             {/* Invoice History */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <h2 className="text-base font-bold text-charcoal mb-4">Billing History</h2>
               {billingHistory.length === 0 ? (
                 <div className="text-center py-10">
@@ -1157,7 +1150,7 @@ export default function OwnerProfile() {
                 there's no recurring charge to cancel; the plan simply
                 ends at the paid-through date unless renewed. */}
             {isPro && (
-              <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
                 <h2 className="text-base font-bold text-charcoal mb-4">Subscription Settings</h2>
                 <div className="bg-offwhite rounded-xl p-4 flex items-start gap-3">
                   <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-50 flex-shrink-0">
@@ -1178,7 +1171,7 @@ export default function OwnerProfile() {
 
         {activeTab === 'settings' && (
           <div className="max-w-2xl space-y-6">
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-signal-tower-line text-amber-600" />
@@ -1191,7 +1184,7 @@ export default function OwnerProfile() {
               <ChannelPreferences />
             </div>
 
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <h2 className="text-base font-bold text-charcoal mb-4">Security</h2>
               <BiometricSetting />
               <button
@@ -1213,7 +1206,7 @@ export default function OwnerProfile() {
             </div>
 
             {/* Activity Rate Limits */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-shield-check-line text-amber-600" />

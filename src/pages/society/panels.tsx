@@ -125,7 +125,7 @@ export function Notices({
       )}
 
       {composing && (
-        <div className="bg-white rounded-xl border border-black/5 p-5">
+        <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
           <Field label="Title">
             <input
               value={form.title}
@@ -186,7 +186,7 @@ export function Notices({
         </EmptyState>
       ) : (
         announcements.map((a) => (
-          <div key={a.id} className="bg-white rounded-xl border border-black/5 p-5">
+          <div key={a.id} className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -361,7 +361,7 @@ export function Maintenance({
       )}
 
       {composing && (
-        <div className="bg-white rounded-xl border border-black/5 p-5">
+        <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
           <Field label="What kind of issue?">
             <div className="flex flex-wrap gap-1.5">
               {TICKET_CATEGORIES.map((c) => (
@@ -458,7 +458,7 @@ export function Maintenance({
           return (
             <div
               key={t.id}
-              className={`bg-white rounded-xl border border-black/5 p-5 ${
+              className={`bg-white rounded-2xl border border-black/5 p-6 sm:p-7 ${
                 busyId === t.id ? 'opacity-50' : ''
               }`}
             >
@@ -910,7 +910,7 @@ function Contractors({
   const activeCount = vendors.filter((v) => v.active).length;
 
   return (
-    <div className="bg-white rounded-xl border border-black/5 p-4">
+    <div className="bg-white rounded-2xl border border-black/5 p-5">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 text-sm font-semibold text-charcoal"
