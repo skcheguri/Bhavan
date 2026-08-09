@@ -177,16 +177,11 @@ export function useReviewerReviews(reviewerId: string | undefined) {
   return { reviews, loading, refresh };
 }
 
-export async function hasReviewed(reviewerId: string, subjectId: string): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
-  const { count } = await supabase
-    .from('reviews')
-    .select('id', { count: 'exact', head: true })
-    .eq('reviewer_id', reviewerId)
-    .eq('subject_id', subjectId);
-  return (count ?? 0) > 0;
-}
+// hasReviewed(reviewer, subject) used to gate the "Write a Review"
+// button. It asked the wrong question: a review belongs to a tenancy,
+// and two people can share several, so one review of a person hid the
+// button for every tenancy they ever shared. useReviewableTenancies
+// answers per tenancy instead.
 
 // subject_id is required: reviews.subject_id is NOT NULL and reviews are
 // RLS-restricted to real tenant-owner relationships, so a review must

@@ -1,8 +1,8 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { useSubjectReviews, hasReviewed, type FeedbackRole } from '@/hooks/useReviews';
+import { useSubjectReviews, useReviewableTenancies, type FeedbackRole } from '@/hooks/useReviews';
 import FeedbackModal from '@/pages/feedback/components/FeedbackModal';
 
 interface BasicProfile {
@@ -25,10 +25,21 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole, canRev
   const { user: currentUser } = useAuth();
   const [profile, setProfile] = useState<BasicProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
-  const [checkingReviewed, setCheckingReviewed] = useState(true);
   const [reviewOpen, setReviewOpen] = useState(false);
   const { reviews, loading: reviewsLoading, refresh: refreshReviews } = useSubjectReviews(userId);
+
+  // Reviewing from a profile used to mean "you two have an approved
+  // connection, so type a property name" -- which let the same person be
+  // reviewed over and over, each review naming a flat nothing checked.
+  // The tenancies shared with this particular person are the same list
+  // /feedback offers, narrowed to them.
+  const { tenancies, loading: tenanciesLoading, refresh: refreshTenancies } =
+    useReviewableTenancies(currentUser?.id);
+  const shared = useMemo(
+    () => tenancies.filter((t) => t.subjectId === userId),
+    [tenancies, userId]
+  );
+  const unreviewed = shared.filter((t) => !t.alreadyReviewed);
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -46,17 +57,6 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole, canRev
         setLoadingProfile(false);
       });
   }, [userId]);
-
-  useEffect(() => {
-    if (!currentUser) {
-      setCheckingReviewed(false);
-      return;
-    }
-    hasReviewed(currentUser.id, userId).then((result) => {
-      setAlreadyReviewed(result);
-      setCheckingReviewed(false);
-    });
-  }, [currentUser, userId]);
 
   const avgRating = reviews.length > 0 ? reviews.reduce((s, r) => s + r.overall_rating, 0) / reviews.length : 0;
   const initials = (profile?.name ?? '?').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
@@ -116,17 +116,33 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole, canRev
 
           {canReview && (
             <div>
-              {checkingReviewed ? null : alreadyReviewed ? (
-                <div className="flex items-center gap-2 text-xs text-charcoal/60 bg-lightgray rounded-xl px-4 py-3">
-                  <i className="ri-checkbox-circle-line text-emerald-500" />
-                  You've already reviewed this person.
+              {tenanciesLoading ? null : shared.length === 0 ? (
+                // Offering the button here would have sent them into a
+                // form the database was always going to refuse, since a
+                // review needs a rental agreement behind it.
+                <div className="flex items-start gap-2 text-xs text-charcoal/60 bg-lightgray rounded-xl px-4 py-3">
+                  <i className="ri-information-line text-charcoal/40 mt-px" />
+                  <span>You can review this person once you have a rental agreement with them on Bhavan.</span>
+                </div>
+              ) : unreviewed.length === 0 ? (
+                <div className="flex items-start gap-2 text-xs text-charcoal/60 bg-lightgray rounded-xl px-4 py-3">
+                  <i className="ri-checkbox-circle-line text-emerald-500 mt-px" />
+                  <span>
+                    You&apos;ve reviewed {shared.length === 1 ? 'your tenancy' : 'every tenancy'} with this person.
+                  </span>
                 </div>
               ) : (
                 <button
                   onClick={() => setReviewOpen(true)}
                   className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white text-sm font-semibold px-4 py-2.5 rounded-full hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  <i className="ri-star-line" /> Write a Review
+                  <i className="ri-star-line" />
+                  Write a Review
+                  {shared.length > 1 && (
+                    <span className="text-white/70 font-normal">
+                      ({unreviewed.length} of {shared.length} tenancies)
+                    </span>
+                  )}
                 </button>
               )}
             </div>
@@ -165,12 +181,15 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole, canRev
       {reviewOpen && profile && (
         <FeedbackModal
           role={reviewRole}
-          lockedSubject={{ id: userId, name: profile.name }}
-          onClose={() => setReviewOpen(false)}
+          tenancies={shared}
+          onClose={() => { setReviewOpen(false); void refreshTenancies(); }}
           onSubmit={() => {
             setReviewOpen(false);
-            setAlreadyReviewed(true);
             refreshReviews();
+            // Same reason as on /feedback: without this the tenancy just
+            // reviewed is still on offer, and the second attempt meets
+            // the one-per-tenancy index instead of "already reviewed".
+            void refreshTenancies();
           }}
         />
       )}
