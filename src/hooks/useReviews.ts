@@ -26,6 +26,19 @@ export interface ReviewFromDB {
   answers: ReviewAnswer[];
   comment: string;
   created_at: string;
+  edited_at: string | null;
+}
+
+/**
+ * A review may be corrected for an hour, then it stands. The same hour is
+ * enforced by RLS and by enforce_review_edit_window() (migration 109) --
+ * this constant only decides whether the UI offers the button, and must
+ * not be relaxed on its own.
+ */
+export const REVIEW_EDIT_WINDOW_MS = 60 * 60 * 1000;
+
+export function editWindowClosesAt(createdAt: string): number {
+  return new Date(createdAt).getTime() + REVIEW_EDIT_WINDOW_MS;
 }
 
 function mapReview(r: Record<string, unknown>): ReviewFromDB {
@@ -47,6 +60,7 @@ function mapReview(r: Record<string, unknown>): ReviewFromDB {
     answers: (r.answers as ReviewAnswer[] | null) ?? [],
     comment: (r.comment as string | null) ?? '',
     created_at: String(r.created_at),
+    edited_at: (r.edited_at as string | null) ?? null,
   };
 }
 
@@ -183,6 +197,7 @@ export async function hasReviewed(reviewerId: string, subjectId: string): Promis
 export async function createReview(payload: {
   reviewer_id: string;
   subject_id: string;
+  agreement_id?: string | null;
   role: FeedbackRole;
   property_name: string;
   tenancy_period: string;
@@ -196,6 +211,7 @@ export async function createReview(payload: {
   const { error } = await supabase.from('reviews').insert({
     reviewer_id: payload.reviewer_id,
     subject_id: payload.subject_id,
+    agreement_id: payload.agreement_id ?? null,
     role: payload.role,
     property_name: payload.property_name,
     tenancy_period: payload.tenancy_period,
@@ -204,7 +220,51 @@ export async function createReview(payload: {
     comment: payload.comment,
   });
 
+  // A second review of the same tenancy is caught by the
+  // reviews_one_per_tenancy index. The reviewer sees this when their
+  // picker is out of date -- another tab, or a submission earlier in the
+  // same session -- and "duplicate key value violates unique constraint"
+  // is not something to put in front of them.
+  if (error?.code === '23505') {
+    return { error: 'You have already reviewed this tenancy. Each tenancy can be reviewed once.' };
+  }
   if (error) return { error: error.message };
+  return { error: null };
+}
+
+/**
+ * Correct a review inside its edit window.
+ *
+ * Only the verdict is sent. Who the review is about, which side it speaks
+ * from and which tenancy it belongs to are pinned server-side, so sending
+ * them would be at best ignored.
+ *
+ * The zero-row case matters: an UPDATE that RLS filters out is not an
+ * error. PostgREST returns success having changed nothing, so a reviewer
+ * whose hour ran out while the modal was open would otherwise be told
+ * their edit saved. `.select()` is what makes the difference visible.
+ */
+export async function updateReview(
+  id: string,
+  payload: { overall_rating: number; answers: ReviewAnswer[]; comment: string }
+): Promise<{ error: string | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: 'Supabase not connected' };
+
+  const { data, error } = await supabase
+    .from('reviews')
+    .update({
+      overall_rating: payload.overall_rating,
+      answers: payload.answers,
+      comment: payload.comment,
+    })
+    .eq('id', id)
+    .select('id');
+
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: 'This review can no longer be edited — reviews can only be changed within an hour of writing them.' };
+  }
   return { error: null };
 }
 
@@ -272,9 +332,10 @@ export function useReviewableTenancies(userId: string | undefined) {
 
     const { data: written } = await supabase
       .from('reviews')
-      .select('subject_id')
-      .eq('reviewer_id', userId);
-    const reviewed = new Set((written ?? []).map((r) => r.subject_id as string));
+      .select('agreement_id')
+      .eq('reviewer_id', userId)
+      .not('agreement_id', 'is', null);
+    const reviewed = new Set((written ?? []).map((r) => r.agreement_id as string));
 
     setTenancies(
       (data as Record<string, unknown>[])
@@ -296,7 +357,7 @@ export function useReviewableTenancies(userId: string | undefined) {
               a.lease_start_date as string | null,
               a.lease_end_date as string | null
             ),
-            alreadyReviewed: reviewed.has(subjectId),
+            alreadyReviewed: reviewed.has(String(a.id)),
           };
         })
         .filter((t): t is ReviewableTenancy => t !== null)

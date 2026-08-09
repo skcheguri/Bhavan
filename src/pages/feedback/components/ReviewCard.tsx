@@ -4,9 +4,15 @@ import StarRating from './StarRating';
 
 interface ReviewCardProps {
   entry: ReviewFromDB;
+  /**
+   * Supplied only for the signed-in user's own reviews that are still
+   * inside their edit window. Absent means the review stands as written.
+   */
+  onEdit?: () => void;
+  minutesLeftToEdit?: number;
 }
 
-export default function ReviewCard({ entry }: ReviewCardProps) {
+export default function ReviewCard({ entry, onEdit, minutesLeftToEdit }: ReviewCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const positiveAnswers = entry.answers.filter((a) => a.value === true);
@@ -148,9 +154,30 @@ export default function ReviewCard({ entry }: ReviewCardProps) {
       )}
 
       {/* Date */}
-      <p className="mt-4 text-xs text-charcoal/40">
-        Reviewed on {new Date(entry.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className="text-xs text-charcoal/40">
+          Reviewed on {new Date(entry.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+          {/* A review people may already have read, then changed, says so
+              -- otherwise the date above quietly vouches for wording that
+              was not there when it was written. */}
+          {entry.edited_at && ' · edited'}
+        </p>
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="ml-auto flex items-center gap-1.5 text-xs font-medium text-brand hover:text-brand-dark transition-colors cursor-pointer"
+          >
+            <i className="ri-pencil-line" />
+            Edit
+            {typeof minutesLeftToEdit === 'number' && (
+              <span className="text-charcoal/40 font-normal">
+                ({minutesLeftToEdit < 1 ? 'under a minute' : `${minutesLeftToEdit} min`} left)
+              </span>
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
