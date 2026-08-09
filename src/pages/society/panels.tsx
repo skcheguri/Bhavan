@@ -335,7 +335,7 @@ export function Maintenance({
   return (
     <div className="space-y-4">
       {!isPaid && (
-        <Notice tone="warn" icon="ri-lock-line" title="Reporting needs a society plan">
+        <Notice tone="info" icon="ri-lock-line" title="Reporting needs a society plan">
           Everyone can see what has been reported. Raising a new issue is part of the society plan
           {isAdmin ? ' — one subscription covers every owner here.' : '; ask a society admin.'}
         </Notice>

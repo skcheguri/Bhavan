@@ -129,7 +129,7 @@ export default function RegisterFlat() {
     return (
       <Shell>
         <PageTitle title="Sent for review" />
-        <Notice tone="success" icon="ri-check-line" title="We have your document">
+        <Notice tone="warn" icon="ri-time-line" title="We have your document">
           <p>
             Our team checks the name on it against your profile. This usually takes a day or two,
             and you will get a notification either way. Once it is approved you can join your
@@ -165,7 +165,7 @@ export default function RegisterFlat() {
 
       {awaitingReview.length > 0 && (
         <div className="mb-6">
-          <Notice tone="info" icon="ri-time-line" title="Already waiting on us">
+          <Notice tone="warn" icon="ri-time-line" title="Already waiting on us">
             {awaitingReview.length === 1
               ? `${awaitingReview[0].name} is with our team for review.`
               : `${awaitingReview.length} of your properties are with our team for review.`}{' '}
