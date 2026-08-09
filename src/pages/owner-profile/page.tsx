@@ -22,6 +22,7 @@ import ChatTab from './components/ChatTab';
 import { useOwnerListings, type ListingFromDB } from '@/hooks/useListings';
 import ChannelPreferences from '@/pages/notifications/components/ChannelPreferences';
 import { useToast } from '@/hooks/useToast';
+import AvatarPicker from '@/components/feature/AvatarPicker';
 import {
   isValidName,
   isValidEmail,
@@ -129,7 +130,6 @@ export default function OwnerProfile() {
     );
   }
 
-  const initials = user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
   const pendingInquiries = connectionRequests.filter((r) => r.status === 'pending').length;
 
@@ -345,13 +345,7 @@ export default function OwnerProfile() {
           <div className="px-6 pb-6">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-10 relative">
               <div className="flex items-end gap-4">
-                <div className="w-20 h-20 rounded-2xl bg-amber-100 border-4 border-white flex items-center justify-center flex-shrink-0">
-                  {user.avatar ? (
-                    <img src={user.avatar} alt={user.name} className="w-full h-full rounded-2xl object-cover" />
-                  ) : (
-                    <span className="text-2xl font-bold text-amber-600">{initials}</span>
-                  )}
-                </div>
+                <AvatarPicker name={user.name} avatar={user.avatar} tone="amber" />
                 <div className="pb-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h1 className="text-xl font-bold text-charcoal">{user.name}</h1>

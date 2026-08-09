@@ -7,6 +7,7 @@ import NotificationBell from '@/pages/owner-profile/components/NotificationBell'
 import PhoneVerifyModal from '@/components/feature/PhoneVerifyModal';
 import DeleteAccountModal from '@/components/feature/DeleteAccountModal';
 import { useToast } from '@/hooks/useToast';
+import AvatarPicker from '@/components/feature/AvatarPicker';
 import TenantInquiriesTab from './components/TenantInquiriesTab';
 import TenantChatTab from './components/TenantChatTab';
 import RentManagementTab from './components/RentManagementTab';
@@ -141,7 +142,6 @@ export default function TenantProfile() {
     );
   }
 
-  const initials = user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
   const handleSave = async () => {
     let hasError = false;
@@ -274,13 +274,7 @@ export default function TenantProfile() {
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-10 relative">
               {/* Avatar */}
               <div className="flex items-end gap-4">
-                <div className="w-20 h-20 rounded-2xl bg-brand/20 border-4 border-white flex items-center justify-center flex-shrink-0">
-                  {user.avatar ? (
-                    <img src={user.avatar} alt={user.name} className="w-full h-full rounded-2xl object-cover" />
-                  ) : (
-                    <span className="text-2xl font-bold text-brand">{initials}</span>
-                  )}
-                </div>
+                <AvatarPicker name={user.name} avatar={user.avatar} tone="brand" />
                 <div className="pb-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h1 className="text-xl font-bold text-charcoal">{user.name}</h1>

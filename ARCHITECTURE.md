@@ -16,7 +16,7 @@ flowchart TD
   subgraph SUPA["Supabase — the backend"]
     DB["✅ Postgres + RLS<br/><small>48 tables · 153 policies · 26 migrations<br/>authorization lives here, not in the client</small>"]
     AUTH["✅ Auth — email + Google<br/><small>admin requires TOTP (aal2)<br/>🟡 phone OTP: hook written, no SMS provider</small>"]
-    STORE["✅ Storage + Realtime<br/><small>ownership-documents bucket<br/>realtime used only for chat</small>"]
+    STORE["✅ Storage + Realtime<br/><small>3 buckets: listing-images, avatars (public)<br/>ownership-documents (private)<br/>realtime used only for chat</small>"]
     FN["✅ Edge functions (14)<br/><small>payments · subscriptions · society plans<br/>Razorpay webhook · push · KYC · geocode</small>"]
     CRON["✅ Scheduled jobs (4, pg_cron)<br/><small>error rate · cron health · expire subscriptions<br/>purge unconfirmed accounts</small>"]
   end
