@@ -20,7 +20,7 @@ import SocietyIssuesCard from './components/SocietyIssuesCard';
 import InquiriesTab from './components/InquiriesTab';
 import ChatTab from './components/ChatTab';
 import { useOwnerListings, type ListingFromDB } from '@/hooks/useListings';
-import { useProperties, OCCUPANCY_LABELS, type PropertyOccupancy } from '@/hooks/useProperties';
+import { useProperties } from '@/hooks/useProperties';
 import { useSociety } from '@/hooks/useSociety';
 import { isLandlord as computeIsLandlord } from '@/lib/occupancy';
 import ChannelPreferences from '@/pages/notifications/components/ChannelPreferences';
@@ -87,7 +87,7 @@ export default function OwnerProfile() {
 
   const [viewAgreementId, setViewAgreementId] = useState<string | null>(null);
   const { agreements: rentalAgreements, markShared } = useRentalAgreements(user?.id);
-  const { properties, removeProperty } = useProperties(user?.id);
+  const { properties } = useProperties(user?.id);
   const { memberships: societyMemberships } = useSociety(user?.id);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
@@ -647,15 +647,6 @@ export default function OwnerProfile() {
             <div className="space-y-6">
               {/* Renders nothing unless this owner is an approved member of
                   a society, which is most owners. */}
-              <MyFlatsCard
-                properties={properties}
-                onRemove={async (id) => {
-                  const err = await removeProperty(id);
-                  if (err) addToast(err, 'error');
-                  else addToast('Removed.', 'success');
-                }}
-              />
-
               <SocietyIssuesCard userId={user.id} />
 
               {/* Verification */}
@@ -1303,85 +1294,6 @@ export default function OwnerProfile() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-
-/**
- * The flats this owner has.
- *
- * There is nowhere else in the app that lists properties, which is how
- * three half-created ones sat on a profile with no way to clear them.
- *
- * How each flat is used is shown, not asked. It comes from the
- * agreements and from how the flat was registered; an earlier version
- * put three buttons under every flat so the owner could set it by hand,
- * which was a row of chrome on every profile for something already
- * known.
- */
-function MyFlatsCard({
-  properties,
-  onRemove,
-}: {
-  properties: Array<{ id: string; name: string; address: string; occupancy: PropertyOccupancy }>;
-  onRemove: (id: string) => Promise<void>;
-}) {
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  return (
-    <div className="bg-white rounded-3xl border border-black/5 p-5">
-      <h3 className="text-sm font-bold text-charcoal mb-4">My flats</h3>
-
-      {properties.length === 0 ? (
-        <p className="text-xs text-charcoal/60">
-          Nothing here yet. A flat you live in still needs to be registered before you can join your
-          society --{' '}
-          <Link to="/register-flat" className="font-semibold text-brand hover:underline">
-            add one
-          </Link>
-          .
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {properties.map((p) => (
-            <div key={p.id} className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-charcoal truncate">{p.name}</p>
-                <p className="text-xs text-charcoal/50 truncate">{p.address}</p>
-                <p className="text-xs text-charcoal/40 mt-0.5">{OCCUPANCY_LABELS[p.occupancy]}</p>
-              </div>
-              <button
-                disabled={busyId === p.id}
-                onClick={async () => {
-                  if (
-                    !window.confirm(
-                      `Remove ${p.name}? This only works for a flat with no listing on Bhavan, and cannot be undone.`
-                    )
-                  ) {
-                    return;
-                  }
-                  setBusyId(p.id);
-                  await onRemove(p.id);
-                  setBusyId(null);
-                }}
-                aria-label={`Remove ${p.name}`}
-                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-charcoal/30 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
-              >
-                <i className="ri-delete-bin-line text-sm" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <Link
-        to="/register-flat"
-        className="inline-flex items-center gap-1.5 mt-4 text-xs font-semibold text-brand hover:underline"
-      >
-        <i className="ri-add-line" />
-        Add a flat you live in
-      </Link>
     </div>
   );
 }

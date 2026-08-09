@@ -536,6 +536,19 @@ export default function ListProperty() {
                   </div>
                 </div>
 
+                {/* Owners come here when they think "add my property",
+                    which is not always the same as "advertise it". Joining
+                    a society needs a verified property too, and before
+                    /register-flat existed the only way to get one was to
+                    put your own home on the market. */}
+                <p className="text-xs text-charcoal/60 text-center mb-4">
+                  Not renting it out?{' '}
+                  <Link to="/register-flat" className="font-semibold text-brand hover:underline">
+                    Register a flat you live in
+                  </Link>{' '}
+                  instead — same check, no listing.
+                </p>
+
                 <button
                   type="button"
                   onClick={handleOwnershipContinue}

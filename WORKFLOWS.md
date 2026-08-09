@@ -101,6 +101,14 @@ implies. Both routes land in the same admin queue; a submission with no
 listing is badged there, because the reviewer has no photos to
 cross-check and the document is the whole case.
 
+Reached from the two places the need actually arises: the society page's
+"verify a property first" notice, and a line on the ownership step of
+`/list-property`, since that is where owners go when they think "add my
+property" -- which is not always the same as "advertise it". There is
+deliberately no card for it on the profile; one was built and removed,
+because nobody opens their profile thinking they should register their
+home.
+
 > **`properties.verified` is Bhavan's output, not the owner's input.**
 > Until migration 102 the owner could set it themselves -- RLS grants
 > rows, not columns -- which meant self-approving into any society *and*
