@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import {
   useReviews,
   useReviewableTenancies,
@@ -14,7 +15,14 @@ type Tab = 'owner_on_renter' | 'renter_on_owner';
 type SortOption = 'newest' | 'highest' | 'lowest';
 
 export default function FeedbackPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('owner_on_renter');
+  // A review notification names the tab its review is on. Validated
+  // rather than trusted: an unknown value falls back to the default
+  // rather than filtering the list down to nothing.
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<Tab>(
+    tabParam === 'renter_on_owner' || tabParam === 'owner_on_renter' ? tabParam : 'owner_on_renter'
+  );
   const [sort, setSort] = useState<SortOption>('newest');
   const [filterRating, setFilterRating] = useState<number>(0);
   const [modalRole, setModalRole] = useState<Tab | null>(null);
