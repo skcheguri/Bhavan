@@ -127,6 +127,13 @@ export default function AdminPropertyVerificationPage() {
                       {r.rejectionReason && (
                         <p className="text-xs text-red-500 mt-2">Reason: {r.rejectionReason}</p>
                       )}
+                      {r.isResidence && (
+                        <p className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold">
+                          <i className="ri-home-4-line" />
+                          Owner lives here — no listing, so there are no photos to cross-check
+                        </p>
+                      )}
+
                       <button
                         onClick={() => handleViewDocument(r.id, r.verificationDocPath)}
                         disabled={viewingId === r.id}

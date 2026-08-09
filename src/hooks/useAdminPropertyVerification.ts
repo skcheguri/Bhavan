@@ -12,6 +12,13 @@ export interface PropertyVerificationRequest {
   city: string;
   verificationDocPath: string;
   listingImages: string[];
+  /**
+   * A property with no listing came through "add a flat you live in",
+   * not through the listing flow. It changes what the reviewer is
+   * looking at: there are no photos to cross-check, so the document and
+   * the name on it are the whole case.
+   */
+  isResidence: boolean;
   status: PropertyVerificationStatus;
   rejectionReason: string | null;
   createdAt: string;
@@ -41,7 +48,7 @@ export function useAdminPropertyVerification() {
     // gone through the "prove ownership" step at all yet.
     const { data, error } = await supabase
       .from('properties')
-      .select('id, owner_id, name, address, city, verification_doc_url, verified, verification_rejection_reason, verification_reviewed_at, created_at, owner:users_public!properties_owner_id_fkey(name), listings!listings_property_id_fkey(images)')
+      .select('id, owner_id, name, address, city, occupancy, verification_doc_url, verified, verification_rejection_reason, verification_reviewed_at, created_at, owner:users_public!properties_owner_id_fkey(name), listings!listings_property_id_fkey(images)')
       .not('verification_doc_url', 'is', null)
       .order('created_at', { ascending: false });
 
@@ -62,6 +69,9 @@ export function useAdminPropertyVerification() {
         city: String(row.city ?? ''),
         verificationDocPath: String(row.verification_doc_url ?? ''),
         listingImages: ((row.listings as { images?: string[] }[] | null)?.[0]?.images ?? []) as string[],
+        isResidence:
+          ((row.listings as unknown[] | null)?.length ?? 0) === 0 &&
+          row.occupancy === 'self_occupied',
         status: deriveStatus(row),
         rejectionReason: (row.verification_rejection_reason as string | null) ?? null,
         createdAt: String(row.created_at),

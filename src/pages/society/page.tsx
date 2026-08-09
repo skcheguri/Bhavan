@@ -160,16 +160,19 @@ function NotEligible() {
       <Notice tone="warn" icon="ri-shield-check-line" title="Verify a property first">
         <p>
           A society is a group of verified owners, so we check ownership before anyone can join
-          one. Add a property and upload your sale deed or tax receipt — once our team approves it,
-          this page will let you join your society with a code.
+          one. Add the flat you live in and upload your sale deed or tax receipt — once our team
+          approves it, this page will let you join your society with a code.
         </p>
         <Link
-          to="/owner-profile"
+          to="/register-flat"
           className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-charcoal text-white rounded-lg text-sm font-semibold"
         >
           <i className="ri-home-4-line" />
-          Go to my properties
+          Add a flat you own
         </Link>
+        <p className="text-xs mt-2 opacity-80">
+          Renting it out instead? Listing it proves ownership at the same time.
+        </p>
       </Notice>
 
       <div className="mt-6 grid sm:grid-cols-3 gap-4">

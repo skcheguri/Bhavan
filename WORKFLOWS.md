@@ -73,7 +73,7 @@ is the pipeline a community feature would reuse rather than reinvent.
 
 ```mermaid
 flowchart LR
-  U["Owner uploads<br/>ownership document"] --> Q1["Admin queue:<br/>property verification"]
+  U["Owner uploads<br/>ownership document<br/><small>/list-property or /register-flat</small>"] --> Q1["Admin queue:<br/>property verification"]
   A["Tenant/owner submits<br/>Aadhaar"] --> Q2["Admin queue:<br/>Aadhaar verification"]
   Q1 -->|approved| V1["Listing shows<br/>Verified badge"]
   Q1 -.->|rejected| R1["Reason returned<br/>to owner"]
@@ -89,6 +89,27 @@ flowchart LR
 > **Aadhaar is not actually live.** The edge function is written but returns
 > "provider is not configured" until a KYC contract exists. The queue and
 > the UI are real; the automated check is not.
+
+### Two ways in, one queue
+
+Proving ownership used to happen only inside the listing flow, so an
+owner who lives in their own flat had to advertise their home to the
+whole platform just to join their building's society. `/register-flat`
+is the same document check without a listing at the end of it, and the
+property lands as `self_occupied` rather than the vacant a listing
+implies. Both routes land in the same admin queue; a submission with no
+listing is badged there, because the reviewer has no photos to
+cross-check and the document is the whole case.
+
+> **`properties.verified` is Bhavan's output, not the owner's input.**
+> Until migration 102 the owner could set it themselves -- RLS grants
+> rows, not columns -- which meant self-approving into any society *and*
+> awarding themselves the Verified badge, since
+> `cascade_property_verification_to_listings` copies the flag onto every
+> listing. A trigger now pins it for anyone who is not a platform admin
+> or the service role. Replacing the document on an approved property
+> drops it back to unverified, so an approval always refers to evidence
+> somebody actually looked at.
 
 ---
 

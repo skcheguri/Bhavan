@@ -1339,7 +1339,6 @@ function FlatUseCard({
   onChange: (id: string, occupancy: PropertyOccupancy) => Promise<void>;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
-  if (properties.length === 0) return null;
 
   return (
     <div className="bg-white rounded-3xl border border-black/5 p-5">
@@ -1348,6 +1347,17 @@ function FlatUseCard({
         This decides what Bhavan shows you. A flat you live in does not need tenants or income on
         screen.
       </p>
+
+      {properties.length === 0 && (
+        <p className="text-xs text-charcoal/60">
+          Nothing here yet. A flat you live in still needs to be registered before you can join
+          your society --{' '}
+          <Link to="/register-flat" className="font-semibold text-brand hover:underline">
+            add one
+          </Link>
+          .
+        </p>
+      )}
 
       <div className="space-y-4">
         {properties.map((p) => (
@@ -1381,6 +1391,14 @@ function FlatUseCard({
           </div>
         ))}
       </div>
+
+      <Link
+        to="/register-flat"
+        className="inline-flex items-center gap-1.5 mt-4 text-xs font-semibold text-brand hover:underline"
+      >
+        <i className="ri-add-line" />
+        Add a flat you live in
+      </Link>
     </div>
   );
 }

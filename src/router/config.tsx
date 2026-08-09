@@ -23,6 +23,7 @@ const Contact = lazy(() => import("../pages/contact/page"));
 const AuthCallback = lazy(() => import("../pages/auth-callback/page"));
 const ResetPassword = lazy(() => import("../pages/reset-password/page"));
 const ListProperty = lazy(() => import("../pages/list-property/page"));
+const RegisterFlat = lazy(() => import("../pages/register-flat/page"));
 const Feedback = lazy(() => import("../pages/feedback/page"));
 const AadhaarVerify = lazy(() => import("../pages/aadhaar-verify/page"));
 const TenantProfile = lazy(() => import("../pages/tenant-profile/page"));
@@ -124,6 +125,10 @@ const routes: RouteObject[] = [
   {
     path: "/list-property",
     element: <ListProperty />,
+  },
+  {
+    path: "/register-flat",
+    element: <RegisterFlat />,
   },
   {
     path: "/feedback",
