@@ -11,7 +11,6 @@ import AvatarPicker from '@/components/feature/AvatarPicker';
 import TenantInquiriesTab from './components/TenantInquiriesTab';
 import TenantChatTab from './components/TenantChatTab';
 import RentManagementTab from './components/RentManagementTab';
-import MyReviewsTab from './components/MyReviewsTab';
 import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 
 import { useBrokerReport } from '@/hooks/useBrokerReport';
@@ -31,9 +30,9 @@ import {
   composeIsoDate,
 } from '@/lib/validation';
 
-type ProfileTab = 'overview' | 'saved' | 'inquiries' | 'messages' | 'rentManagement' | 'reviews' | 'settings';
+type ProfileTab = 'overview' | 'saved' | 'inquiries' | 'messages' | 'rentManagement' | 'settings';
 
-const PROFILE_TABS: ProfileTab[] = ['overview', 'saved', 'inquiries', 'messages', 'rentManagement', 'reviews', 'settings'];
+const PROFILE_TABS: ProfileTab[] = ['overview', 'saved', 'inquiries', 'messages', 'rentManagement', 'settings'];
 
 function leaseCountdown(leaseEndDate: string, noticePeriodDays: number) {
   const end = new Date(`${leaseEndDate}T00:00:00`);
@@ -238,7 +237,6 @@ export default function TenantProfile() {
     { id: 'inquiries', label: 'Inquiries', icon: 'ri-message-3-line' },
     { id: 'messages', label: 'Messages', icon: 'ri-chat-3-line' },
     { id: 'rentManagement', label: 'Rent Management', icon: 'ri-home-gear-line', badge: activeMaint },
-    { id: 'reviews', label: 'My Reviews', icon: 'ri-star-line' },
     { id: 'settings', label: 'Settings', icon: 'ri-settings-3-line' },
   ];
 
@@ -352,14 +350,14 @@ export default function TenantProfile() {
               onClick={() => setActiveTab(tab.id)}
               className={`relative flex items-center justify-center gap-2 px-5 py-3 rounded-full text-sm transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 md:flex-1 ${
                 activeTab === tab.id
-                  ? 'bg-lightgray text-charcoal font-semibold'
-                  : 'text-charcoal/60 font-medium hover:text-charcoal'
+                  ? 'bg-brand text-white'
+                  : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
               }`}
             >
               <i className={`${tab.icon} text-sm`} />
               {tab.label}
               {tab.badge != null && tab.badge > 0 && (
-                <span className="ml-0.5 min-w-[18px] px-1.5 h-[18px] rounded-full bg-charcoal/10 text-charcoal text-[10px] font-semibold flex items-center justify-center tabular-nums">
+                <span className={`ml-0.5 min-w-[18px] px-1.5 h-[18px] rounded-full text-[10px] font-semibold flex items-center justify-center tabular-nums ${activeTab === tab.id ? 'bg-white/25 text-white' : 'bg-lightgray text-charcoal/60'}`}>
                   {tab.badge}
                 </span>
               )}
@@ -806,7 +804,6 @@ export default function TenantProfile() {
 
         {activeTab === 'rentManagement' && <RentManagementTab initialSubTab={subParam === 'documents' || subParam === 'payments' || subParam === 'requests' ? subParam : undefined} />}
 
-        {activeTab === 'reviews' && <MyReviewsTab />}
 
 
         {activeTab === 'settings' && (

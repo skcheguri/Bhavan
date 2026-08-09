@@ -1,8 +1,8 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ownerOnRenterQuestions, renterOnOwnerQuestions } from '@/lib/content/feedbackQuestions';
 import StarRating from './StarRating';
-import { createReview, type FeedbackRole } from '@/hooks/useReviews';
+import { createReview, type FeedbackRole, type ReviewableTenancy } from '@/hooks/useReviews';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 
@@ -14,15 +14,31 @@ interface FeedbackModalProps {
   // a profile view reachable only via an approved connection) instead of
   // the generic public /feedback page's free-text name entry.
   lockedSubject?: { id: string; name: string };
+  /**
+   * The signed-in user's real tenancies. When supplied, the reviewer
+   * picks one instead of typing a name, a property and a period that
+   * nothing checks -- and their side of that agreement decides the
+   * role, so a tenant cannot file a review as an owner.
+   */
+  tenancies?: ReviewableTenancy[];
 }
 
-export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject }: FeedbackModalProps) {
+export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, tenancies }: FeedbackModalProps) {
   useDismissableLayer(onClose);
   const { user } = useAuth();
   const { addToast } = useToast();
-  const questions = role === 'owner_on_renter' ? ownerOnRenterQuestions : renterOnOwnerQuestions;
-
   const [step, setStep] = useState<'info' | 'questionnaire' | 'rating' | 'done'>('info');
+  const [tenancyId, setTenancyId] = useState<string>('');
+  const chosen = tenancies?.find((t) => t.agreementId === tenancyId) ?? null;
+
+  // Which side of the agreement the reviewer is on decides the role,
+  // and the role decides which questionnaire they answer. The `role`
+  // prop is only the fallback for the profile-view path, where the
+  // caller already knows.
+  const effectiveRole: FeedbackRole = chosen?.role ?? role;
+  const isOwner = effectiveRole === 'owner_on_renter';
+  const questions = isOwner ? ownerOnRenterQuestions : renterOnOwnerQuestions;
+
   const [subjectName, setSubjectName] = useState(lockedSubject?.name ?? '');
   const [property, setProperty] = useState('');
   const [period, setPeriod] = useState('');
@@ -32,7 +48,15 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject }
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const isOwner = role === 'owner_on_renter';
+  // Picking a tenancy on the other side of the relationship swaps the
+  // questionnaire, so answers keyed to the old questions have to go --
+  // otherwise a half-filled owner questionnaire counts toward a tenant's
+  // rating.
+  useEffect(() => {
+    // `questions` is one of two module-level constants, so it changes
+    // only when the role does -- listing it cannot loop.
+    setAnswers(Object.fromEntries(questions.map((q) => [q.id, null])));
+  }, [questions]);
 
   const calculateAutoRating = (role: FeedbackRole, ans: Record<string, boolean | null>) => {
     const qs = role === 'owner_on_renter' ? ownerOnRenterQuestions : renterOnOwnerQuestions;
@@ -53,14 +77,16 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject }
     return acc + (isGood ? 1 : 0);
   }, 0);
 
-  const autoRating = calculateAutoRating(role, answers);
+  const autoRating = calculateAutoRating(effectiveRole, answers);
 
   const handleAnswer = (id: string, val: boolean) => {
     setAnswers((prev) => ({ ...prev, [id]: val }));
   };
 
   const allAnswered = Object.values(answers).every((v) => v !== null);
-  const infoValid = subjectName.trim() && property.trim() && period.trim();
+  const infoValid = tenancies
+    ? Boolean(chosen)
+    : Boolean(subjectName.trim() && property.trim() && period.trim());
 
   const handleSubmit = async () => {
     if (!user) {
@@ -71,17 +97,17 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject }
     // relationship-scoped RLS from migration-era task "restrict reviews
     // to actual tenant-owner relationships"). Without a locked subject
     // there is nobody to attach the review to.
-    if (!lockedSubject?.id) {
+    if (!chosen && !lockedSubject?.id) {
       addToast('Reviews can only be written about someone you have an actual rental relationship with — open this from your Inquiries or My Reviews tab.', 'error');
       return;
     }
     setSubmitting(true);
     const { error } = await createReview({
       reviewer_id: user.id,
-      subject_id: lockedSubject.id,
-      role,
-      property_name: property,
-      tenancy_period: period,
+      subject_id: chosen ? chosen.subjectId : lockedSubject.id,
+      role: effectiveRole,
+      property_name: chosen ? chosen.propertyName : property,
+      tenancy_period: chosen ? chosen.tenancyPeriod : period,
       overall_rating: autoRating,
       answers: questions.map((q) => ({ question: q.label, value: answers[q.id] })),
       comment,
@@ -128,10 +154,18 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject }
             </div>
             <div>
               <h2 className="font-bold text-charcoal text-base">
-                {isOwner ? 'Review Your Tenant' : 'Review Your Owner'}
+                {tenancies && !chosen
+                  ? 'Write a review'
+                  : isOwner
+                    ? 'Review Your Tenant'
+                    : 'Review Your Owner'}
               </h2>
               <p className="text-xs text-charcoal/60">
-                {isOwner ? 'Help future landlords make informed decisions' : 'Help future tenants find trustworthy owners'}
+                {tenancies && !chosen
+                  ? 'Pick the tenancy you want to review'
+                  : isOwner
+                    ? 'Help future landlords make informed decisions'
+                    : 'Help future tenants find trustworthy owners'}
               </p>
             </div>
           </div>
@@ -165,48 +199,98 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject }
           {step === 'info' && (
             <div className="space-y-4">
               <h3 className="font-semibold text-charcoal">
-                {isOwner ? 'Who are you reviewing?' : 'Which owner are you reviewing?'}
+                {tenancies ? 'Which tenancy are you reviewing?' : isOwner ? 'Who are you reviewing?' : 'Which owner are you reviewing?'}
               </h3>
-              <div>
-                <label className="block text-sm font-medium text-charcoal mb-1.5">
-                  {isOwner ? 'Tenant\'s Full Name' : 'Owner\'s Full Name'}
-                </label>
-                {lockedSubject ? (
-                  <div className="w-full border border-black/10 rounded-lg px-4 py-2.5 text-sm bg-lightgray text-charcoal flex items-center gap-2">
-                    <i className="ri-shield-check-line text-emerald-500" />
-                    {lockedSubject.name}
-                    <span className="text-xs text-charcoal/40 ml-auto">Verified connection</span>
-                  </div>
+
+              {tenancies ? (
+                tenancies.length === 0 ? (
+                  <p className="text-sm text-charcoal/60 leading-relaxed">
+                    You can review someone once you have a rental agreement with them on Bhavan.
+                    Reviews are tied to a real tenancy, which is what makes them worth reading.
+                  </p>
                 ) : (
-                  <input
-                    type="text"
-                    value={subjectName}
-                    onChange={(e) => setSubjectName(e.target.value)}
-                    placeholder={isOwner ? 'e.g. Arjun Mehta' : 'e.g. Priya Sharma'}
-                    className="w-full border border-black/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-brand"
-                  />
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-charcoal mb-1.5">Property Name / Address</label>
-                <input
-                  type="text"
-                  value={property}
-                  onChange={(e) => setProperty(e.target.value)}
-                  placeholder="e.g. Sunny 2BHK in Bandra West"
-                  className="w-full border border-black/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-brand"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-charcoal mb-1.5">Tenancy Period</label>
-                <input
-                  type="text"
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
-                  placeholder="e.g. Jan 2025 – Mar 2026"
-                  className="w-full border border-black/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-brand"
-                />
-              </div>
+                  <>
+                    <div className="space-y-2">
+                      {tenancies.map((t) => {
+                        const on = t.agreementId === tenancyId;
+                        return (
+                          <button
+                            key={t.agreementId}
+                            type="button"
+                            disabled={t.alreadyReviewed}
+                            onClick={() => setTenancyId(t.agreementId)}
+                            className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                              on
+                                ? 'border-brand bg-brand/5'
+                                : 'border-black/10 hover:border-brand/40'
+                            } ${t.alreadyReviewed ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-charcoal">{t.subjectName}</span>
+                              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-lightgray text-charcoal/60">
+                                {t.role === 'owner_on_renter' ? 'Your tenant' : 'Your owner'}
+                              </span>
+                              {t.alreadyReviewed && (
+                                <span className="text-[11px] text-charcoal/40 ml-auto">Already reviewed</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-charcoal/60 mt-1">{t.propertyName}</p>
+                            <p className="text-xs text-charcoal/40">{t.tenancyPeriod}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-charcoal/40">
+                      Taken from your rental agreement, so a review always names a tenancy that
+                      actually happened.
+                    </p>
+                  </>
+                )
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-charcoal mb-1.5">
+                      {isOwner ? "Tenant's Full Name" : "Owner's Full Name"}
+                    </label>
+                    {lockedSubject ? (
+                      <div className="w-full border border-black/10 rounded-lg px-4 py-2.5 text-sm bg-lightgray text-charcoal flex items-center gap-2">
+                        <i className="ri-shield-check-line text-emerald-500" />
+                        {lockedSubject.name}
+                        <span className="text-xs text-charcoal/40 ml-auto">Verified connection</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={subjectName}
+                        onChange={(e) => setSubjectName(e.target.value)}
+                        placeholder={isOwner ? 'e.g. Arjun Mehta' : 'e.g. Priya Sharma'}
+                        className="w-full border border-black/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-brand"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-charcoal mb-1.5">Property Name / Address</label>
+                    <input
+                      type="text"
+                      value={property}
+                      onChange={(e) => setProperty(e.target.value)}
+                      placeholder="e.g. Sunny 2BHK in Bandra West"
+                      className="w-full border border-black/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-charcoal mb-1.5">Tenancy Period</label>
+                    <input
+                      type="text"
+                      value={period}
+                      onChange={(e) => setPeriod(e.target.value)}
+                      placeholder="e.g. Jan 2025 – Mar 2026"
+                      className="w-full border border-black/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                </>
+              )}
+
               <button
                 type="button"
                 disabled={!infoValid}

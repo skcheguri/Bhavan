@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useReviews } from '@/hooks/useReviews';
+import { useReviews, useReviewableTenancies } from '@/hooks/useReviews';
+import { useAuth } from '@/hooks/useAuth';
 import ReviewCard from './components/ReviewCard';
 import FeedbackModal from './components/FeedbackModal';
 import StarRating from './components/StarRating';
@@ -12,6 +13,11 @@ export default function FeedbackPage() {
   const [sort, setSort] = useState<SortOption>('newest');
   const [filterRating, setFilterRating] = useState<number>(0);
   const [modalRole, setModalRole] = useState<Tab | null>(null);
+  const { user } = useAuth();
+  // The reviewer's own tenancies. Which one they pick decides who is
+  // being reviewed and from which side -- the browse tabs above only
+  // filter what is on screen.
+  const { tenancies } = useReviewableTenancies(user?.id);
   const { reviews: entries, loading, refresh } = useReviews();
 
   const filtered = useMemo(() => {
@@ -62,22 +68,18 @@ export default function FeedbackPage() {
             <p className="mt-4 text-white/85 text-base md:text-lg leading-relaxed max-w-xl">
               Owners review tenants. Tenants review owners. A transparent, questionnaire-based system that helps everyone make better rental decisions.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={() => setModalRole('owner_on_renter')}
-                className="bg-brand text-white font-medium px-7 py-3.5 rounded-full hover:bg-brand-dark transition-colors whitespace-nowrap cursor-pointer"
-              >
-                <i className="ri-home-4-line mr-2" />
-                Review a Tenant
-              </button>
+            {/* One way in. Which side you are reviewing from is a fact of
+                the tenancy you pick inside, not a button you press out
+                here -- offering "Review a Tenant" to a tenant was how a
+                renter could file a review as though they were the owner. */}
+            <div className="mt-8">
               <button
                 type="button"
                 onClick={() => setModalRole('renter_on_owner')}
-                className="bg-white/20 backdrop-blur-sm border border-white/40 text-white font-medium px-7 py-3.5 rounded-full hover:bg-white/30 transition-colors whitespace-nowrap cursor-pointer"
+                className="bg-brand text-white font-medium px-7 py-3.5 rounded-full hover:bg-brand-dark transition-colors whitespace-nowrap cursor-pointer"
               >
-                <i className="ri-user-line mr-2" />
-                Review an Owner
+                <i className="ri-star-line mr-2" />
+                Write a review
               </button>
             </div>
           </div>
@@ -281,6 +283,7 @@ export default function FeedbackPage() {
       {modalRole && (
         <FeedbackModal
           role={modalRole}
+          tenancies={tenancies}
           onClose={() => setModalRole(null)}
           onSubmit={handleModalSubmit}
         />

@@ -207,3 +207,106 @@ export async function createReview(payload: {
   if (error) return { error: error.message };
   return { error: null };
 }
+
+/**
+ * The tenancies the signed-in user may review, and everything a review
+ * needs, taken from the agreement rather than typed in.
+ *
+ * Three things were wrong with asking for it:
+ *
+ * The reviewer chose their own role from a pair of tabs, so a tenant
+ * could file a review as "owner on tenant". Which side you are on is a
+ * fact of the agreement, not a preference.
+ *
+ * Name, property and tenancy period were free text, so a review could
+ * name a flat nobody rented for a period that never happened. They are
+ * columns on the agreement.
+ *
+ * And a review needs a real tenancy behind it. An approved enquiry --
+ * which is all the RLS on `reviews` requires -- means somebody was
+ * allowed to make contact, not that they ever rented anything.
+ */
+export interface ReviewableTenancy {
+  agreementId: string;
+  subjectId: string;
+  subjectName: string;
+  role: FeedbackRole;
+  propertyName: string;
+  tenancyPeriod: string;
+  alreadyReviewed: boolean;
+}
+
+function periodLabel(start: string | null, end: string | null): string {
+  const fmt = (d: string) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+  if (!start) return 'Dates not recorded';
+  return end ? `${fmt(start)} – ${fmt(end)}` : `${fmt(start)} – ongoing`;
+}
+
+export function useReviewableTenancies(userId: string | undefined) {
+  const [tenancies, setTenancies] = useState<ReviewableTenancy[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase || !userId) {
+      setTenancies([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+
+    // Both sides in one query: an agreement is reviewable by whichever
+    // of the two people is signed in.
+    const { data, error } = await supabase
+      .from('rental_agreements')
+      .select('id, owner_id, tenant_id, tenant_name, landlord_name, property_address, flat_number, lease_start_date, lease_end_date')
+      .or(`owner_id.eq.${userId},tenant_id.eq.${userId}`)
+      .order('lease_start_date', { ascending: false });
+
+    if (error || !data) {
+      setTenancies([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: written } = await supabase
+      .from('reviews')
+      .select('subject_id')
+      .eq('reviewer_id', userId);
+    const reviewed = new Set((written ?? []).map((r) => r.subject_id as string));
+
+    setTenancies(
+      (data as Record<string, unknown>[])
+        .map((a): ReviewableTenancy | null => {
+          const iAmOwner = a.owner_id === userId;
+          const subjectId = (iAmOwner ? a.tenant_id : a.owner_id) as string | null;
+          // An agreement drafted before the tenant had an account has no
+          // counterparty to attach a review to.
+          if (!subjectId) return null;
+          const flat = String(a.flat_number ?? '').trim();
+          const address = String(a.property_address ?? '').trim();
+          return {
+            agreementId: String(a.id),
+            subjectId,
+            subjectName: String((iAmOwner ? a.tenant_name : a.landlord_name) ?? '') || 'Unnamed',
+            role: iAmOwner ? 'owner_on_renter' : 'renter_on_owner',
+            propertyName: [flat, address].filter(Boolean).join(', ') || 'Property not recorded',
+            tenancyPeriod: periodLabel(
+              a.lease_start_date as string | null,
+              a.lease_end_date as string | null
+            ),
+            alreadyReviewed: reviewed.has(subjectId),
+          };
+        })
+        .filter((t): t is ReviewableTenancy => t !== null)
+    );
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { tenancies, loading, refresh: load };
+}

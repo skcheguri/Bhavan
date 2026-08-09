@@ -78,7 +78,7 @@ export function Pip({ active, children }: { active: boolean; children: React.Rea
   return (
     <span
       className={`ml-1.5 min-w-[18px] px-1.5 h-[18px] inline-flex items-center justify-center rounded-full text-[10px] font-semibold tabular-nums ${
-        active ? 'bg-charcoal/10 text-charcoal' : 'bg-lightgray text-charcoal/60'
+        active ? 'bg-white/25 text-white' : 'bg-lightgray text-charcoal/60'
       }`}
     >
       {children}
