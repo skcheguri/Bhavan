@@ -291,6 +291,29 @@ export interface ReviewableTenancy {
   alreadyReviewed: boolean;
 }
 
+/**
+ * The name to show for the other party on a tenancy.
+ *
+ * rental_agreements stores the counterparty's name as text, and on some
+ * agreements that text is an email address -- so the picker offered
+ * "skrockster@gmail.com | Your tenant", putting an address on screen
+ * where a person's name belongs. The linked account usually has a real
+ * name, so prefer whichever of the two is not an email. If both are,
+ * show the part before the @ rather than the whole address.
+ */
+export function partyName(agreementName: unknown, accountName: unknown): string {
+  const isEmail = (s: string) => /\S+@\S+\.\S+/.test(s);
+  const candidates = [agreementName, accountName]
+    .map((s) => String(s ?? '').trim())
+    .filter(Boolean);
+
+  return (
+    candidates.find((c) => !isEmail(c)) ??
+    candidates[0]?.split('@')[0] ??
+    'Unnamed'
+  );
+}
+
 function periodLabel(start: string | null, end: string | null): string {
   const fmt = (d: string) =>
     new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
@@ -315,7 +338,11 @@ export function useReviewableTenancies(userId: string | undefined) {
     // of the two people is signed in.
     const { data, error } = await supabase
       .from('rental_agreements')
-      .select('id, owner_id, tenant_id, tenant_name, landlord_name, property_address, flat_number, lease_start_date, lease_end_date')
+      .select(
+        'id, owner_id, tenant_id, tenant_name, landlord_name, property_address, flat_number, lease_start_date, lease_end_date,' +
+          ' owner:users_public!rental_agreements_owner_id_fkey(name),' +
+          ' tenant:users_public!rental_agreements_tenant_id_fkey(name)'
+      )
       .or(`owner_id.eq.${userId},tenant_id.eq.${userId}`)
       .order('lease_start_date', { ascending: false });
 
@@ -333,7 +360,10 @@ export function useReviewableTenancies(userId: string | undefined) {
     const reviewed = new Set((written ?? []).map((r) => r.agreement_id as string));
 
     setTenancies(
-      (data as Record<string, unknown>[])
+      // Cast through unknown: the generated types cannot express an embed
+      // from users_public, which is a view over the table the foreign key
+      // actually points at. Same treatment as REVIEW_SELECT above.
+      (data as unknown as Record<string, unknown>[])
         .map((a): ReviewableTenancy | null => {
           const iAmOwner = a.owner_id === userId;
           const subjectId = (iAmOwner ? a.tenant_id : a.owner_id) as string | null;
@@ -345,7 +375,10 @@ export function useReviewableTenancies(userId: string | undefined) {
           return {
             agreementId: String(a.id),
             subjectId,
-            subjectName: String((iAmOwner ? a.tenant_name : a.landlord_name) ?? '') || 'Unnamed',
+            subjectName: partyName(
+              iAmOwner ? a.tenant_name : a.landlord_name,
+              ((iAmOwner ? a.tenant : a.owner) as { name?: string } | null)?.name
+            ),
             role: iAmOwner ? 'owner_on_renter' : 'renter_on_owner',
             propertyName: [flat, address].filter(Boolean).join(', ') || 'Property not recorded',
             tenancyPeriod: periodLabel(
