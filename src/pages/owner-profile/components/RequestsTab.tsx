@@ -11,6 +11,7 @@ import {
   type ServiceVendor,
 } from '@/hooks/useSociety';
 import { useToast } from '@/hooks/useToast';
+import { isValidIndianPhone, formatIndianPhoneInput } from '@/lib/validation';
 
 type FilterStatus = 'all' | 'pending' | 'acknowledged' | 'in_progress' | 'resolved';
 
@@ -467,6 +468,13 @@ export function OwnerContractors({
       setErr('A name and a phone number are the whole point.');
       return;
     }
+    // The number is the entire value of this record -- it becomes a
+    // WhatsApp link and a tap-to-call. A wrong one fails at the moment
+    // somebody is standing in a flat with a broken tap.
+    if (!isValidIndianPhone(form.phone)) {
+      setErr('Enter a valid 10-digit Indian mobile number.');
+      return;
+    }
     setBusy(true);
     const { error } = await addVendor({ ownerId }, ownerId, {
       name: form.name.trim(),
@@ -556,8 +564,9 @@ export function OwnerContractors({
             </select>
             <input
               value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="Phone"
+              onChange={(e) => setForm({ ...form, phone: formatIndianPhoneInput(e.target.value) })}
+              placeholder="+91 98765 43210"
+              inputMode="tel"
               className={inputCls}
             />
           </div>

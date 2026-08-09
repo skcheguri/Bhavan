@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/useToast';
 import { useProperties } from '@/hooks/useProperties';
 import { getSupabase } from '@/lib/supabase';
 import { Shell, PageTitle, Notice, Field, inputCls } from '@/pages/society/ui';
+import { INDIA_STATES, CITIES_BY_STATE, OTHER_CITY_OPTION } from '@/content/indiaLocations';
 
 /**
  * Registering a flat you live in.
@@ -41,6 +42,7 @@ export default function RegisterFlat() {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
+  const [cityOther, setCityOther] = useState('');
   const [state, setState] = useState('');
   const [docType, setDocType] = useState('');
   const [docPath, setDocPath] = useState('');
@@ -102,8 +104,8 @@ export default function RegisterFlat() {
       owner_id: user.id,
       name: name.trim(),
       address: address.trim(),
-      city: city.trim() || null,
-      state: state.trim() || null,
+      city: (city === OTHER_CITY_OPTION ? cityOther.trim() : city) || null,
+      state: state || null,
       verified: false,
       verification_doc_url: docPath,
       // The whole point of this entry point. A property created by the
@@ -120,7 +122,8 @@ export default function RegisterFlat() {
     setDone(true);
   };
 
-  const ready = name.trim() && address.trim() && docType && docPath;
+  const cityChosen = city === OTHER_CITY_OPTION ? Boolean(cityOther.trim()) : Boolean(city);
+  const ready = name.trim() && address.trim() && state && cityChosen && docType && docPath;
 
   if (done) {
     return (
@@ -191,14 +194,56 @@ export default function RegisterFlat() {
           />
         </Field>
 
+        {/* Same cascade as the listing form. Typed cities do not group:
+            "Bangalore", "Bengaluru" and "bangalore" are three places as
+            far as any later search or report is concerned. */}
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="City">
-            <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} />
-          </Field>
           <Field label="State">
-            <input value={state} onChange={(e) => setState(e.target.value)} className={inputCls} />
+            <select
+              value={state}
+              onChange={(e) => {
+                setState(e.target.value);
+                setCity('');
+                setCityOther('');
+              }}
+              className={inputCls}
+            >
+              <option value="">Select state</option>
+              {INDIA_STATES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="City">
+            <select
+              value={city}
+              disabled={!state}
+              onChange={(e) => setCity(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">{state ? 'Select city' : 'Select a state first'}</option>
+              {(CITIES_BY_STATE[state] ?? []).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+              {state && <option value={OTHER_CITY_OPTION}>{OTHER_CITY_OPTION}</option>}
+            </select>
           </Field>
         </div>
+
+        {city === OTHER_CITY_OPTION && (
+          <Field label="City name">
+            <input
+              value={cityOther}
+              onChange={(e) => setCityOther(e.target.value)}
+              placeholder="Enter your city"
+              className={inputCls}
+            />
+          </Field>
+        )}
 
         <div className="pt-2 border-t border-black/5">
           <p className="text-sm font-semibold text-charcoal mb-1">Prove it is yours</p>
