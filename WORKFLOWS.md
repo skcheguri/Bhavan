@@ -146,9 +146,17 @@ would be wrong for half their properties the day it was set.
 
 | `occupancy` | Meaning | Set by |
 |---|---|---|
-| `self_occupied` | The owner lives here | Default; owner declares it |
-| `rented_out` | A tenant lives here | Forced by the DB while a rental agreement is live; otherwise the owner declares it |
-| `vacant` | Neither | Owner declares it; set when the last agreement lapses |
+| `self_occupied` | The owner lives here | `/register-flat`, and the default |
+| `rented_out` | A tenant lives here | The DB, while a rental agreement is live |
+| `vacant` | Neither | The DB, when the last agreement lapses |
+
+**Derived, never asked.** Owners briefly had buttons to set this by
+hand. It was a row of chrome on every profile for something the app
+already knew, and it earned nothing: which half of the dashboard to show
+follows from listings and agreements on their own (`isLandlord` in
+`src/lib/occupancy.ts`). The column is kept because it is free, it
+survives a lapsed agreement, and it tells the review queue that a
+submission is somebody's home rather than a half-finished listing.
 
 Two rules worth keeping:
 
@@ -161,9 +169,12 @@ Two rules worth keeping:
   flat cannot be quietly dropped out of the income total. Ending the
   agreement is the way out.
 
-An owner can declare `rented_out` with no agreement, which is the
-informal tenancy this market runs on. The dashboard counts those and
-explains the shortfall rather than showing a low total with no reason.
+This leaves one case unhandled on purpose: a flat let informally, with
+no agreement in Bhavan. The rent is real and the dashboard will read
+zero. There is no signal that can tell us, and a checkbox the owner has
+to remember only works for people who were already going to do the
+paperwork. The fix is to make creating an agreement easy enough that it
+stops being skipped, not to add a declaration.
 
 ---
 

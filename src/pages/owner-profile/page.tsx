@@ -22,7 +22,7 @@ import ChatTab from './components/ChatTab';
 import { useOwnerListings, type ListingFromDB } from '@/hooks/useListings';
 import { useProperties, OCCUPANCY_LABELS, type PropertyOccupancy } from '@/hooks/useProperties';
 import { useSociety } from '@/hooks/useSociety';
-import { ownerDashboardShape } from '@/lib/occupancy';
+import { isLandlord as computeIsLandlord } from '@/lib/occupancy';
 import ChannelPreferences from '@/pages/notifications/components/ChannelPreferences';
 import { useToast } from '@/hooks/useToast';
 import AvatarPicker from '@/components/feature/AvatarPicker';
@@ -87,7 +87,7 @@ export default function OwnerProfile() {
 
   const [viewAgreementId, setViewAgreementId] = useState<string | null>(null);
   const { agreements: rentalAgreements, markShared } = useRentalAgreements(user?.id);
-  const { properties, setOccupancy, removeProperty } = useProperties(user?.id);
+  const { properties, removeProperty } = useProperties(user?.id);
   const { memberships: societyMemberships } = useSociety(user?.id);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
@@ -255,8 +255,7 @@ export default function OwnerProfile() {
     new Set(myListingsFromDB.map((l) => l.property_id).filter(Boolean)).size;
   const activeListingsCount = myListings.filter((l) => l.status === 'active').length;
 
-  const { isLandlord, untrackedTenancies } = ownerDashboardShape({
-    occupancies: properties.map((p) => p.occupancy),
+  const isLandlord = computeIsLandlord({
     activeListings: activeListingsCount,
     activeAgreements: activeAgreements.length,
   });
@@ -422,19 +421,6 @@ export default function OwnerProfile() {
               ))}
             </div>
 
-            {untrackedTenancies > 0 && (
-              <p className="text-xs text-charcoal/60 mt-2">
-                <i className="ri-information-line mr-1" />
-                {untrackedTenancies === 1 ? '1 flat is' : `${untrackedTenancies} flats are`} marked
-                rented with no agreement on Bhavan, so that rent is not counted above.{' '}
-                <button
-                  onClick={() => setActiveTab('tenants')}
-                  className="font-semibold text-brand hover:underline"
-                >
-                  Add the agreement
-                </button>
-              </p>
-            )}
           </div>
         </div>
 
@@ -661,13 +647,8 @@ export default function OwnerProfile() {
             <div className="space-y-6">
               {/* Renders nothing unless this owner is an approved member of
                   a society, which is most owners. */}
-              <FlatUseCard
+              <MyFlatsCard
                 properties={properties}
-                onChange={async (id, occupancy) => {
-                  const err = await setOccupancy(id, occupancy);
-                  if (err) addToast(err, 'error');
-                  else addToast('Updated.', 'success');
-                }}
                 onRemove={async (id) => {
                   const err = await removeProperty(id);
                   if (err) addToast(err, 'error');
@@ -1328,51 +1309,47 @@ export default function OwnerProfile() {
 
 
 /**
- * What each flat is for.
+ * The flats this owner has.
  *
- * Only shown once there is more than nothing to say about, and kept to
- * three plain options -- an owner should not have to learn a vocabulary
- * to tell Bhavan they live somewhere. "Rented out" is the one the
- * database can prove on its own, so a flat with a live agreement is
- * shown as settled rather than as a choice.
+ * There is nowhere else in the app that lists properties, which is how
+ * three half-created ones sat on a profile with no way to clear them.
+ *
+ * How each flat is used is shown, not asked. It comes from the
+ * agreements and from how the flat was registered; an earlier version
+ * put three buttons under every flat so the owner could set it by hand,
+ * which was a row of chrome on every profile for something already
+ * known.
  */
-function FlatUseCard({
+function MyFlatsCard({
   properties,
-  onChange,
   onRemove,
 }: {
   properties: Array<{ id: string; name: string; address: string; occupancy: PropertyOccupancy }>;
-  onChange: (id: string, occupancy: PropertyOccupancy) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   return (
     <div className="bg-white rounded-3xl border border-black/5 p-5">
-      <h3 className="text-sm font-bold text-charcoal">How you use each flat</h3>
-      <p className="text-xs text-charcoal/60 mt-1 mb-4">
-        This decides what Bhavan shows you. A flat you live in does not need tenants or income on
-        screen.
-      </p>
+      <h3 className="text-sm font-bold text-charcoal mb-4">My flats</h3>
 
-      {properties.length === 0 && (
+      {properties.length === 0 ? (
         <p className="text-xs text-charcoal/60">
-          Nothing here yet. A flat you live in still needs to be registered before you can join
-          your society --{' '}
+          Nothing here yet. A flat you live in still needs to be registered before you can join your
+          society --{' '}
           <Link to="/register-flat" className="font-semibold text-brand hover:underline">
             add one
           </Link>
           .
         </p>
-      )}
-
-      <div className="space-y-4">
-        {properties.map((p) => (
-          <div key={p.id}>
-            <div className="flex items-start justify-between gap-3">
+      ) : (
+        <div className="space-y-3">
+          {properties.map((p) => (
+            <div key={p.id} className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-charcoal truncate">{p.name}</p>
-                <p className="text-xs text-charcoal/50 truncate mb-2">{p.address}</p>
+                <p className="text-xs text-charcoal/50 truncate">{p.address}</p>
+                <p className="text-xs text-charcoal/40 mt-0.5">{OCCUPANCY_LABELS[p.occupancy]}</p>
               </div>
               <button
                 disabled={busyId === p.id}
@@ -1394,33 +1371,9 @@ function FlatUseCard({
                 <i className="ri-delete-bin-line text-sm" />
               </button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(OCCUPANCY_LABELS) as PropertyOccupancy[]).map((option) => {
-                const active = p.occupancy === option;
-                return (
-                  <button
-                    key={option}
-                    disabled={busyId === p.id}
-                    onClick={async () => {
-                      if (active) return;
-                      setBusyId(p.id);
-                      await onChange(p.id, option);
-                      setBusyId(null);
-                    }}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors disabled:opacity-40 ${
-                      active
-                        ? 'bg-brand text-white'
-                        : 'bg-offwhite text-charcoal/70 hover:bg-amber-50'
-                    }`}
-                  >
-                    {OCCUPANCY_LABELS[option]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Link
         to="/register-flat"

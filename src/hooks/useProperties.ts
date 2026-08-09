@@ -2,17 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
 
 /**
- * What a flat is for. A fact about the flat, not about its owner: the
- * common case is somebody who lives in one and rents out another, so
- * asking the person would be wrong for half their properties.
+ * What a flat is for.
  *
- * rented_out is set by the database whenever a rental agreement is live
- * and cannot be overridden while it stays live -- see migration 101.
+ * Derived, never asked. The database sets rented_out while a rental
+ * agreement is live (migration 101), /register-flat sets self_occupied
+ * for a flat somebody registered as their home, and a flat whose last
+ * agreement lapsed becomes vacant. Owners were briefly given buttons to
+ * set this by hand; it was chrome on every profile for something the
+ * app already knew.
  */
 export type PropertyOccupancy = 'self_occupied' | 'rented_out' | 'vacant';
 
 export const OCCUPANCY_LABELS: Record<PropertyOccupancy, string> = {
-  self_occupied: 'I live here',
+  self_occupied: 'You live here',
   rented_out: 'Rented out',
   vacant: 'Empty',
 };
@@ -49,7 +51,6 @@ interface UsePropertiesReturn {
   loading: boolean;
   error: string | null;
   refresh: () => void;
-  setOccupancy: (propertyId: string, occupancy: PropertyOccupancy) => Promise<string | null>;
   removeProperty: (propertyId: string) => Promise<string | null>;
 }
 
@@ -90,29 +91,6 @@ export function useProperties(ownerId: string | undefined): UsePropertiesReturn 
   }, [fetchProperties]);
 
   /**
-   * The database refuses to let a flat with a live agreement be called
-   * anything but rented, and says so in the error -- that message is
-   * more useful to the owner than anything this hook could invent, so
-   * it is passed through untouched.
-   */
-  const setOccupancy = useCallback(
-    async (propertyId: string, occupancy: PropertyOccupancy): Promise<string | null> => {
-      const supabase = getSupabase();
-      if (!supabase) return 'Database connection unavailable';
-
-      const { error: dbError } = await supabase
-        .from('properties')
-        .update({ occupancy })
-        .eq('id', propertyId);
-
-      if (dbError) return dbError.message;
-      await fetchProperties();
-      return null;
-    },
-    [fetchProperties]
-  );
-
-  /**
    * Remove a flat.
    *
    * Nothing in the app could do this before, which is how three
@@ -145,7 +123,7 @@ export function useProperties(ownerId: string | undefined): UsePropertiesReturn 
     [fetchProperties]
   );
 
-  return { properties, loading, error, refresh: fetchProperties, setOccupancy, removeProperty };
+  return { properties, loading, error, refresh: fetchProperties, removeProperty };
 }
 
 export function usePropertyUnits(propertyId: string | undefined): {
