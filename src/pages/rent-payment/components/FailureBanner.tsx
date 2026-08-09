@@ -47,7 +47,7 @@ export default function FailureBanner({ failureReason, onRetry, onAlternative, o
           <i className="ri-error-warning-line text-red-500 text-lg" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold text-red-700">{info.title}</h3>
+          <h3 className="text-[15px] font-semibold text-red-700">{info.title}</h3>
           <p className="text-xs text-red-600 leading-relaxed mt-0.5">{info.description}</p>
           <div className="flex flex-wrap gap-2 mt-3">
             <button

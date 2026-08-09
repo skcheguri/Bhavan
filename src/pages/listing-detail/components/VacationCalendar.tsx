@@ -158,7 +158,7 @@ export default function VacationCalendar({
         >
           <i className="ri-arrow-left-s-line text-charcoal/70" />
         </button>
-        <span className="text-sm font-bold text-charcoal">
+        <span className="text-[15px] font-semibold text-charcoal">
           {MONTHS[viewMonth]} {viewYear}
         </span>
         <button
