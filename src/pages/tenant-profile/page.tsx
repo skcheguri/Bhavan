@@ -804,7 +804,7 @@ export default function TenantProfile() {
 
         {activeTab === 'messages' && <TenantChatTab initialRequestId={activeChatRequestId} />}
 
-        {activeTab === 'rentManagement' && <RentManagementTab initialSubTab={subParam === 'documents' || subParam === 'payments' ? subParam : undefined} />}
+        {activeTab === 'rentManagement' && <RentManagementTab initialSubTab={subParam === 'documents' || subParam === 'payments' || subParam === 'requests' ? subParam : undefined} />}
 
         {activeTab === 'reviews' && <MyReviewsTab />}
 
