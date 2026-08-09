@@ -87,7 +87,7 @@ export default function OwnerProfile() {
 
   const [viewAgreementId, setViewAgreementId] = useState<string | null>(null);
   const { agreements: rentalAgreements, markShared } = useRentalAgreements(user?.id);
-  const { properties, setOccupancy } = useProperties(user?.id);
+  const { properties, setOccupancy, removeProperty } = useProperties(user?.id);
   const { memberships: societyMemberships } = useSociety(user?.id);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
@@ -667,6 +667,11 @@ export default function OwnerProfile() {
                   const err = await setOccupancy(id, occupancy);
                   if (err) addToast(err, 'error');
                   else addToast('Updated.', 'success');
+                }}
+                onRemove={async (id) => {
+                  const err = await removeProperty(id);
+                  if (err) addToast(err, 'error');
+                  else addToast('Removed.', 'success');
                 }}
               />
 
@@ -1334,9 +1339,11 @@ export default function OwnerProfile() {
 function FlatUseCard({
   properties,
   onChange,
+  onRemove,
 }: {
   properties: Array<{ id: string; name: string; address: string; occupancy: PropertyOccupancy }>;
   onChange: (id: string, occupancy: PropertyOccupancy) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -1362,8 +1369,31 @@ function FlatUseCard({
       <div className="space-y-4">
         {properties.map((p) => (
           <div key={p.id}>
-            <p className="text-sm font-semibold text-charcoal truncate">{p.name}</p>
-            <p className="text-xs text-charcoal/50 truncate mb-2">{p.address}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-charcoal truncate">{p.name}</p>
+                <p className="text-xs text-charcoal/50 truncate mb-2">{p.address}</p>
+              </div>
+              <button
+                disabled={busyId === p.id}
+                onClick={async () => {
+                  if (
+                    !window.confirm(
+                      `Remove ${p.name}? This only works for a flat with no listing on Bhavan, and cannot be undone.`
+                    )
+                  ) {
+                    return;
+                  }
+                  setBusyId(p.id);
+                  await onRemove(p.id);
+                  setBusyId(null);
+                }}
+                aria-label={`Remove ${p.name}`}
+                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-charcoal/30 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+              >
+                <i className="ri-delete-bin-line text-sm" />
+              </button>
+            </div>
             <div className="flex flex-wrap gap-2">
               {(Object.keys(OCCUPANCY_LABELS) as PropertyOccupancy[]).map((option) => {
                 const active = p.occupancy === option;

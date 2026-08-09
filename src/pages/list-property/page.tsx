@@ -220,12 +220,22 @@ export default function ListProperty() {
         longitude: coords?.longitude ?? null,
       });
 
-    setSubmitting(false);
-
     if (listingError) {
+      // The property row went in first because listings.property_id
+      // needs it. If the listing then fails, leaving the property behind
+      // means the owner sees a flat they never finished creating -- and
+      // pressing submit again makes another one. Three identical
+      // "Commercial space" rows in this database came from exactly that.
+      //
+      // Best effort: if this delete also fails there is nothing further
+      // to try from here, and the listing error is the one worth showing.
+      await supabase.from('properties').delete().eq('id', property.id);
+      setSubmitting(false);
       addToast(`Error creating listing: ${listingError.message}`, 'error');
       return;
     }
+
+    setSubmitting(false);
 
     setSubmitted(true);
     addToast('Property listed successfully!', 'success');

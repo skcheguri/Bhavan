@@ -50,6 +50,7 @@ interface UsePropertiesReturn {
   error: string | null;
   refresh: () => void;
   setOccupancy: (propertyId: string, occupancy: PropertyOccupancy) => Promise<string | null>;
+  removeProperty: (propertyId: string) => Promise<string | null>;
 }
 
 export function useProperties(ownerId: string | undefined): UsePropertiesReturn {
@@ -111,7 +112,40 @@ export function useProperties(ownerId: string | undefined): UsePropertiesReturn 
     [fetchProperties]
   );
 
-  return { properties, loading, error, refresh: fetchProperties, setOccupancy };
+  /**
+   * Remove a flat.
+   *
+   * Nothing in the app could do this before, which is how three
+   * identical half-created properties ended up on one owner's profile
+   * with no way to clear them. Restricted to flats with no listing
+   * behind them: once a flat has been advertised there are enquiries,
+   * agreements and payments hanging off it, and deleting from a profile
+   * card is the wrong place to make that decision.
+   */
+  const removeProperty = useCallback(
+    async (propertyId: string): Promise<string | null> => {
+      const supabase = getSupabase();
+      if (!supabase) return 'Database connection unavailable';
+
+      const { count, error: countError } = await supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId);
+
+      if (countError) return countError.message;
+      if ((count ?? 0) > 0) {
+        return 'This flat has a listing on Bhavan. Remove the listing first.';
+      }
+
+      const { error: dbError } = await supabase.from('properties').delete().eq('id', propertyId);
+      if (dbError) return dbError.message;
+      await fetchProperties();
+      return null;
+    },
+    [fetchProperties]
+  );
+
+  return { properties, loading, error, refresh: fetchProperties, setOccupancy, removeProperty };
 }
 
 export function usePropertyUnits(propertyId: string | undefined): {
