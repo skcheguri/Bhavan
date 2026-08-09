@@ -1904,9 +1904,8 @@ export type Database = {
           city: string | null
           created_at: string | null
           id: string
-          monthly_income: number | null
           name: string
-          occupied_units: number | null
+          occupancy: string
           owner_id: string
           state: string | null
           total_units: number | null
@@ -1921,9 +1920,8 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           id?: string
-          monthly_income?: number | null
           name: string
-          occupied_units?: number | null
+          occupancy?: string
           owner_id: string
           state?: string | null
           total_units?: number | null
@@ -1938,9 +1936,8 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           id?: string
-          monthly_income?: number | null
           name?: string
-          occupied_units?: number | null
+          occupancy?: string
           owner_id?: string
           state?: string | null
           total_units?: number | null
@@ -3581,6 +3578,10 @@ export type Database = {
       notify_visit_requested: {
         Args: { p_visit_id: string }
         Returns: undefined
+      }
+      property_has_active_tenancy: {
+        Args: { p_property: string }
+        Returns: boolean
       }
       purge_unconfirmed_accounts: { Args: never; Returns: number }
       register_push_token: {

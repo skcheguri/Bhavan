@@ -20,6 +20,9 @@ import SocietyIssuesCard from './components/SocietyIssuesCard';
 import InquiriesTab from './components/InquiriesTab';
 import ChatTab from './components/ChatTab';
 import { useOwnerListings, type ListingFromDB } from '@/hooks/useListings';
+import { useProperties, OCCUPANCY_LABELS, type PropertyOccupancy } from '@/hooks/useProperties';
+import { useSociety } from '@/hooks/useSociety';
+import { ownerDashboardShape } from '@/lib/occupancy';
 import ChannelPreferences from '@/pages/notifications/components/ChannelPreferences';
 import { useToast } from '@/hooks/useToast';
 import AvatarPicker from '@/components/feature/AvatarPicker';
@@ -84,6 +87,8 @@ export default function OwnerProfile() {
 
   const [viewAgreementId, setViewAgreementId] = useState<string | null>(null);
   const { agreements: rentalAgreements, markShared } = useRentalAgreements(user?.id);
+  const { properties, setOccupancy } = useProperties(user?.id);
+  const { memberships: societyMemberships } = useSociety(user?.id);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
@@ -243,8 +248,18 @@ export default function OwnerProfile() {
   ];
 
   const myListings = myListingsFromDB;
-  const totalProperties = new Set(myListingsFromDB.map((l) => l.property_id).filter(Boolean)).size;
+  // properties, not listings: a flat the owner lives in never had a
+  // listing, and leaving it out made "Total Properties" disagree with
+  // what they can see below.
+  const totalProperties = properties.length ||
+    new Set(myListingsFromDB.map((l) => l.property_id).filter(Boolean)).size;
   const activeListingsCount = myListings.filter((l) => l.status === 'active').length;
+
+  const { isLandlord, untrackedTenancies } = ownerDashboardShape({
+    occupancies: properties.map((p) => p.occupancy),
+    activeListings: activeListingsCount,
+    activeAgreements: activeAgreements.length,
+  });
 
   const handleToggleActive = async (listing: ListingFromDB) => {
     const supabase = getSupabase();
@@ -382,8 +397,15 @@ export default function OwnerProfile() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
               {[
                 { label: 'Total Properties', value: String(totalProperties), icon: 'ri-building-line', color: 'text-amber-600', tab: 'listings' as ProfileTab },
-                { label: 'Active Listings', value: String(activeListingsCount), icon: 'ri-list-check-3', color: 'text-brand', tab: 'listings' as ProfileTab },
-                { label: 'Monthly Income', value: totalIncome, icon: 'ri-money-rupee-circle-line', color: 'text-green-600', tab: 'tenants' as ProfileTab },
+                ...(isLandlord
+                  ? [
+                      { label: 'Active Listings', value: String(activeListingsCount), icon: 'ri-list-check-3', color: 'text-brand', tab: 'listings' as ProfileTab },
+                      { label: 'Monthly Income', value: totalIncome, icon: 'ri-money-rupee-circle-line', color: 'text-green-600', tab: 'tenants' as ProfileTab },
+                    ]
+                  : [
+                      { label: societyMemberships.length === 1 ? 'My Society' : 'My Societies', value: String(societyMemberships.length), icon: 'ri-community-line', color: 'text-brand', tab: 'overview' as ProfileTab },
+                      { label: 'Open Requests', value: String(pendingRequests), icon: 'ri-tools-line', color: 'text-charcoal/60', tab: 'requests' as ProfileTab },
+                    ]),
                 { label: 'Urgent Requests', value: String(urgentRequests), icon: 'ri-alarm-warning-line', color: urgentRequests > 0 ? 'text-red-500' : 'text-charcoal/40', tab: 'requests' as ProfileTab },
               ].map((stat) => (
                 <button
@@ -399,6 +421,20 @@ export default function OwnerProfile() {
                 </button>
               ))}
             </div>
+
+            {untrackedTenancies > 0 && (
+              <p className="text-xs text-charcoal/60 mt-2">
+                <i className="ri-information-line mr-1" />
+                {untrackedTenancies === 1 ? '1 flat is' : `${untrackedTenancies} flats are`} marked
+                rented with no agreement on Bhavan, so that rent is not counted above.{' '}
+                <button
+                  onClick={() => setActiveTab('tenants')}
+                  className="font-semibold text-brand hover:underline"
+                >
+                  Add the agreement
+                </button>
+              </p>
+            )}
           </div>
         </div>
 
@@ -625,6 +661,15 @@ export default function OwnerProfile() {
             <div className="space-y-6">
               {/* Renders nothing unless this owner is an approved member of
                   a society, which is most owners. */}
+              <FlatUseCard
+                properties={properties}
+                onChange={async (id, occupancy) => {
+                  const err = await setOccupancy(id, occupancy);
+                  if (err) addToast(err, 'error');
+                  else addToast('Updated.', 'success');
+                }}
+              />
+
               <SocietyIssuesCard userId={user.id} />
 
               {/* Verification */}
@@ -1271,6 +1316,70 @@ export default function OwnerProfile() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * What each flat is for.
+ *
+ * Only shown once there is more than nothing to say about, and kept to
+ * three plain options -- an owner should not have to learn a vocabulary
+ * to tell Bhavan they live somewhere. "Rented out" is the one the
+ * database can prove on its own, so a flat with a live agreement is
+ * shown as settled rather than as a choice.
+ */
+function FlatUseCard({
+  properties,
+  onChange,
+}: {
+  properties: Array<{ id: string; name: string; address: string; occupancy: PropertyOccupancy }>;
+  onChange: (id: string, occupancy: PropertyOccupancy) => Promise<void>;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  if (properties.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-3xl border border-black/5 p-5">
+      <h3 className="text-sm font-bold text-charcoal">How you use each flat</h3>
+      <p className="text-xs text-charcoal/60 mt-1 mb-4">
+        This decides what Bhavan shows you. A flat you live in does not need tenants or income on
+        screen.
+      </p>
+
+      <div className="space-y-4">
+        {properties.map((p) => (
+          <div key={p.id}>
+            <p className="text-sm font-semibold text-charcoal truncate">{p.name}</p>
+            <p className="text-xs text-charcoal/50 truncate mb-2">{p.address}</p>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(OCCUPANCY_LABELS) as PropertyOccupancy[]).map((option) => {
+                const active = p.occupancy === option;
+                return (
+                  <button
+                    key={option}
+                    disabled={busyId === p.id}
+                    onClick={async () => {
+                      if (active) return;
+                      setBusyId(p.id);
+                      await onChange(p.id, option);
+                      setBusyId(null);
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors disabled:opacity-40 ${
+                      active
+                        ? 'bg-brand text-white'
+                        : 'bg-offwhite text-charcoal/70 hover:bg-amber-50'
+                    }`}
+                  >
+                    {OCCUPANCY_LABELS[option]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

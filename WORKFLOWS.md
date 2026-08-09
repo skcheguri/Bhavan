@@ -111,6 +111,39 @@ Making a building's admin a `users.role = 'admin'` would hand them the
 entire platform. Community authority belongs in a membership row scoped to
 one community.
 
+### `owner` covers two different people
+
+One rents flats out. The other lives in their own flat and joined Bhavan
+for the society. Both are `role = 'owner'`, and the second sees no
+tenants, no listings and no income -- three dashboard tiles reading zero
+forever.
+
+The split is **per flat, not per person** (`properties.occupancy`, added
+in migration 101), because the common case here is somebody who lives in
+one flat and lets another, often in the same building. A user-level flag
+would be wrong for half their properties the day it was set.
+
+| `occupancy` | Meaning | Set by |
+|---|---|---|
+| `self_occupied` | The owner lives here | Default; owner declares it |
+| `rented_out` | A tenant lives here | Forced by the DB while a rental agreement is live; otherwise the owner declares it |
+| `vacant` | Neither | Owner declares it; set when the last agreement lapses |
+
+Two rules worth keeping:
+
+- **Society membership is not evidence of living there.** Landlords stay
+  in the society group after renting out -- that is how they hear about
+  maintenance and dues. Residence is inferred from the *absence of a
+  tenancy on the flat*, never from `community_members`.
+- **A live agreement outranks the owner's declaration.** The DB refuses
+  to move a flat off `rented_out` while an agreement is running, so a let
+  flat cannot be quietly dropped out of the income total. Ending the
+  agreement is the way out.
+
+An owner can declare `rented_out` with no agreement, which is the
+informal tenancy this market runs on. The dashboard counts those and
+explains the shortfall rather than showing a low total with no reason.
+
 ---
 
 ## 4. Money today
