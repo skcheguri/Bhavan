@@ -158,7 +158,12 @@ export default function Listings() {
     landlord_name: l.owner?.name ?? 'Bhavan Owner',
     landlord_avatar: l.owner?.avatar_url ?? '/placeholders/avatar.svg',
     furnished: l.furnished ?? false,
-    parking: 'none',
+    // Was hardcoded 'none'. The column holds real values, so every
+    // listing looked like it had no parking and the filter below could
+    // never match: choosing 2-wheeler, 4-wheeler or both returned an
+    // empty list on every search. The detail page and the edit modal
+    // always read the column correctly -- only this mapping dropped it.
+    parking: l.parking ?? 'none',
     verified: l.verified ?? false,
     amenities: l.amenities ?? [],
     owner_id: l.owner_id,
