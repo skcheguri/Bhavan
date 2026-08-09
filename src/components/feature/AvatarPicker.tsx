@@ -42,6 +42,7 @@ export default function AvatarPicker({ name, avatar, tone }: AvatarPickerProps) 
   const { addToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initials = name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
@@ -110,6 +111,12 @@ export default function AvatarPicker({ name, avatar, tone }: AvatarPickerProps) 
   // the menu is skipped and the file chooser opens straight away. It
   // appears once there is a second choice to make.
   const choices: Array<{ label: string; icon: string; run: () => void }> = [];
+  // Looking at it comes first: once a picture is set, the tile is 80px
+  // with the face cropped square, and wanting to see the whole thing is
+  // the most likely reason to tap it -- changing it is the rarer act.
+  if (avatar) {
+    choices.push({ label: 'View photo', icon: 'ri-eye-line', run: () => setViewerOpen(true) });
+  }
   if (native) {
     choices.push({ label: 'Take photo', icon: 'ri-camera-line', run: () => void fromCamera() });
     choices.push({ label: 'Choose photo', icon: 'ri-image-line', run: () => void fromGallery() });
@@ -162,6 +169,10 @@ export default function AvatarPicker({ name, avatar, tone }: AvatarPickerProps) 
         />
       )}
 
+      {viewerOpen && avatar && (
+        <AvatarViewer src={avatar} name={name} onClose={() => setViewerOpen(false)} />
+      )}
+
       <input
         ref={fileInputRef}
         type="file"
@@ -174,6 +185,39 @@ export default function AvatarPicker({ name, avatar, tone }: AvatarPickerProps) 
           e.target.value = '';
           if (file) void save(file);
         }}
+      />
+    </div>
+  );
+}
+
+/**
+ * The picture at full size.
+ *
+ * Same shape as the listing gallery's lightbox -- black backdrop, close
+ * in the corner, tap anywhere to dismiss -- because this is the second
+ * place in the app where you look at a photo, and having the two behave
+ * differently is a worse cost than the duplicated markup.
+ */
+function AvatarViewer({ src, name, onClose }: { src: string; name: string; onClose: () => void }) {
+  useDismissableLayer(onClose);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-6"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+      >
+        <i className="ri-close-line text-xl" />
+      </button>
+      <img
+        src={src}
+        alt={name}
+        onClick={(e) => e.stopPropagation()}
+        className="max-w-full max-h-full rounded-2xl object-contain"
       />
     </div>
   );

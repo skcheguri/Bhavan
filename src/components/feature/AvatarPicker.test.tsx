@@ -135,6 +135,30 @@ describe("AvatarPicker", () => {
     expect(deleteAvatar).toHaveBeenCalledWith("https://cdn/old.jpg");
   });
 
+  it("opens the picture at full size, which is what tapping it is usually for", async () => {
+    const user = userEvent.setup();
+    render(<AvatarPicker name="Satish Kumar" avatar="https://cdn/old.jpg" tone="amber" />);
+
+    await user.click(screen.getByRole("button", { name: /change profile picture/i }));
+    await user.click(screen.getByText("View photo"));
+
+    // Two images now: the 80px tile and the full-size one behind the close button.
+    const full = screen.getAllByRole("img", { name: "Satish Kumar" });
+    expect(full).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getAllByRole("img", { name: "Satish Kumar" })).toHaveLength(1);
+  });
+
+  it("has nothing to view when there is no picture", async () => {
+    const user = userEvent.setup();
+    render(<AvatarPicker name="Satish Kumar" avatar={null} tone="amber" />);
+
+    await user.click(screen.getByRole("button", { name: /add a profile picture/i }));
+    expect(screen.queryByText("View photo")).not.toBeInTheDocument();
+  });
+
   it("offers the camera on a phone", async () => {
     hasNativeCamera.mockReturnValue(true);
     const user = userEvent.setup();
