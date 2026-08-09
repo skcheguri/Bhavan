@@ -11,7 +11,6 @@ import AvatarPicker from '@/components/feature/AvatarPicker';
 import TenantInquiriesTab from './components/TenantInquiriesTab';
 import TenantChatTab from './components/TenantChatTab';
 import RentManagementTab from './components/RentManagementTab';
-import MyReviewsTab from './components/MyReviewsTab';
 import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 
 import { useBrokerReport } from '@/hooks/useBrokerReport';
@@ -31,9 +30,9 @@ import {
   composeIsoDate,
 } from '@/lib/validation';
 
-type ProfileTab = 'overview' | 'saved' | 'inquiries' | 'messages' | 'rentManagement' | 'reviews' | 'settings';
+type ProfileTab = 'overview' | 'saved' | 'inquiries' | 'messages' | 'rentManagement' | 'settings';
 
-const PROFILE_TABS: ProfileTab[] = ['overview', 'saved', 'inquiries', 'messages', 'rentManagement', 'reviews', 'settings'];
+const PROFILE_TABS: ProfileTab[] = ['overview', 'saved', 'inquiries', 'messages', 'rentManagement', 'settings'];
 
 function leaseCountdown(leaseEndDate: string, noticePeriodDays: number) {
   const end = new Date(`${leaseEndDate}T00:00:00`);
@@ -238,7 +237,6 @@ export default function TenantProfile() {
     { id: 'inquiries', label: 'Inquiries', icon: 'ri-message-3-line' },
     { id: 'messages', label: 'Messages', icon: 'ri-chat-3-line' },
     { id: 'rentManagement', label: 'Rent Management', icon: 'ri-home-gear-line', badge: activeMaint },
-    { id: 'reviews', label: 'My Reviews', icon: 'ri-star-line' },
     { id: 'settings', label: 'Settings', icon: 'ri-settings-3-line' },
   ];
 
@@ -806,7 +804,6 @@ export default function TenantProfile() {
 
         {activeTab === 'rentManagement' && <RentManagementTab initialSubTab={subParam === 'documents' || subParam === 'payments' || subParam === 'requests' ? subParam : undefined} />}
 
-        {activeTab === 'reviews' && <MyReviewsTab />}
 
 
         {activeTab === 'settings' && (
