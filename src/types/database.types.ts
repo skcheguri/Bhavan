@@ -375,6 +375,9 @@ export type Database = {
           city: string | null
           created_at: string
           created_by: string
+          deletion_reason: string | null
+          deletion_requested_at: string | null
+          deletion_requested_by: string | null
           id: string
           join_code: string
           kind: string
@@ -392,6 +395,9 @@ export type Database = {
           city?: string | null
           created_at?: string
           created_by: string
+          deletion_reason?: string | null
+          deletion_requested_at?: string | null
+          deletion_requested_by?: string | null
           id?: string
           join_code?: string
           kind?: string
@@ -409,6 +415,9 @@ export type Database = {
           city?: string | null
           created_at?: string
           created_by?: string
+          deletion_reason?: string | null
+          deletion_requested_at?: string | null
+          deletion_requested_by?: string | null
           id?: string
           join_code?: string
           kind?: string
@@ -432,6 +441,20 @@ export type Database = {
           {
             foreignKeyName: "communities_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communities_deletion_requested_by_fkey"
+            columns: ["deletion_requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communities_deletion_requested_by_fkey"
+            columns: ["deletion_requested_by"]
             isOneToOne: false
             referencedRelation: "users_public"
             referencedColumns: ["id"]
@@ -998,6 +1021,8 @@ export type Database = {
           community_id: string
           created_at: string
           description: string
+          escalated_at: string | null
+          escalation_stage: number
           id: string
           images: string[]
           location: string | null
@@ -1017,6 +1042,8 @@ export type Database = {
           community_id: string
           created_at?: string
           description: string
+          escalated_at?: string | null
+          escalation_stage?: number
           id?: string
           images?: string[]
           location?: string | null
@@ -1036,6 +1063,8 @@ export type Database = {
           community_id?: string
           created_at?: string
           description?: string
+          escalated_at?: string | null
+          escalation_stage?: number
           id?: string
           images?: string[]
           location?: string | null
@@ -1587,6 +1616,8 @@ export type Database = {
           category: string
           created_at: string | null
           description: string
+          escalated_at: string | null
+          escalation_stage: number
           id: string
           images: string[] | null
           landlord_notes: string | null
@@ -1609,6 +1640,8 @@ export type Database = {
           category: string
           created_at?: string | null
           description: string
+          escalated_at?: string | null
+          escalation_stage?: number
           id?: string
           images?: string[] | null
           landlord_notes?: string | null
@@ -1631,6 +1664,8 @@ export type Database = {
           category?: string
           created_at?: string | null
           description?: string
+          escalated_at?: string | null
+          escalation_stage?: number
           id?: string
           images?: string[] | null
           landlord_notes?: string | null
@@ -3353,6 +3388,7 @@ export type Database = {
       check_cron_health_and_alert: { Args: never; Returns: undefined }
       check_error_rate_and_alert: { Args: never; Returns: string }
       collection_community: { Args: { p_collection: string }; Returns: string }
+      community_is_open: { Args: { p_community: string }; Returns: boolean }
       community_is_paid: { Args: { p_community: string }; Returns: boolean }
       delete_my_account: { Args: never; Returns: undefined }
       expire_lapsed_subscriptions: { Args: never; Returns: number }
@@ -3477,6 +3513,19 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_society_deletion_summary: {
+        Args: { p_community: string }
+        Returns: {
+          collection_count: number
+          confirmed_contribution_count: number
+          confirmed_contribution_rupees: number
+          member_count: number
+          notice_count: number
+          plan_ends: string
+          plan_status: string
+          ticket_count: number
+        }[]
+      }
       get_ticket_comments: {
         Args: { p_ticket: string }
         Returns: {
@@ -3538,6 +3587,7 @@ export type Database = {
         Args: { p_device_name?: string; p_token: string }
         Returns: undefined
       }
+      run_maintenance_escalation: { Args: never; Returns: number }
       run_society_renewal_reminders: { Args: never; Returns: number }
       set_aadhaar_verification_status: {
         Args: { p_status: string }

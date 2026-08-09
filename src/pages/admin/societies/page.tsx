@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useAdminSocieties, type SocietyReviewStatus } from '@/hooks/useAdminSocieties';
+import {
+  useAdminSocieties,
+  type SocietyReviewStatus,
+  type SocietyReviewRow,
+  type DeletionSummary,
+} from '@/hooks/useAdminSocieties';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 
@@ -22,7 +27,8 @@ const QUICK_REASONS = [
 export default function AdminSocietiesPage() {
   const { user } = useAuth();
   const { addToast } = useToast();
-  const { societies, loading, error, approve, reject } = useAdminSocieties();
+  const { societies, loading, error, approve, reject, destroy, declineDeletion, summaryFor } =
+    useAdminSocieties();
   const [filter, setFilter] = useState<StatusFilter>('pending');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reasonDraft, setReasonDraft] = useState('');
@@ -61,6 +67,7 @@ export default function AdminSocietiesPage() {
     pending: 'bg-amber-50 text-amber-600',
     active: 'bg-green-50 text-green-600',
     rejected: 'bg-red-50 text-red-600',
+    closed: 'bg-lightgray text-charcoal/50',
   };
 
   return (
@@ -78,7 +85,7 @@ export default function AdminSocietiesPage() {
         </div>
 
         <div className="flex gap-1 p-1 bg-white rounded-xl border border-black/5 mb-6 sm:inline-flex">
-          {(['pending', 'active', 'rejected', 'all'] as const).map((f) => (
+          {(['pending', 'active', 'closed', 'rejected', 'all'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -164,6 +171,23 @@ export default function AdminSocietiesPage() {
                   )}
                 </div>
 
+                {s.deletionRequestedAt && (
+                  <DeletionRequest
+                    society={s}
+                    loadSummary={() => summaryFor(s.id)}
+                    onDelete={async () => {
+                      const err = await destroy(s.id);
+                      if (err) addToast(err, 'error');
+                      else addToast(`${s.name} deleted.`, 'success');
+                    }}
+                    onDecline={async () => {
+                      const err = await declineDeletion(s.id);
+                      if (err) addToast(err, 'error');
+                      else addToast('Request declined. The society is untouched.', 'success');
+                    }}
+                  />
+                )}
+
                 {expandedId === s.id && (
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <label className="block text-xs font-semibold text-charcoal mb-2">
@@ -201,6 +225,146 @@ export default function AdminSocietiesPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * A society asking to be deleted, with the facts that should decide it.
+ *
+ * "Is the group inactive" is the wrong question on its own: a forty-flat
+ * society that moved to another app legitimately wants out, and refusing
+ * them means they abandon the group instead -- so Bhavan keeps their data
+ * forever AND they keep getting notified. Confirmed contributions are the
+ * thing that should actually stop a reviewer, because that is the record
+ * somebody will come back asking for.
+ */
+function DeletionRequest({
+  society: s,
+  loadSummary,
+  onDelete,
+  onDecline,
+}: {
+  society: SocietyReviewRow;
+  loadSummary: () => Promise<DeletionSummary | null>;
+  onDelete: () => Promise<void>;
+  onDecline: () => Promise<void>;
+}) {
+  const [summary, setSummary] = useState<DeletionSummary | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const review = async () => {
+    setOpen(true);
+    if (!summary) setSummary(await loadSummary());
+  };
+
+  const money = summary ? summary.confirmed_contribution_count > 0 : false;
+
+  return (
+    <div className="mt-4 p-4 bg-red-50 rounded-xl">
+      <p className="text-sm font-bold text-red-900">
+        <i className="ri-delete-bin-line mr-1" />
+        Deletion requested
+      </p>
+      <p className="text-xs text-red-900/70 mt-0.5">
+        {new Date(s.deletionRequestedAt!).toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })}
+        {s.deletionReason ? ` — "${s.deletionReason}"` : ''}
+      </p>
+
+      {!open ? (
+        <button
+          onClick={() => void review()}
+          className="mt-3 px-4 py-2 bg-white border border-red-200 text-red-700 rounded-lg text-xs font-semibold"
+        >
+          Review
+        </button>
+      ) : (
+        <>
+          {summary === null ? (
+            <div className="mt-3 h-16 bg-white/60 rounded-lg animate-pulse" />
+          ) : (
+            <>
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                {[
+                  ['Members', summary.member_count],
+                  ['Issues', summary.ticket_count],
+                  ['Notices', summary.notice_count],
+                  ['Collections', summary.collection_count],
+                  ['Confirmed payments', summary.confirmed_contribution_count],
+                  [
+                    'Money recorded',
+                    `₹${Number(summary.confirmed_contribution_rupees).toLocaleString('en-IN')}`,
+                  ],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="bg-white rounded-lg px-3 py-2">
+                    <p className="text-charcoal/50">{label}</p>
+                    <p className="font-bold text-charcoal">{String(value)}</p>
+                  </div>
+                ))}
+              </div>
+
+              {summary.plan_status === 'active' && (
+                <p className="mt-2 text-xs text-red-900">
+                  A paid plan is still running
+                  {summary.plan_ends
+                    ? ` until ${new Date(summary.plan_ends).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}`
+                    : ''}
+                  . Closing instead would leave it intact.
+                </p>
+              )}
+
+              {money && (
+                <p className="mt-2 text-xs font-semibold text-red-900">
+                  This society has confirmed payment records. Deleting destroys them for every
+                  member — export them first if there is any doubt.
+                </p>
+              )}
+            </>
+          )}
+
+          <div className="flex gap-2 mt-3 flex-wrap">
+            <button
+              onClick={async () => {
+                if (
+                  !window.confirm(
+                    `Permanently delete ${s.name}? This removes every member, issue, notice, collection and payment record. It cannot be undone.`
+                  )
+                ) {
+                  return;
+                }
+                setBusy(true);
+                await onDelete();
+                setBusy(false);
+              }}
+              disabled={busy || summary === null}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40"
+            >
+              Delete permanently
+            </button>
+            <button
+              onClick={async () => {
+                setBusy(true);
+                await onDecline();
+                setBusy(false);
+              }}
+              disabled={busy}
+              className="px-4 py-2 bg-white border border-gray-200 text-charcoal rounded-lg text-xs font-semibold disabled:opacity-40"
+            >
+              Decline
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

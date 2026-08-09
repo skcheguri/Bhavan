@@ -16,6 +16,9 @@ import {
   removeMembership,
   updateMyUnits,
   startSocietyPlanCheckout,
+  setSocietyClosed,
+  requestSocietyDeletion,
+  cancelSocietyDeletion,
   SOCIETY_PLAN,
   useAnnouncements,
   useTickets,
@@ -637,6 +640,12 @@ function SocietyHome({
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-charcoal truncate">{society.name}</h1>
           <p className="text-sm text-gray-500 mt-1.5 capitalize">{subtitle}</p>
+          {society.status === 'closed' && (
+            <p className="text-xs text-amber-700 mt-1">
+              <i className="ri-archive-line mr-1" />
+              Closed — everything is readable, nothing new can be added.
+            </p>
+          )}
         </div>
         {isAdmin && (
           <span className="flex-shrink-0 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">
@@ -754,6 +763,10 @@ function SocietyHome({
           />
 
           <JoinAnother userId={userId} onDone={onRefresh} />
+
+          {isAdmin && (
+            <DangerZone society={society} userId={userId} onChanged={onRefresh} />
+          )}
         </div>
       )}
     </Shell>
@@ -762,6 +775,141 @@ function SocietyHome({
 
 type SocietyTab = 'overview' | 'notices' | 'maintenance' | 'funds' | 'members';
 
+
+/**
+ * Closing, and asking Bhavan to delete.
+ *
+ * Two deliberately different things. Closing is what almost everyone
+ * means: stop the notifications, stop new activity, keep the history, and
+ * reversible in one tap without waiting on anybody. Deletion is
+ * irreversible and destroys records that belong to every member -- above
+ * all the contribution ledger -- so it is a request, not a button.
+ *
+ * Understated on purpose, at the bottom, below everything useful.
+ */
+function DangerZone({
+  society,
+  userId,
+  onChanged,
+}: {
+  society: Society;
+  userId: string;
+  onChanged: () => Promise<void>;
+}) {
+  const { addToast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [reason, setReason] = useState('');
+
+  const closed = society.status === 'closed';
+  const requested = Boolean(society.deletion_requested_at);
+
+  const toggleClosed = async () => {
+    if (
+      !closed &&
+      !window.confirm(
+        `Close ${society.name}? The join code stops working and nobody can post new notices, issues or collections. Everything already here stays readable, and you can reopen it whenever you like.`
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    const { error } = await setSocietyClosed(society.id, !closed);
+    setBusy(false);
+    if (error) addToast(error, 'error');
+    else {
+      addToast(closed ? `${society.name} is open again.` : `${society.name} is closed.`, 'success');
+      await onChanged();
+    }
+  };
+
+  const askDeletion = async () => {
+    setBusy(true);
+    const { error } = await requestSocietyDeletion(society.id, userId, reason.trim());
+    setBusy(false);
+    if (error) {
+      addToast(error, 'error');
+      return;
+    }
+    setAsking(false);
+    setReason('');
+    addToast('Bhavan has been asked to delete this society.', 'success');
+    await onChanged();
+  };
+
+  const cancelDeletion = async () => {
+    setBusy(true);
+    const { error } = await cancelSocietyDeletion(society.id);
+    setBusy(false);
+    if (error) addToast(error, 'error');
+    else await onChanged();
+  };
+
+  return (
+    <div className="pt-4 border-t border-black/5">
+      {requested ? (
+        <Notice tone="warn" icon="ri-time-line" title="Deletion requested">
+          Bhavan is reviewing this. Nothing has been deleted yet.
+          <button
+            onClick={() => void cancelDeletion()}
+            disabled={busy}
+            className="block mt-2 text-xs font-semibold underline disabled:opacity-40"
+          >
+            Cancel the request
+          </button>
+        </Notice>
+      ) : (
+        <div className="flex flex-wrap items-center gap-4">
+          <button
+            onClick={() => void toggleClosed()}
+            disabled={busy}
+            className="text-xs font-semibold text-charcoal/60 hover:text-charcoal disabled:opacity-40"
+          >
+            {closed ? `Reopen ${society.name}` : `Close ${society.name}`}
+          </button>
+          <button
+            onClick={() => setAsking(!asking)}
+            className="text-xs text-gray-400 hover:text-red-600"
+          >
+            Ask Bhavan to delete it
+          </button>
+        </div>
+      )}
+
+      {asking && !requested && (
+        <div className="mt-3 p-4 bg-red-50 rounded-lg">
+          <p className="text-sm text-red-900 font-semibold">This cannot be undone</p>
+          <p className="text-xs text-red-900/80 mt-1 mb-3">
+            Deleting removes every notice, issue and payment record for this society, for all its
+            members. If you only want it to stop being used, close it instead — that keeps the
+            history and you can reopen it.
+          </p>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Why? (helps Bhavan review it)"
+            className={inputCls}
+          />
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => void askDeletion()}
+              disabled={busy}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40"
+            >
+              {busy ? 'Sending…' : 'Request deletion'}
+            </button>
+            <button
+              onClick={() => setAsking(false)}
+              className="px-4 py-2 border border-gray-200 text-charcoal rounded-lg text-xs font-semibold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** What the building is on, what that unlocks, and how to buy it. */
 function PlanCard({

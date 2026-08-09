@@ -226,6 +226,12 @@ is lifecycle and polish rather than function:
   from those rows and paging would make an admin see "2 waiting" when
   there were thirty.
 - **Two mobile checks outstanding** — MOBILE_TESTING §5e.10 and §5e.11.
+- **The owner-side contractor UI is typechecked, not clicked.** The list
+  and assignment on `/owner-profile?tab=requests` have never been driven
+  in a browser, unlike the society equivalents.
+- **Closed societies are not purged.** A society can sit closed forever;
+  nobody has decided a retention period, which is a DPDP question worth
+  answering before there are many of them.
 
 One thing that is easy to misread as a gap and is not: fund collections
 are a **ledger**, not a payment path. That is a legal boundary, explained

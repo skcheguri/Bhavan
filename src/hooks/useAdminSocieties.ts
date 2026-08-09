@@ -14,7 +14,7 @@ import { getSupabase } from '@/lib/supabase';
  * on the strength of the ownership document they already had approved.
  */
 
-export type SocietyReviewStatus = 'pending' | 'active' | 'rejected';
+export type SocietyReviewStatus = 'pending' | 'active' | 'rejected' | 'closed';
 
 export interface SocietyReviewRow {
   id: string;
@@ -31,6 +31,20 @@ export interface SocietyReviewRow {
   createdById: string;
   createdByName: string;
   memberCount: number;
+  deletionRequestedAt: string | null;
+  deletionReason: string | null;
+}
+
+/** What Bhavan needs on screen before agreeing to destroy a society. */
+export interface DeletionSummary {
+  member_count: number;
+  ticket_count: number;
+  notice_count: number;
+  collection_count: number;
+  confirmed_contribution_count: number;
+  confirmed_contribution_rupees: number;
+  plan_status: string | null;
+  plan_ends: string | null;
 }
 
 export function useAdminSocieties() {
@@ -52,7 +66,7 @@ export function useAdminSocieties() {
     const { data, error: dbError } = await supabase
       .from('communities')
       .select(
-        'id, name, kind, address, city, state, join_code, status, rejection_reason, created_at, reviewed_at, created_by, creator:users_public!communities_created_by_fkey(name), community_members(count)'
+        'id, name, kind, address, city, state, join_code, status, rejection_reason, created_at, reviewed_at, created_by, deletion_requested_at, deletion_reason, creator:users_public!communities_created_by_fkey(name), community_members(count)'
       )
       .order('created_at', { ascending: false });
 
@@ -82,6 +96,8 @@ export function useAdminSocieties() {
           ((r.creator as { name: string | null } | null)?.name) ?? 'Unknown owner',
         memberCount:
           ((r.community_members as { count: number }[] | null)?.[0]?.count) ?? 0,
+        deletionRequestedAt: (r.deletion_requested_at as string) ?? null,
+        deletionReason: (r.deletion_reason as string) ?? null,
       }))
     );
     setLoading(false);
@@ -141,7 +157,65 @@ export function useAdminSocieties() {
     [load]
   );
 
-  const pendingCount = societies.filter((s) => s.status === 'pending').length;
+  /**
+   * Destroy a society and everything in it.
+   *
+   * Only reachable after a society admin has asked, and only for a
+   * platform admin -- communities has no other DELETE policy. The cascade
+   * takes members, issues, notices, collections and contributions with
+   * it, which is exactly why the summary is shown first.
+   */
+  const destroy = useCallback(
+    async (id: string): Promise<string | null> => {
+      const supabase = getSupabase();
+      if (!supabase) return 'Not connected to the database.';
 
-  return { societies, loading, error, approve, reject, refresh: load, pendingCount };
+      const { error: dbError } = await supabase.from('communities').delete().eq('id', id);
+      if (dbError) return dbError.message;
+      await load();
+      return null;
+    },
+    [load]
+  );
+
+  /** Decline a request: the society stays, the flag clears. */
+  const declineDeletion = useCallback(
+    async (id: string): Promise<string | null> => {
+      const supabase = getSupabase();
+      if (!supabase) return 'Not connected to the database.';
+
+      const { error: dbError } = await supabase
+        .from('communities')
+        .update({ deletion_requested_at: null, deletion_requested_by: null, deletion_reason: null })
+        .eq('id', id);
+      if (dbError) return dbError.message;
+      await load();
+      return null;
+    },
+    [load]
+  );
+
+  const summaryFor = useCallback(async (id: string): Promise<DeletionSummary | null> => {
+    const supabase = getSupabase();
+    if (!supabase) return null;
+    const { data } = await supabase.rpc('get_society_deletion_summary', { p_community: id });
+    return ((data as DeletionSummary[] | null)?.[0]) ?? null;
+  }, []);
+
+  const pendingCount = societies.filter((s) => s.status === 'pending').length;
+  const deletionCount = societies.filter((s) => s.deletionRequestedAt).length;
+
+  return {
+    societies,
+    loading,
+    error,
+    approve,
+    reject,
+    destroy,
+    declineDeletion,
+    summaryFor,
+    refresh: load,
+    pendingCount,
+    deletionCount,
+  };
 }

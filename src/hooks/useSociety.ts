@@ -25,8 +25,11 @@ export interface Society {
   city: string | null;
   state: string | null;
   join_code: string;
+  /** pending | active | rejected | closed */
   status: string;
   rejection_reason: string | null;
+  deletion_requested_at: string | null;
+  deletion_reason: string | null;
   created_by: string;
   created_at: string;
 }
@@ -1322,5 +1325,72 @@ export async function assignRequestVendor(
     .update({ assigned_vendor_id: vendorId })
     .eq('id', requestId);
   // "That contractor is not on your list" arrives already phrased.
+  return { error: error ? error.message : null };
+}
+
+/* ------------------------------------------------------------------ */
+/* Closing a society, and asking Bhavan to delete it                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Close or reopen. Self-service, reversible, and what most people mean
+ * when they say they want to delete a society: the join code stops
+ * resolving, nothing new can be posted, notifications stop, and members
+ * keep their history.
+ */
+export async function setSocietyClosed(
+  communityId: string,
+  closed: boolean
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase
+    .from('communities')
+    .update({ status: closed ? 'closed' : 'active' })
+    .eq('id', communityId);
+
+  // The status guard phrases its refusals for a reader already.
+  return { error: error ? error.message : null };
+}
+
+/**
+ * Ask Bhavan to delete the society for good.
+ *
+ * A request, not an action. A society's records belong to its members --
+ * particularly the contribution ledger -- so one admin does not get to
+ * destroy them alone.
+ */
+export async function requestSocietyDeletion(
+  communityId: string,
+  userId: string,
+  reason: string
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase
+    .from('communities')
+    .update({
+      deletion_requested_at: new Date().toISOString(),
+      deletion_requested_by: userId,
+      deletion_reason: reason || null,
+    })
+    .eq('id', communityId);
+
+  if (!error) return { error: null };
+  if (error.code === '42501') return { error: 'Only a society admin can ask for this.' };
+  return { error: error.message };
+}
+
+export async function cancelSocietyDeletion(
+  communityId: string
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase
+    .from('communities')
+    .update({ deletion_requested_at: null, deletion_requested_by: null, deletion_reason: null })
+    .eq('id', communityId);
   return { error: error ? error.message : null };
 }
