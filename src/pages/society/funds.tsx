@@ -58,7 +58,7 @@ export function Funds({
   return (
     <div className="space-y-4">
       {!isPaid && isAdmin && (
-        <Notice tone="warn" icon="ri-lock-line" title="Collections need a society plan">
+        <Notice tone="info" icon="ri-lock-line" title="Collections need a society plan">
           Starting a collection is part of the society plan.
         </Notice>
       )}
