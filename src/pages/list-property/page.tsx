@@ -145,6 +145,10 @@ export default function ListProperty() {
     const bathrooms = parseInt(String(fd.get('bathrooms') ?? '1'), 10) || 1;
     const area = parseInt(String(fd.get('area_sqft') ?? '0'), 10) || 0;
     const furnished = fd.get('furnishing') === 'fully-furnished' || fd.get('furnishing') === 'semi-furnished';
+    // Same four values the edit modal writes, so a listing created
+    // here and one edited later are indistinguishable to the search
+    // filter.
+    const parking = String(fd.get('parking') ?? 'none');
     const propType = String(fd.get('property_type') ?? 'apartment');
 
     const amenityFields = Array.from(form.querySelectorAll('input[type="checkbox"][name^="amenity_"]'))
@@ -209,6 +213,7 @@ export default function ListProperty() {
         bathrooms: bathrooms || null,
         area_sqft: area || null,
         furnished,
+        parking,
         property_type: propType,
         images: [imageUrl],
         amenities: amenityFields,
@@ -1020,6 +1025,19 @@ export default function ListProperty() {
                           <option value="unfurnished">Unfurnished</option>
                           <option value="semi-furnished">Semi-Furnished</option>
                           <option value="fully-furnished">Fully Furnished</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-charcoal mb-1.5">Parking</label>
+                        <select
+                          name="parking"
+                          defaultValue="none"
+                          className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal focus:outline-none focus:border-brand transition-colors cursor-pointer"
+                        >
+                          <option value="none">No Parking</option>
+                          <option value="2-wheeler">2-Wheeler Only</option>
+                          <option value="4-wheeler">4-Wheeler Only</option>
+                          <option value="both">Both 2W &amp; 4W</option>
                         </select>
                       </div>
                       <div>
