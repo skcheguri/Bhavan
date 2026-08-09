@@ -1,8 +1,14 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ownerOnRenterQuestions, renterOnOwnerQuestions } from '@/lib/content/feedbackQuestions';
 import StarRating from './StarRating';
-import { createReview, type FeedbackRole, type ReviewableTenancy } from '@/hooks/useReviews';
+import {
+  createReview,
+  updateReview,
+  type FeedbackRole,
+  type ReviewableTenancy,
+  type ReviewFromDB,
+} from '@/hooks/useReviews';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 
@@ -21,13 +27,23 @@ interface FeedbackModalProps {
    * role, so a tenant cannot file a review as an owner.
    */
   tenancies?: ReviewableTenancy[];
+  /**
+   * An existing review being corrected inside its one-hour window. The
+   * tenancy is already settled, so the picker is skipped -- only the
+   * verdict is up for revision.
+   */
+  editing?: ReviewFromDB;
 }
 
-export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, tenancies }: FeedbackModalProps) {
+export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, tenancies, editing }: FeedbackModalProps) {
   useDismissableLayer(onClose);
   const { user } = useAuth();
   const { addToast } = useToast();
-  const [step, setStep] = useState<'info' | 'questionnaire' | 'rating' | 'done'>('info');
+  // Editing skips the picker: the tenancy is already decided and pinned
+  // server-side, so there is nothing to choose on step one.
+  const [step, setStep] = useState<'info' | 'questionnaire' | 'rating' | 'done'>(
+    editing ? 'questionnaire' : 'info'
+  );
   const [tenancyId, setTenancyId] = useState<string>('');
   const chosen = tenancies?.find((t) => t.agreementId === tenancyId) ?? null;
 
@@ -35,17 +51,28 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
   // and the role decides which questionnaire they answer. The `role`
   // prop is only the fallback for the profile-view path, where the
   // caller already knows.
-  const effectiveRole: FeedbackRole = chosen?.role ?? role;
+  const effectiveRole: FeedbackRole = editing?.role ?? chosen?.role ?? role;
   const isOwner = effectiveRole === 'owner_on_renter';
   const questions = isOwner ? ownerOnRenterQuestions : renterOnOwnerQuestions;
 
   const [subjectName, setSubjectName] = useState(lockedSubject?.name ?? '');
   const [property, setProperty] = useState('');
   const [period, setPeriod] = useState('');
-  const [answers, setAnswers] = useState<Record<string, boolean | null>>(
-    Object.fromEntries(questions.map((q) => [q.id, null]))
+  // Stored answers are keyed by the question's wording, not its id, so an
+  // edit has to match them back up by label. A question that has since
+  // been reworded simply comes back unanswered rather than mismatched.
+  const blankOrExisting = useCallback(
+    (qs: typeof questions) =>
+      Object.fromEntries(
+        qs.map((q) => [q.id, editing?.answers.find((a) => a.question === q.label)?.value ?? null])
+      ),
+    [editing]
   );
-  const [comment, setComment] = useState('');
+
+  const [answers, setAnswers] = useState<Record<string, boolean | null>>(() =>
+    blankOrExisting(questions)
+  );
+  const [comment, setComment] = useState(editing?.comment ?? '');
   const [submitting, setSubmitting] = useState(false);
 
   // Picking a tenancy on the other side of the relationship swaps the
@@ -53,10 +80,11 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
   // otherwise a half-filled owner questionnaire counts toward a tenant's
   // rating.
   useEffect(() => {
-    // `questions` is one of two module-level constants, so it changes
-    // only when the role does -- listing it cannot loop.
-    setAnswers(Object.fromEntries(questions.map((q) => [q.id, null])));
-  }, [questions]);
+    // `questions` is one of two module-level constants and
+    // `blankOrExisting` is keyed to a prop that does not change for the
+    // life of the modal, so this cannot loop.
+    setAnswers(blankOrExisting(questions));
+  }, [questions, blankOrExisting]);
 
   const calculateAutoRating = (role: FeedbackRole, ans: Record<string, boolean | null>) => {
     const qs = role === 'owner_on_renter' ? ownerOnRenterQuestions : renterOnOwnerQuestions;
@@ -83,6 +111,10 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
     setAnswers((prev) => ({ ...prev, [id]: val }));
   };
 
+  const stepOrder: string[] = editing
+    ? ['questionnaire', 'rating']
+    : ['info', 'questionnaire', 'rating'];
+
   const allAnswered = Object.values(answers).every((v) => v !== null);
   const infoValid = tenancies
     ? Boolean(chosen)
@@ -97,6 +129,21 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
     // relationship-scoped RLS from migration-era task "restrict reviews
     // to actual tenant-owner relationships"). Without a locked subject
     // there is nobody to attach the review to.
+    if (editing) {
+      setSubmitting(true);
+      const { error: editError } = await updateReview(editing.id, {
+        overall_rating: autoRating,
+        answers: questions.map((q) => ({ question: q.label, value: answers[q.id] })),
+        comment,
+      });
+      setSubmitting(false);
+      if (editError) {
+        addToast(editError, 'error');
+        return;
+      }
+      setStep('done');
+      return;
+    }
     if (!chosen && !lockedSubject?.id) {
       addToast('Reviews can only be written about someone you have an actual rental relationship with — open this from your Inquiries or My Reviews tab.', 'error');
       return;
@@ -105,6 +152,7 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
     const { error } = await createReview({
       reviewer_id: user.id,
       subject_id: chosen ? chosen.subjectId : lockedSubject.id,
+      agreement_id: chosen?.agreementId ?? null,
       role: effectiveRole,
       property_name: chosen ? chosen.propertyName : property,
       tenancy_period: chosen ? chosen.tenancyPeriod : period,
@@ -127,9 +175,13 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
           <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
             <i className="ri-check-double-line text-emerald-500 text-3xl" />
           </div>
-          <h3 className="mt-5 text-xl font-bold text-charcoal">Feedback Submitted!</h3>
+          <h3 className="mt-5 text-xl font-bold text-charcoal">
+            {editing ? 'Review Updated' : 'Feedback Submitted!'}
+          </h3>
           <p className="mt-2 text-sm text-charcoal/60">
-            Your review has been recorded. It helps build a trustworthy rental community.
+            {editing
+              ? 'Your changes have been saved.'
+              : 'Your review has been recorded. It helps build a trustworthy rental community.'}
           </p>
           <button
             type="button"
@@ -154,18 +206,22 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
             </div>
             <div>
               <h2 className="font-bold text-charcoal text-base">
-                {tenancies && !chosen
-                  ? 'Write a review'
-                  : isOwner
-                    ? 'Review Your Tenant'
-                    : 'Review Your Owner'}
+                {editing
+                  ? 'Edit your review'
+                  : tenancies && !chosen
+                    ? 'Write a review'
+                    : isOwner
+                      ? 'Review Your Tenant'
+                      : 'Review Your Owner'}
               </h2>
               <p className="text-xs text-charcoal/60">
-                {tenancies && !chosen
-                  ? 'Pick the tenancy you want to review'
-                  : isOwner
-                    ? 'Help future landlords make informed decisions'
-                    : 'Help future tenants find trustworthy owners'}
+                {editing
+                  ? `${editing.subject_name} · ${editing.property}`
+                  : tenancies && !chosen
+                    ? 'Pick the tenancy you want to review'
+                    : isOwner
+                      ? 'Help future landlords make informed decisions'
+                      : 'Help future tenants find trustworthy owners'}
               </p>
             </div>
           </div>
@@ -177,18 +233,18 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
         {/* Step indicator */}
         <div className="px-6 pt-5">
           <div className="flex items-center gap-2">
-            {['info', 'questionnaire', 'rating'].map((s, i) => (
+            {stepOrder.map((s, i) => (
               <div key={s} className="flex items-center gap-2">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                   step === s ? (isOwner ? 'bg-brand text-white' : 'bg-teal-500 text-white')
-                  : ['info', 'questionnaire', 'rating'].indexOf(step) > i ? 'bg-emerald-500 text-white' : 'bg-lightgray text-charcoal/40'
+                  : stepOrder.indexOf(step) > i ? 'bg-emerald-500 text-white' : 'bg-lightgray text-charcoal/40'
                 }`}>
-                  {['info', 'questionnaire', 'rating'].indexOf(step) > i ? <i className="ri-check-line" /> : i + 1}
+                  {stepOrder.indexOf(step) > i ? <i className="ri-check-line" /> : i + 1}
                 </div>
                 <span className="text-xs text-charcoal/60 hidden sm:block">
                   {s === 'info' ? 'Details' : s === 'questionnaire' ? 'Questionnaire' : 'Rating'}
                 </span>
-                {i < 2 && <div className="w-8 h-px bg-gray-200 mx-1" />}
+                {i < stepOrder.length - 1 && <div className="w-8 h-px bg-gray-200 mx-1" />}
               </div>
             ))}
           </div>
@@ -352,10 +408,10 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setStep('info')}
+                  onClick={() => (editing ? onClose() : setStep('info'))}
                   className="flex-1 py-3 rounded-full font-medium text-sm border border-black/10 text-charcoal/70 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  Back
+                  {editing ? 'Cancel' : 'Back'}
                 </button>
                 <button
                   type="button"
@@ -422,9 +478,9 @@ export default function FeedbackModal({ role, onClose, onSubmit, lockedSubject, 
                   {submitting ? (
                     <span className="flex items-center justify-center gap-2">
                       <i className="ri-loader-4-line animate-spin" />
-                      Submitting...
+                      {editing ? 'Saving...' : 'Submitting...'}
                     </span>
-                  ) : 'Submit Review'}
+                  ) : editing ? 'Save Changes' : 'Submit Review'}
                 </button>
               </div>
             </div>

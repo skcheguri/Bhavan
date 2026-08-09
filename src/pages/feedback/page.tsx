@@ -1,5 +1,10 @@
-import { useState, useMemo } from 'react';
-import { useReviews, useReviewableTenancies } from '@/hooks/useReviews';
+import { useState, useMemo, useEffect } from 'react';
+import {
+  useReviews,
+  useReviewableTenancies,
+  editWindowClosesAt,
+  type ReviewFromDB,
+} from '@/hooks/useReviews';
 import { useAuth } from '@/hooks/useAuth';
 import ReviewCard from './components/ReviewCard';
 import FeedbackModal from './components/FeedbackModal';
@@ -17,8 +22,18 @@ export default function FeedbackPage() {
   // The reviewer's own tenancies. Which one they pick decides who is
   // being reviewed and from which side -- the browse tabs above only
   // filter what is on screen.
-  const { tenancies } = useReviewableTenancies(user?.id);
+  const { tenancies, refresh: refreshTenancies } = useReviewableTenancies(user?.id);
   const { reviews: entries, loading, refresh } = useReviews();
+  const [editingReview, setEditingReview] = useState<ReviewFromDB | null>(null);
+
+  // The edit window closes while the page is open, so the button has to
+  // go on its own rather than waiting for a reload to withdraw an offer
+  // the server would refuse.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const filtered = useMemo(() => {
     let list = entries.filter((e) => e.role === activeTab);
@@ -43,6 +58,12 @@ export default function FeedbackPage() {
   const handleModalSubmit = () => {
     setModalRole(null);
     refresh();
+    // Without this the picker still offers the tenancy that was just
+    // reviewed -- it was loaded before the review existed. Reopening it
+    // and submitting again hits reviews_one_per_tenancy, so the reviewer
+    // meets a database error where they should have seen "Already
+    // reviewed" and an Edit button.
+    void refreshTenancies();
   };
 
   return (
@@ -240,9 +261,18 @@ export default function FeedbackPage() {
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {filtered.map((entry) => (
-                    <ReviewCard key={entry.id} entry={entry} />
-                  ))}
+                  {filtered.map((entry) => {
+                    const closesAt = editWindowClosesAt(entry.created_at);
+                    const editable = user?.id === entry.reviewer_id && now < closesAt;
+                    return (
+                      <ReviewCard
+                        key={entry.id}
+                        entry={entry}
+                        onEdit={editable ? () => setEditingReview(entry) : undefined}
+                        minutesLeftToEdit={editable ? Math.floor((closesAt - now) / 60_000) : undefined}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -284,8 +314,17 @@ export default function FeedbackPage() {
         <FeedbackModal
           role={modalRole}
           tenancies={tenancies}
-          onClose={() => setModalRole(null)}
+          onClose={() => { setModalRole(null); void refreshTenancies(); }}
           onSubmit={handleModalSubmit}
+        />
+      )}
+
+      {editingReview && (
+        <FeedbackModal
+          role={editingReview.role}
+          editing={editingReview}
+          onClose={() => setEditingReview(null)}
+          onSubmit={() => { setEditingReview(null); refresh(); }}
         />
       )}
     </div>

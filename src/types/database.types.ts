@@ -2617,9 +2617,11 @@ export type Database = {
       }
       reviews: {
         Row: {
+          agreement_id: string | null
           answers: Json | null
           comment: string | null
           created_at: string | null
+          edited_at: string | null
           id: string
           listing_id: string | null
           location: string | null
@@ -2631,9 +2633,11 @@ export type Database = {
           tenancy_period: string | null
         }
         Insert: {
+          agreement_id?: string | null
           answers?: Json | null
           comment?: string | null
           created_at?: string | null
+          edited_at?: string | null
           id?: string
           listing_id?: string | null
           location?: string | null
@@ -2645,9 +2649,11 @@ export type Database = {
           tenancy_period?: string | null
         }
         Update: {
+          agreement_id?: string | null
           answers?: Json | null
           comment?: string | null
           created_at?: string | null
+          edited_at?: string | null
           id?: string
           listing_id?: string | null
           location?: string | null
@@ -2659,6 +2665,13 @@ export type Database = {
           tenancy_period?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "reviews_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "rental_agreements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reviews_listing_id_fkey"
             columns: ["listing_id"]
