@@ -352,14 +352,14 @@ export default function TenantProfile() {
               onClick={() => setActiveTab(tab.id)}
               className={`relative flex items-center justify-center gap-2 px-5 py-3 rounded-full text-sm transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 md:flex-1 ${
                 activeTab === tab.id
-                  ? 'bg-lightgray text-charcoal font-semibold'
-                  : 'text-charcoal/60 font-medium hover:text-charcoal'
+                  ? 'bg-brand text-white'
+                  : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
               }`}
             >
               <i className={`${tab.icon} text-sm`} />
               {tab.label}
               {tab.badge != null && tab.badge > 0 && (
-                <span className="ml-0.5 min-w-[18px] px-1.5 h-[18px] rounded-full bg-charcoal/10 text-charcoal text-[10px] font-semibold flex items-center justify-center tabular-nums">
+                <span className={`ml-0.5 min-w-[18px] px-1.5 h-[18px] rounded-full text-[10px] font-semibold flex items-center justify-center tabular-nums ${activeTab === tab.id ? 'bg-white/25 text-white' : 'bg-lightgray text-charcoal/60'}`}>
                   {tab.badge}
                 </span>
               )}

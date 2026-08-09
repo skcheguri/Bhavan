@@ -370,7 +370,7 @@ export function Maintenance({
                   onClick={() => setForm({ ...form, category: c.value })}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                     form.category === c.value
-                      ? 'bg-charcoal text-white'
+                      ? 'bg-brand text-white'
                       : 'bg-lightgray text-charcoal/70 hover:bg-gray-200'
                   }`}
                 >

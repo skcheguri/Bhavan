@@ -356,7 +356,7 @@ function VisitRequestsSection({ ownerId }: { ownerId: string | undefined }) {
             key={tab.id}
             onClick={() => setVisitFilter(tab.id)}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              visitFilter === tab.id ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+              visitFilter === tab.id ? 'bg-brand text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
             }`}
           >
             {tab.label}
@@ -451,7 +451,7 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
         <button
           onClick={() => setSection('connections')}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-            section === 'connections' ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+            section === 'connections' ? 'bg-brand text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
           }`}
         >
           <i className="ri-user-add-line text-sm" /> Connection Requests
@@ -459,7 +459,7 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
         <button
           onClick={() => setSection('visits')}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-            section === 'visits' ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+            section === 'visits' ? 'bg-brand text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
           }`}
         >
           <i className="ri-calendar-schedule-line text-sm" /> Visit Requests
@@ -526,7 +526,7 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
             key={tab.id}
             onClick={() => setFilter(tab.id)}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-              filter === tab.id ? 'bg-amber-500 text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
+              filter === tab.id ? 'bg-brand text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
             }`}
           >
             {tab.label}

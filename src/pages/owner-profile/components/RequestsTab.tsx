@@ -123,7 +123,7 @@ export default function RequestsTab() {
           <button
             key={s.key}
             onClick={() => setFilter(s.key)}
-            className={`text-left p-4 rounded-xl border transition cursor-pointer ${filter === s.key ? 'border-amber-500 bg-amber-50/50' : 'border-black/5 bg-white hover:border-amber-300/50'}`}
+            className={`text-left p-4 rounded-xl border transition cursor-pointer ${filter === s.key ? 'border-brand bg-brand/5' : 'border-black/5 bg-white hover:border-amber-300/50'}`}
           >
             <div className={`w-8 h-8 flex items-center justify-center rounded-lg mb-2 ${s.bg}`}>
               <i className={`${s.icon} ${s.color}`} />
@@ -161,7 +161,7 @@ export default function RequestsTab() {
               key={f}
               onClick={() => setFilter(f)}
               className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition cursor-pointer whitespace-nowrap ${
-                filter === f ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-charcoal/60 border-black/10 hover:border-amber-300'
+                filter === f ? 'bg-brand text-white border-brand' : 'bg-white text-charcoal/60 border-black/10 hover:border-brand/40'
               }`}
             >
               {f === 'all' ? 'All' : f === 'in_progress' ? 'In Progress' : f.charAt(0).toUpperCase() + f.slice(1)}

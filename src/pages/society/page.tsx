@@ -216,7 +216,7 @@ function JoinOrCreate({ userId, onDone }: { userId: string; onDone: () => Promis
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 sm:flex-none px-5 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              tab === t ? 'bg-lightgray text-charcoal' : 'text-charcoal/55 hover:text-charcoal'
+              tab === t ? 'bg-brand text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
             }`}
           >
             {t === 'join' ? 'Join with a code' : 'Register a society'}
@@ -668,7 +668,7 @@ function SocietyHome({
             key={t}
             onClick={() => setTab(t)}
             className={`flex-shrink-0 px-4 sm:px-5 py-2 rounded-full text-sm font-medium capitalize transition-colors ${
-              tab === t ? 'bg-lightgray text-charcoal' : 'text-charcoal/55 hover:text-charcoal'
+              tab === t ? 'bg-brand text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
             }`}
           >
             {t === 'notices' ? 'Notices' : t === 'maintenance' ? 'Maintenance' : t === 'funds' ? 'Funds' : t}
