@@ -216,7 +216,7 @@ function JoinOrCreate({ userId, onDone }: { userId: string; onDone: () => Promis
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 sm:flex-none px-5 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              tab === t ? 'bg-charcoal text-white' : 'text-gray-500 hover:text-charcoal'
+              tab === t ? 'bg-lightgray text-charcoal' : 'text-charcoal/55 hover:text-charcoal'
             }`}
           >
             {t === 'join' ? 'Join with a code' : 'Register a society'}
@@ -269,7 +269,7 @@ function JoinForm({ userId, onDone }: { userId: string; onDone: () => Promise<vo
   };
 
   return (
-    <div className="bg-white rounded-xl border border-black/5 p-6">
+    <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
       <label className="block text-sm font-semibold text-charcoal mb-2">Society join code</label>
       <div className="flex gap-2">
         <input
@@ -369,7 +369,7 @@ function CreateForm({ userId, onDone }: { userId: string; onDone: () => Promise<
   };
 
   return (
-    <div className="bg-white rounded-xl border border-black/5 p-6">
+    <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
       <Notice tone="info" icon="ri-information-line" title="We review new societies">
         To stop anyone claiming a building they don't live in, our team checks new societies before
         they go live. You'll become its first admin once it's approved.
@@ -431,7 +431,7 @@ function SocietySwitcher({
   if (memberships.length < 2) return null;
 
   return (
-    <div className="flex flex-wrap gap-1 p-1 bg-white rounded-xl border border-black/5 mb-4 sm:inline-flex sm:flex-nowrap">
+    <div className="flex flex-wrap gap-1 mb-6 sm:inline-flex sm:flex-nowrap">
       {memberships.map((m) => (
         <button
           key={m.society.id}
@@ -521,7 +521,7 @@ function SocietyUnderReview({ society }: { society: Society }) {
         Our team is checking the details you submitted. We'll let you know once it's live, and
         you'll become its first admin — then you can share the join code with other owners.
       </Notice>
-      <div className="mt-4 bg-white rounded-xl border border-black/5 p-5">
+      <div className="mt-4 bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
         <p className="text-sm font-semibold text-charcoal mb-1">Submitted</p>
         <p className="text-sm text-gray-600 capitalize">
           {society.kind} · {society.address}
@@ -662,13 +662,13 @@ function SocietyHome({
           horizontal scroll gave no hint that Funds and Members existed --
           verified on a Pixel, where an admin could not see a waiting join
           request because its tab was off-screen. Two rows show everything. */}
-      <div className="flex flex-wrap gap-1 p-1 bg-white rounded-xl border border-black/5 mb-6 sm:inline-flex sm:flex-nowrap">
+      <div className="flex flex-wrap gap-1 mb-8 sm:inline-flex sm:flex-nowrap">
         {tabs.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-shrink-0 px-4 sm:px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-colors ${
-              tab === t ? 'bg-charcoal text-white' : 'text-gray-500 hover:text-charcoal'
+            className={`flex-shrink-0 px-4 sm:px-5 py-2 rounded-full text-sm font-medium capitalize transition-colors ${
+              tab === t ? 'bg-lightgray text-charcoal' : 'text-charcoal/55 hover:text-charcoal'
             }`}
           >
             {t === 'notices' ? 'Notices' : t === 'maintenance' ? 'Maintenance' : t === 'funds' ? 'Funds' : t}
@@ -729,7 +729,7 @@ function SocietyHome({
           )}
 
           {isAdmin && (
-            <div className="bg-white rounded-xl border border-black/5 p-5">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <p className="text-sm font-semibold text-charcoal mb-1">Join code</p>
               <p className="text-xs text-gray-500 mb-3">
                 Share this with owners in your society. Only verified owners can use it.
@@ -749,7 +749,7 @@ function SocietyHome({
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-black/5 p-5">
+          <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
             <p className="text-sm font-semibold text-charcoal mb-1">Address</p>
             <p className="text-sm text-gray-600">
               {society.address}
@@ -1015,7 +1015,7 @@ function SetMyUnits({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-black/5 p-5">
+    <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
       <p className="text-sm font-semibold text-charcoal mb-1">Which flat is yours?</p>
       <p className="text-xs text-gray-500 mb-3">
         Other owners will see this next to your name.
@@ -1105,7 +1105,7 @@ function Members({
           Pending requests {pending.length > 0 && <span className="text-brand">({pending.length})</span>}
         </h2>
         {pending.length === 0 ? (
-          <p className="text-sm text-gray-400 bg-white rounded-xl border border-black/5 p-5">
+          <p className="text-sm text-gray-400 bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
             Nothing waiting on you.
           </p>
         ) : (
@@ -1179,7 +1179,7 @@ function MemberRow({
 }) {
   return (
     <div
-      className={`bg-white rounded-xl border border-black/5 p-4 flex items-center gap-3 ${
+      className={`bg-white rounded-2xl border border-black/5 p-5 flex items-center gap-3 ${
         busy ? 'opacity-50' : ''
       }`}
     >

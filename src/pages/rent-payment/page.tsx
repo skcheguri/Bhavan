@@ -208,10 +208,10 @@ export default function RentPayment() {
         </div>
 
         {/* Header Card */}
-        <div className="bg-white rounded-3xl border border-black/5 p-6 mb-6">
+        <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7 mb-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-charcoal">Rent Payment</h1>
+              <h1 className="text-2xl md:text-[2rem] font-semibold text-charcoal tracking-[-.03em] leading-tight">Rent Payment</h1>
               <p className="text-sm text-charcoal/60 mt-1">Pay your rent online, set up AutoPay, or log a cash payment</p>
             </div>
             {isTenant && (
@@ -287,9 +287,9 @@ export default function RentPayment() {
 
         {/* Pay Rent Tab */}
         {activeTab === 'pay' && (
-          <div className="bg-white rounded-3xl border border-black/5 p-6">
+          <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
             <div className="max-w-md mx-auto">
-              <h2 className="text-base font-bold text-charcoal mb-1 text-center">Pay Rent</h2>
+              <h2 className="text-[15px] font-semibold text-charcoal mb-1 text-center">Pay Rent</h2>
               <p className="text-sm text-charcoal/60 mb-5 text-center">Card, UPI, or netbanking — pick whatever's easiest on the next screen</p>
 
               <div className="bg-offwhite rounded-2xl p-6 border border-black/5 mb-5 text-center">
@@ -326,10 +326,10 @@ export default function RentPayment() {
 
         {/* UPI AutoPay Tab */}
         {activeTab === 'autopay' && (
-          <div className="bg-white rounded-3xl border border-black/5 p-6">
+          <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
             <div className="flex flex-col lg:flex-row gap-8">
               <div className="flex-1">
-                <h2 className="text-base font-bold text-charcoal mb-1">UPI AutoPay</h2>
+                <h2 className="text-[15px] font-semibold text-charcoal mb-1">UPI AutoPay</h2>
                 <p className="text-sm text-charcoal/60 mb-5">Set up automatic monthly rent debit — never miss a due date</p>
 
                 {myMandate ? (
@@ -340,7 +340,7 @@ export default function RentPayment() {
                           <i className="ri-repeat-line text-green-600 text-lg" />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-charcoal">AutoPay {myMandate.status === 'active' ? 'Active' : 'Paused'}</p>
+                          <p className="text-[15px] font-semibold text-charcoal">AutoPay {myMandate.status === 'active' ? 'Active' : 'Paused'}</p>
                           <p className="text-xs text-charcoal/60">{myMandate.upi_id}</p>
                         </div>
                         <span className={`ml-auto text-xs font-semibold px-2.5 py-1 rounded-full ${myMandate.status === 'active' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -350,11 +350,11 @@ export default function RentPayment() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white rounded-xl p-3">
                           <p className="text-xs text-charcoal/40">Monthly Debit</p>
-                          <p className="text-sm font-bold text-charcoal">₹{(myMandate.mandate_amount / 100).toLocaleString('en-IN')}</p>
+                          <p className="text-[15px] font-semibold text-charcoal">₹{(myMandate.mandate_amount / 100).toLocaleString('en-IN')}</p>
                         </div>
                         <div className="bg-white rounded-xl p-3">
                           <p className="text-xs text-charcoal/40">Next Debit</p>
-                          <p className="text-sm font-bold text-charcoal">{new Date(myMandate.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+                          <p className="text-[15px] font-semibold text-charcoal">{new Date(myMandate.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
                         </div>
                       </div>
                     </div>
@@ -385,7 +385,7 @@ export default function RentPayment() {
                     <div className="w-16 h-16 mx-auto rounded-full bg-brand/10 flex items-center justify-center mb-4">
                       <i className="ri-repeat-line text-brand text-2xl" />
                     </div>
-                    <h3 className="text-base font-bold text-charcoal mb-1">Coming Soon</h3>
+                    <h3 className="text-[15px] font-semibold text-charcoal mb-1">Coming Soon</h3>
                     <p className="text-sm text-charcoal/60">UPI AutoPay isn't available yet — for now, pay each month from the Pay Rent tab. We'll let you know when automatic monthly debit is ready.</p>
                   </div>
                 )}
@@ -393,7 +393,7 @@ export default function RentPayment() {
 
               <div className="lg:w-72">
                 <div className="bg-offwhite rounded-2xl p-5 border border-black/5">
-                  <h3 className="text-sm font-bold text-charcoal mb-3">How It Will Work</h3>
+                  <h3 className="text-[15px] font-semibold text-charcoal mb-3">How It Will Work</h3>
                   <div className="space-y-3">
                     {[
                       { step: '1', text: 'Enter your UPI ID and select bank' },
@@ -416,8 +416,8 @@ export default function RentPayment() {
 
         {/* Offline Tab */}
         {activeTab === 'offline' && (
-          <div className="bg-white rounded-3xl border border-black/5 p-6">
-            <h2 className="text-base font-bold text-charcoal mb-1">Log a Cash Payment</h2>
+          <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+            <h2 className="text-[15px] font-semibold text-charcoal mb-1">Log a Cash Payment</h2>
             <p className="text-sm text-charcoal/60 mb-5">Record rent paid in person so it shows up in your payment history</p>
 
             <div className="max-w-md space-y-4">
@@ -457,10 +457,10 @@ export default function RentPayment() {
 
         {/* History Tab */}
         {activeTab === 'history' && (
-          <div className="bg-white rounded-3xl border border-black/5 p-6">
+          <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
               <div>
-                <h2 className="text-base font-bold text-charcoal">Payment History</h2>
+                <h2 className="text-[15px] font-semibold text-charcoal">Payment History</h2>
                 <p className="text-sm text-charcoal/60 mt-0.5">{filteredHistory.length} payment records</p>
               </div>
               <div className="flex gap-2">
@@ -532,7 +532,7 @@ export default function RentPayment() {
                           </td>
                         )}
                         <td className="px-4 py-3.5 text-sm font-semibold text-charcoal">{p.month}</td>
-                        <td className="px-4 py-3.5 text-sm font-bold text-charcoal">₹{(p.amount / 100).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3.5 text-[15px] font-semibold text-charcoal">₹{(p.amount / 100).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-3.5 text-sm text-charcoal/60">{paymentModeLabels[p.payment_mode]}</td>
                         <td className="px-4 py-3.5 text-sm text-charcoal/60 font-mono text-xs">{p.transaction_ref}</td>
                         <td className="px-4 py-3.5 text-sm text-charcoal/60">{new Date(p.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
@@ -564,10 +564,10 @@ export default function RentPayment() {
 
         {/* Reconcile Tab (Owner only) */}
         {activeTab === 'reconcile' && isOwner && (
-          <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
             <div className="px-6 py-5 border-b border-black/5 flex items-center justify-between">
               <div>
-                <h2 className="text-base font-bold text-charcoal">Payment Reconciliation</h2>
+                <h2 className="text-[15px] font-semibold text-charcoal">Payment Reconciliation</h2>
                 <p className="text-sm text-charcoal/60 mt-0.5">Match bank statement entries to rent payment records</p>
               </div>
             </div>

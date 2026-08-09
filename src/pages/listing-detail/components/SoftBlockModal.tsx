@@ -56,7 +56,7 @@ export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: 
                 <i className="ri-error-warning-line text-lg text-red-600" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-charcoal">Account Restricted</h3>
+                <h3 className="text-[15px] font-semibold text-charcoal">Account Restricted</h3>
                 <p className="text-xs text-charcoal/60">{tenantName}</p>
               </div>
             </div>
@@ -72,7 +72,7 @@ export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: 
               <div className="w-12 h-12 flex items-center justify-center mx-auto mb-3 rounded-full bg-green-50">
                 <i className="ri-checkbox-circle-line text-xl text-green-600" />
               </div>
-              <p className="text-sm font-bold text-charcoal mb-1">All Steps Completed</p>
+              <p className="text-[15px] font-semibold text-charcoal mb-1">All Steps Completed</p>
               <p className="text-xs text-charcoal/60">Our team is reviewing your details. You will be notified within 24 hours once the restriction is lifted.</p>
             </div>
           ) : (
@@ -88,7 +88,7 @@ export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: 
                     {broker.softBlockState.aadhaar_re_verified ? <i className="ri-check-line text-sm" /> : '1'}
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-charcoal">Re-verify Aadhaar</p>
+                    <p className="text-[15px] font-semibold text-charcoal">Re-verify Aadhaar</p>
                     <p className="text-xs text-charcoal/40 mt-0.5">Confirm your identity with a fresh OTP.</p>
                   </div>
                   {!broker.softBlockState.aadhaar_re_verified && (
@@ -109,7 +109,7 @@ export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: 
                     {broker.softBlockState.additional_details_provided ? <i className="ri-check-line text-sm" /> : '2'}
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-charcoal">Provide Additional Details</p>
+                    <p className="text-[15px] font-semibold text-charcoal">Provide Additional Details</p>
                     <p className="text-xs text-charcoal/40 mt-0.5">Employer, reference, and purpose of renting.</p>
                   </div>
                   {!broker.softBlockState.additional_details_provided && (

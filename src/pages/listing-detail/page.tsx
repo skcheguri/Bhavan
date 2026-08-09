@@ -187,7 +187,7 @@ export default function ListingDetail() {
           <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-red-50 rounded-full">
             <i className="ri-error-warning-line text-2xl text-red-400" />
           </div>
-          <h2 className="text-xl font-bold text-charcoal mb-2">Error loading listing</h2>
+          <h2 className="text-xl font-semibold tracking-[-.015em] text-charcoal mb-2">Error loading listing</h2>
           <p className="text-charcoal/60 text-sm mb-6">{error}</p>
           <Link to="/listings" className="bg-brand text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-brand-dark transition-colors whitespace-nowrap">
             Browse Listings
@@ -204,7 +204,7 @@ export default function ListingDetail() {
           <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
             <i className="ri-home-line text-2xl text-charcoal/40" />
           </div>
-          <h2 className="text-xl font-bold text-charcoal mb-2">Property not found</h2>
+          <h2 className="text-xl font-semibold tracking-[-.015em] text-charcoal mb-2">Property not found</h2>
           <p className="text-charcoal/60 text-sm mb-6">This listing may have been removed or the link is incorrect.</p>
           <Link to="/listings" className="bg-brand text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-brand-dark transition-colors whitespace-nowrap">
             Browse Listings
@@ -352,7 +352,7 @@ export default function ListingDetail() {
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-base font-bold text-charcoal">Schedule a Visit</h3>
+                <h3 className="text-[15px] font-semibold text-charcoal">Schedule a Visit</h3>
                 <p className="text-xs text-charcoal/40 mt-0.5">{listing.title}</p>
               </div>
               <button onClick={() => setVisitOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-lightgray transition-colors cursor-pointer">
@@ -509,7 +509,7 @@ export default function ListingDetail() {
           <div className="bg-white rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="text-base font-bold text-charcoal">Request to Connect</h3>
+                <h3 className="text-[15px] font-semibold text-charcoal">Request to Connect</h3>
                 <p className="text-xs text-charcoal/40 mt-0.5">{listing.landlord_name} will review before you can chat</p>
               </div>
               <button onClick={() => setRequestOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-lightgray transition-colors cursor-pointer">
@@ -538,7 +538,7 @@ export default function ListingDetail() {
             <div className="flex items-center gap-3 mb-5 p-3 bg-offwhite rounded-xl">
               <img src={listing.landlord_avatar} alt={listing.landlord_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
               <div>
-                <p className="text-sm font-bold text-charcoal">{listing.landlord_name}</p>
+                <p className="text-[15px] font-semibold text-charcoal">{listing.landlord_name}</p>
                 <p className="text-xs text-green-600 flex items-center gap-1">
                   <i className="ri-shield-check-fill text-sm" /> Aadhaar Verified Owner
                 </p>
@@ -631,10 +631,10 @@ export default function ListingDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left: Main content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8">
 
             {/* Image Gallery */}
-            <div className="bg-white rounded-3xl border border-black/5 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
               <div className="relative aspect-[16/9] overflow-hidden">
                 <img
                   src={allImages[activeImage]}
@@ -691,10 +691,10 @@ export default function ListingDetail() {
             </div>
 
             {/* Title & Key Info */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-charcoal">{listing.title}</h1>
+                  <h1 className="text-2xl font-semibold tracking-[-.02em] text-charcoal">{listing.title}</h1>
                   <p className="text-charcoal/60 flex items-center gap-1.5 mt-1.5">
                     <i className="ri-map-pin-line text-brand" />
                     {listing.location}
@@ -703,12 +703,12 @@ export default function ListingDetail() {
                 <div className="text-right flex-shrink-0">
                   {isVacation ? (
                     <>
-                      <p className="text-2xl font-bold text-sage">₹{listing.price.toLocaleString('en-IN')}</p>
+                      <p className="text-2xl font-semibold tracking-[-.02em] text-sage">₹{listing.price.toLocaleString('en-IN')}</p>
                       <p className="text-xs text-charcoal/40">per night</p>
                     </>
                   ) : (
                     <>
-                      <p className="text-2xl font-bold text-brand">₹{listing.price.toLocaleString('en-IN')}</p>
+                      <p className="text-2xl font-semibold tracking-[-.02em] text-brand">₹{listing.price.toLocaleString('en-IN')}</p>
                       <p className="text-xs text-charcoal/40">per month</p>
                     </>
                   )}
@@ -735,7 +735,7 @@ export default function ListingDetail() {
                       <i className={`${spec.icon} text-base`} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-charcoal truncate">{spec.label}</p>
+                      <p className="text-[15px] font-semibold text-charcoal truncate">{spec.label}</p>
                       <p className="text-[11px] text-charcoal/40 truncate">{spec.sublabel}</p>
                     </div>
                   </div>
@@ -777,8 +777,8 @@ export default function ListingDetail() {
             </div>
 
             {/* Description */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
-              <h2 className="text-base font-bold text-charcoal mb-3 flex items-center gap-2">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+              <h2 className="text-[15px] font-semibold text-charcoal mb-3 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-file-text-line text-brand" />
                 </div>
@@ -788,8 +788,8 @@ export default function ListingDetail() {
             </div>
 
             {/* Amenities */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
-              <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+              <h2 className="text-[15px] font-semibold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-star-line text-brand" />
                 </div>
@@ -812,8 +812,8 @@ export default function ListingDetail() {
             </div>
 
             {/* Nearby Places */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
-              <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+              <h2 className="text-[15px] font-semibold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-map-pin-2-line text-brand" />
                 </div>
@@ -837,8 +837,8 @@ export default function ListingDetail() {
             </div>
 
             {/* Map placeholder */}
-            <div className="bg-white rounded-3xl border border-black/5 p-6">
-              <h2 className="text-base font-bold text-charcoal mb-4 flex items-center gap-2">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+              <h2 className="text-[15px] font-semibold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className="ri-road-map-line text-brand" />
                 </div>
@@ -868,7 +868,7 @@ export default function ListingDetail() {
                     <i className="ri-calendar-2-line text-xl text-sage" />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-charcoal">Book Your Stay</h2>
+                    <h2 className="text-[15px] font-semibold text-charcoal">Book Your Stay</h2>
                     <p className="text-xs text-charcoal/40 mt-0.5">Select dates and confirm your booking instantly</p>
                   </div>
                 </div>
@@ -878,7 +878,7 @@ export default function ListingDetail() {
                     <div className="w-14 h-14 rounded-full bg-sage-light flex items-center justify-center mx-auto mb-4">
                       <i className="ri-check-line text-sage text-2xl" />
                     </div>
-                    <h3 className="text-base font-bold text-charcoal">Booking Request Sent!</h3>
+                    <h3 className="text-[15px] font-semibold text-charcoal">Booking Request Sent!</h3>
                     <p className="text-sm text-charcoal/60 mt-2 leading-relaxed">
                       {listing.landlord_name} will confirm your stay within 24 hours. Check your email for details.
                     </p>
@@ -906,13 +906,13 @@ export default function ListingDetail() {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-offwhite rounded-xl px-3 py-2.5">
                         <p className="text-[10px] font-semibold text-charcoal/40 uppercase tracking-wide mb-0.5">Check-in</p>
-                        <p className={`text-sm font-bold ${checkIn ? 'text-charcoal' : 'text-charcoal/30'}`}>
+                        <p className={`text-[15px] font-semibold ${checkIn ? 'text-charcoal' : 'text-charcoal/30'}`}>
                           {checkIn ? new Date(checkIn + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not selected'}
                         </p>
                       </div>
                       <div className="bg-offwhite rounded-xl px-3 py-2.5">
                         <p className="text-[10px] font-semibold text-charcoal/40 uppercase tracking-wide mb-0.5">Check-out</p>
-                        <p className={`text-sm font-bold ${checkOut ? 'text-charcoal' : 'text-charcoal/30'}`}>
+                        <p className={`text-[15px] font-semibold ${checkOut ? 'text-charcoal' : 'text-charcoal/30'}`}>
                           {checkOut ? new Date(checkOut + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not selected'}
                         </p>
                       </div>
@@ -953,8 +953,8 @@ export default function ListingDetail() {
                           <span className="font-semibold text-charcoal">₹{Math.round(totalPrice * 0.05).toLocaleString('en-IN')}</span>
                         </div>
                         <div className="border-t border-sage/30 pt-2 flex justify-between">
-                          <span className="text-sm font-bold text-charcoal">Total</span>
-                          <span className="text-sm font-bold text-sage">₹{Math.round(totalPrice * 1.05).toLocaleString('en-IN')}</span>
+                          <span className="text-[15px] font-semibold text-charcoal">Total</span>
+                          <span className="text-[15px] font-semibold text-sage">₹{Math.round(totalPrice * 1.05).toLocaleString('en-IN')}</span>
                         </div>
                       </div>
                     )}
@@ -1010,9 +1010,9 @@ export default function ListingDetail() {
 
             {/* Similar Listings */}
             {similarListings.length > 0 && (
-              <div className="bg-white rounded-3xl border border-black/5 p-6">
+              <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-bold text-charcoal">Similar Properties</h2>
+                  <h2 className="text-[15px] font-semibold text-charcoal">Similar Properties</h2>
                   <Link to="/listings" className="text-sm text-brand font-medium hover:text-brand-dark whitespace-nowrap">View all</Link>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1061,17 +1061,17 @@ export default function ListingDetail() {
           {/* Right: Sticky sidebar */}
           <div className="space-y-5">
             {/* Price card */}
-            <div className="bg-white rounded-3xl border border-black/5 p-5">
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   {isVacation ? (
                     <>
-                      <p className="text-2xl font-bold text-sage">₹{listing.price.toLocaleString('en-IN')}</p>
+                      <p className="text-2xl font-semibold tracking-[-.02em] text-sage">₹{listing.price.toLocaleString('en-IN')}</p>
                       <p className="text-xs text-charcoal/40">per night</p>
                     </>
                   ) : (
                     <>
-                      <p className="text-2xl font-bold text-brand">₹{listing.price.toLocaleString('en-IN')}</p>
+                      <p className="text-2xl font-semibold tracking-[-.02em] text-brand">₹{listing.price.toLocaleString('en-IN')}</p>
                       <p className="text-xs text-charcoal/40">per month</p>
                     </>
                   )}
@@ -1113,7 +1113,7 @@ export default function ListingDetail() {
               <div className="flex items-center gap-3 p-3 bg-offwhite rounded-xl mb-4">
                 <img src={listing.landlord_avatar} alt={listing.landlord_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-charcoal truncate">{listing.landlord_name}</p>
+                  <p className="text-[15px] font-semibold text-charcoal truncate">{listing.landlord_name}</p>
                   <p className="text-xs text-green-600 flex items-center gap-1">
                     <i className="ri-shield-check-fill text-sm" /> Aadhaar Verified
                   </p>
@@ -1304,7 +1304,7 @@ export default function ListingDetail() {
                 <div className="w-6 h-6 flex items-center justify-center">
                   <i className={`ri-shield-star-line ${isVacation ? 'text-sage' : 'text-amber-600'}`} />
                 </div>
-                <h3 className={`text-sm font-bold ${isVacation ? 'text-sage-dark' : 'text-amber-800'}`}>
+                <h3 className={`text-[15px] font-semibold ${isVacation ? 'text-sage-dark' : 'text-amber-800'}`}>
                   {isVacation ? 'Booking Tips' : 'Safety Tips'}
                 </h3>
               </div>

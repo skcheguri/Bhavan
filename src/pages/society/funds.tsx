@@ -163,7 +163,7 @@ function NewCollection({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-black/5 p-5">
+    <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
       <Notice tone="info" icon="ri-information-line" title="Money goes straight to your society">
         Owners pay the UPI id you enter here from their own app. Bhavan does not hold or handle
         the money — this page keeps the record of who has paid.
@@ -349,7 +349,7 @@ function CollectionCard({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-black/5 p-5">
+    <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

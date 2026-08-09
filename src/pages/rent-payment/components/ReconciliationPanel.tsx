@@ -71,15 +71,15 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-offwhite rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-charcoal">{entries.filter((e) => e.matched).length}</p>
+          <p className="text-2xl font-semibold tracking-[-.02em] text-charcoal">{entries.filter((e) => e.matched).length}</p>
           <p className="text-xs text-charcoal/60 mt-0.5">Matched</p>
         </div>
         <div className="bg-offwhite rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-amber-600">{unmatchedEntries.length}</p>
+          <p className="text-2xl font-semibold tracking-[-.02em] text-amber-600">{unmatchedEntries.length}</p>
           <p className="text-xs text-charcoal/60 mt-0.5">Unmatched</p>
         </div>
         <div className="bg-offwhite rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-charcoal">
+          <p className="text-2xl font-semibold tracking-[-.02em] text-charcoal">
             ₹{(entries.filter((e) => e.matched).reduce((s, e) => s + e.amount, 0) / 100).toLocaleString('en-IN')}
           </p>
           <p className="text-xs text-charcoal/60 mt-0.5">Total Matched</p>
@@ -89,7 +89,7 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
       {/* Unmatched Entries */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-charcoal">Unmatched Bank Entries</h3>
+          <h3 className="text-[15px] font-semibold text-charcoal">Unmatched Bank Entries</h3>
           <button
             onClick={() => setShowAddEntryModal(true)}
             className="text-xs font-semibold text-brand hover:text-brand-dark flex items-center gap-1 cursor-pointer whitespace-nowrap"
@@ -129,7 +129,7 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
       {/* Matched Entries */}
       {entries.some((e) => e.matched) && (
         <div>
-          <h3 className="text-sm font-bold text-charcoal mb-3">Matched Entries</h3>
+          <h3 className="text-[15px] font-semibold text-charcoal mb-3">Matched Entries</h3>
           <div className="space-y-2">
             {entries.filter((e) => e.matched).map((entry) => (
               <div key={entry.id} className="bg-lightgray border border-black/5 rounded-xl p-4 flex items-center gap-4 opacity-70">
@@ -152,7 +152,7 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowAddEntryModal(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="bg-amber-50 px-6 py-4 border-b border-amber-100">
-              <h3 className="text-base font-bold text-charcoal">Add Bank Entry</h3>
+              <h3 className="text-[15px] font-semibold text-charcoal">Add Bank Entry</h3>
               <p className="text-xs text-charcoal/60 mt-0.5">Type in a line from your own bank statement</p>
             </div>
             <div className="px-6 py-4 space-y-3">
@@ -206,7 +206,7 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowMatchModal(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="bg-amber-50 px-6 py-4 border-b border-amber-100">
-              <h3 className="text-base font-bold text-charcoal">Match Payment</h3>
+              <h3 className="text-[15px] font-semibold text-charcoal">Match Payment</h3>
               <p className="text-xs text-charcoal/60 mt-0.5">Select the rent payment that matches this bank entry</p>
             </div>
             <div className="px-6 py-4 space-y-3 max-h-80 overflow-y-auto">
@@ -226,7 +226,7 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
                         <p className="text-sm font-semibold text-charcoal">{p.month} · {(p.agreement_id && tenantNameByAgreementId.get(p.agreement_id)) || 'Unknown tenant'}</p>
                         <p className="text-xs text-charcoal/60">{p.payment_mode.replace(/_/g, ' ').toUpperCase()} · {p.transaction_ref}</p>
                       </div>
-                      <span className="text-sm font-bold text-charcoal">₹{(p.amount / 100).toLocaleString('en-IN')}</span>
+                      <span className="text-[15px] font-semibold text-charcoal">₹{(p.amount / 100).toLocaleString('en-IN')}</span>
                     </div>
                   </button>
                 ))

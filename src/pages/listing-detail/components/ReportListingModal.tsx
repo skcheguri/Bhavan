@@ -42,7 +42,7 @@ export default function ReportListingModal({ open, onClose, listingId, reporterI
               <i className="ri-flag-2-line text-lg text-red-600" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-charcoal">Report this listing</h3>
+              <h3 className="text-[15px] font-semibold text-charcoal">Report this listing</h3>
               <p className="text-xs text-charcoal/60">Help us keep listings accurate</p>
             </div>
           </div>
