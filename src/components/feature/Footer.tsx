@@ -24,6 +24,23 @@ const FULL_FOOTER_ROUTES = new Set([
   '/accessibility',
 ]);
 
+/**
+ * Bhavan's own accounts. Fill in a href to make an icon appear -- an
+ * entry with no href does not render at all.
+ *
+ * These were four icons pointing at "#": controls that look live, invite
+ * a click and do nothing, on a product whose whole pitch is being
+ * trustworthy. An absent icon says "no account yet"; a dead one says
+ * "this is a mock-up".
+ */
+const SOCIAL_ACCOUNTS = [
+  { label: 'Instagram', icon: 'ri-instagram-line', href: '' },
+  { label: 'YouTube', icon: 'ri-youtube-fill', href: '' },
+  { label: 'LinkedIn', icon: 'ri-linkedin-fill', href: '' },
+  { label: 'X', icon: 'ri-twitter-x-fill', href: '' },
+  { label: 'Facebook', icon: 'ri-facebook-fill', href: '' },
+].filter((a) => a.href);
+
 const LEGAL_LINKS = [
   { to: '/terms', label: 'Terms' },
   { to: '/privacy', label: 'Privacy' },
@@ -65,11 +82,19 @@ export default function Footer() {
 
   if (!FULL_FOOTER_ROUTES.has(pathname)) return <SlimFooter />;
 
-  // Dashboard/verification links shouldn't dead-end a signed-out visitor
-  // on a "please sign in" page, and shouldn't send a signed-in user to a
-  // profile page for a role that isn't theirs -- both always resolve to
-  // the current user's own real destination.
-  const dashboardHref = !user ? '/signup' : user.role === 'admin' ? '/admin' : user.role === 'owner' ? '/owner-profile' : '/tenant-profile';
+  // "My Dashboard" and "Owner Dashboard" were two labels for one link:
+  // both resolved to whatever the current user's own profile is. So a
+  // tenant clicking "Owner Dashboard" landed on their tenant profile,
+  // and a signed-out visitor was offered two dashboards that were both
+  // really the sign-up page.
+  //
+  // A person is a renter or a landlord, not both, so the link belongs in
+  // whichever column matches them and nowhere else. Signed out, there is
+  // no dashboard to link to -- Browse Listings and List Property are the
+  // real invitations, and a "My Dashboard" that opens sign-up is bait.
+  const isOwner = user?.role === 'owner';
+  const tenantDashboard = isTenant ? [{ to: '/tenant-profile', label: 'My Dashboard' }] : [];
+  const ownerDashboard = isOwner ? [{ to: '/owner-profile', label: 'Owner Dashboard' }] : [];
   const verificationHref = !user ? '/signup' : '/aadhaar-verify';
 
   const columns = [
@@ -77,7 +102,7 @@ export default function Footer() {
       title: 'For Renters',
       links: [
         { to: '/listings', label: 'Browse Listings' },
-        { to: dashboardHref, label: 'My Dashboard' },
+        ...tenantDashboard,
         { to: '/community', label: 'Community Forum' },
         { to: '/feedback', label: 'Reviews & Feedback' },
       ],
@@ -86,7 +111,7 @@ export default function Footer() {
       title: 'For Landlords',
       links: [
         ...(isTenant ? [] : [{ to: '/list-property', label: 'List Property' }]),
-        { to: dashboardHref, label: 'Owner Dashboard' },
+        ...ownerDashboard,
         { to: verificationHref, label: 'Verification Process' },
         { to: '/how-it-works', label: 'How It Works' },
       ],
@@ -150,28 +175,31 @@ export default function Footer() {
 
           <div className="flex flex-col items-center md:items-end gap-3">
             <p className="text-sm text-white/50">&copy; 2025 Bhavan. All rights reserved.</p>
-            <div className="flex items-center gap-4">
-              <a href="#" className="text-white/50 hover:text-white transition-colors" rel="nofollow">
-                <div className="w-6 h-6 flex items-center justify-center">
-                  <i className="ri-linkedin-fill text-lg" />
-                </div>
-              </a>
-              <a href="#" className="text-white/50 hover:text-white transition-colors" rel="nofollow">
-                <div className="w-6 h-6 flex items-center justify-center">
-                  <i className="ri-twitter-x-fill text-lg" />
-                </div>
-              </a>
-              <a href="#" className="text-white/50 hover:text-white transition-colors" rel="nofollow">
-                <div className="w-6 h-6 flex items-center justify-center">
-                  <i className="ri-instagram-line text-lg" />
-                </div>
-              </a>
-              <a href="#" className="text-white/50 hover:text-white transition-colors" rel="nofollow">
-                <div className="w-6 h-6 flex items-center justify-center">
-                  <i className="ri-facebook-fill text-lg" />
-                </div>
-              </a>
-            </div>
+            {SOCIAL_ACCOUNTS.length > 0 && (
+              <div className="flex items-center gap-4">
+                {SOCIAL_ACCOUNTS.map((account) => (
+                  <a
+                    key={account.label}
+                    href={account.href}
+                    target="_blank"
+                    // noreferrer as well as noopener: these are outbound
+                    // links from pages a signed-in user reaches, and the
+                    // referrer would hand the destination the URL they
+                    // came from.
+                    rel="noopener noreferrer"
+                    // The link's only content is an icon font glyph, so
+                    // without this a screen reader announces "link" and
+                    // nothing else.
+                    aria-label={`Bhavan on ${account.label}`}
+                    className="text-white/50 hover:text-white transition-colors"
+                  >
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      <i className={`${account.icon} text-lg`} />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
