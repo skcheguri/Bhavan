@@ -53,6 +53,9 @@ function PollForm({
   const [options, setOptions] = useState<string[]>(['', '']);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(true);
+  // A datetime-local value: wall-clock, no zone. Converted to an instant
+  // on submit, because the server closes the poll by its own clock.
+  const [closesAt, setClosesAt] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -71,13 +74,18 @@ function PollForm({
       setErr('Give at least two different answers.');
       return;
     }
+    if (closesAt && new Date(closesAt).getTime() <= Date.now()) {
+      setErr('The closing time has to be in the future.');
+      return;
+    }
     setBusy(true);
     const { error } = await createPoll(
       communityId,
       question.trim(),
       allowMultiple,
       isAnonymous,
-      options
+      options,
+      closesAt ? new Date(closesAt).toISOString() : null
     );
     setBusy(false);
     if (error) {
@@ -169,7 +177,23 @@ function PollForm({
         </span>
       </label>
 
-      <p className="text-xs text-gray-400 mt-3">
+      <div className="mt-4">
+        <Field label="Closes on (optional)">
+          <input
+            type="datetime-local"
+            value={closesAt}
+            onChange={(e) => setClosesAt(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+        <p className="text-xs text-gray-400 mt-1.5">
+          {closesAt
+            ? 'Voting stops then and the results open to everyone. You can still close it earlier.'
+            : 'Leave empty and the poll stays open until you close it.'}
+        </p>
+      </div>
+
+      <p className="text-xs text-gray-400 mt-4">
         The question, the answer mode and this setting are fixed once the poll is created -
         members answer on the strength of them.
       </p>
@@ -207,7 +231,10 @@ function PollCard({
   const [picks, setPicks] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const closed = poll.closed_at !== null;
+  // The server's answer, not a comparison against the browser's clock --
+  // a card reading "open" beside a vote the server will refuse is the
+  // drift poll_closed() exists to stop.
+  const closed = poll.is_closed;
   const canVote = !closed && !poll.has_voted;
 
   const toggle = (optionId: string) => {
@@ -296,10 +323,23 @@ function PollCard({
             Pick more than one
           </span>
         )}
-        {closed && (
+        {closed ? (
           <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
             Closed
           </span>
+        ) : (
+          poll.closes_at && (
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-lightgray text-charcoal/60">
+              <i className="ri-time-line mr-1" />
+              Closes{' '}
+              {new Date(poll.closes_at).toLocaleString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                hour: 'numeric',
+                minute: '2-digit',
+              })}
+            </span>
+          )
         )}
       </div>
 

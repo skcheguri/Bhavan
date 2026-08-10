@@ -641,7 +641,10 @@ function SocietyHome({
   // Open polls the member has not answered. This is the only thing that
   // tells someone a vote is waiting on them once the notification has
   // been read and cleared.
-  const pollsToAnswer = pollList.polls.filter((p) => !p.closed_at && !p.has_voted).length;
+  // is_closed, not closed_at: a poll shut by its deadline is never
+  // stamped, so counting closed_at would keep nagging members to vote in
+  // a poll that has already finished.
+  const pollsToAnswer = pollList.polls.filter((p) => !p.is_closed && !p.has_voted).length;
 
   const tabs: SocietyTab[] = isAdmin
     ? ['overview', 'notices', 'polls', 'maintenance', 'funds', 'members']

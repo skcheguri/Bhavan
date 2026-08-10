@@ -948,6 +948,7 @@ export type Database = {
           allow_multiple: boolean
           author_id: string
           closed_at: string | null
+          closes_at: string | null
           community_id: string
           created_at: string
           id: string
@@ -959,6 +960,7 @@ export type Database = {
           allow_multiple?: boolean
           author_id: string
           closed_at?: string | null
+          closes_at?: string | null
           community_id: string
           created_at?: string
           id?: string
@@ -970,6 +972,7 @@ export type Database = {
           allow_multiple?: boolean
           author_id?: string
           closed_at?: string | null
+          closes_at?: string | null
           community_id?: string
           created_at?: string
           id?: string
@@ -3603,6 +3606,7 @@ export type Database = {
       create_community_poll: {
         Args: {
           p_allow_multiple: boolean
+          p_closes_at?: string
           p_community: string
           p_is_anonymous: boolean
           p_options: string[]
@@ -3679,11 +3683,13 @@ export type Database = {
           author_id: string
           author_name: string
           closed_at: string
+          closes_at: string
           community_id: string
           created_at: string
           has_voted: boolean
           id: string
           is_anonymous: boolean
+          is_closed: boolean
           my_option_ids: string[]
           options: Json
           question: string
@@ -3821,6 +3827,10 @@ export type Database = {
       notify_visit_requested: {
         Args: { p_visit_id: string }
         Returns: undefined
+      }
+      poll_closed: {
+        Args: { p_closed_at: string; p_closes_at: string }
+        Returns: boolean
       }
       poll_community: { Args: { p_poll: string }; Returns: string }
       property_has_active_tenancy: {

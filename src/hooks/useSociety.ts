@@ -646,6 +646,16 @@ export interface Poll {
   allow_multiple: boolean;
   is_anonymous: boolean;
   closed_at: string | null;
+  /** The deadline, if the admin set one. */
+  closes_at: string | null;
+  /**
+   * Whether the poll is shut, worked out by the database from both dates
+   * and its own clock. Deliberately not derived here: the browser's clock
+   * is not the server's, and a card reading "open" beside a vote button
+   * the server will refuse is the drift the single definition exists to
+   * prevent.
+   */
+  is_closed: boolean;
   created_at: string;
   author_name: string | null;
   has_voted: boolean;
@@ -734,7 +744,8 @@ export async function createPoll(
   question: string,
   allowMultiple: boolean,
   isAnonymous: boolean,
-  options: string[]
+  options: string[],
+  closesAt: string | null = null
 ): Promise<{ error: string | null }> {
   const supabase = client();
   if (!supabase) return { error: NOT_CONNECTED };
@@ -745,6 +756,7 @@ export async function createPoll(
     p_allow_multiple: allowMultiple,
     p_is_anonymous: isAnonymous,
     p_options: options,
+    p_closes_at: closesAt,
   });
   return { error: error ? error.message : null };
 }
