@@ -1,5 +1,24 @@
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
+
+/**
+ * Scroll to the section a deep link names.
+ *
+ * A browser does this itself on a full page load, but not on a
+ * client-side navigation, and nothing else in the app handles a hash. So
+ * the footer's "Trust & Safety" link would otherwise land at the top of
+ * a long page with no sign it had aimed anywhere in particular.
+ */
+function useScrollToHash() {
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const target = document.getElementById(hash.slice(1));
+    if (!target) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  }, [hash]);
+}
 
 const ownerSteps = [
   {
@@ -131,6 +150,7 @@ const faqs = [
 ];
 
 export default function HowItWorks() {
+  useScrollToHash();
   const [activeTab, setActiveTab] = useState<'owners' | 'tenants'>('owners');
   const ownersRef = useRef<HTMLElement>(null);
   const tenantsRef = useRef<HTMLElement>(null);
@@ -345,7 +365,7 @@ export default function HowItWorks() {
       </section>
 
       {/* Trust & Safety */}
-      <section className="py-16 md:py-20">
+      <section id="trust-safety" className="scroll-mt-24 py-16 md:py-20">
         <div className="w-full px-4 md:px-8 lg:px-12">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-12">

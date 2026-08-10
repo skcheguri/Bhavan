@@ -105,7 +105,11 @@ export default function Footer() {
       links: [
         { to: '/about', label: 'About Us' },
         { to: '/how-it-works', label: 'How It Works' },
-        { to: '/aadhaar-verify', label: 'Trust & Safety' },
+        // Was /aadhaar-verify: a form for signed-in owners, behind a
+        // label promising an explanation. A signed-out visitor -- the
+        // person most likely to be asking whether this platform is safe
+        // -- got a dead end. How It Works has the actual answer.
+        { to: '/how-it-works#trust-safety', label: 'Trust & Safety' },
         { to: '/contact', label: 'Contact' },
       ],
     },
