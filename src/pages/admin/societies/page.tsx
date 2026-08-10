@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { ConfirmInline } from '@/components/feature/ConfirmInline';
 import {
   useAdminSocieties,
   type SocietyReviewStatus,
@@ -254,6 +255,11 @@ function DeletionRequest({
   const [summary, setSummary] = useState<DeletionSummary | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Asked on the page rather than through window.confirm() -- see
+  // ConfirmInline. This is the most destructive control in the product,
+  // so it is the last one that should depend on a dialog the browser can
+  // decide to stop showing.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const review = async () => {
     setOpen(true);
@@ -334,19 +340,8 @@ function DeletionRequest({
 
           <div className="flex gap-2 mt-3 flex-wrap">
             <button
-              onClick={async () => {
-                if (
-                  !window.confirm(
-                    `Permanently delete ${s.name}? This removes every member, issue, notice, collection and payment record. It cannot be undone.`
-                  )
-                ) {
-                  return;
-                }
-                setBusy(true);
-                await onDelete();
-                setBusy(false);
-              }}
-              disabled={busy || summary === null}
+              onClick={() => setConfirmingDelete(true)}
+              disabled={busy || summary === null || confirmingDelete}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40"
             >
               Delete permanently
@@ -363,6 +358,21 @@ function DeletionRequest({
               Decline
             </button>
           </div>
+
+          {confirmingDelete && (
+            <ConfirmInline
+              message={`Permanently delete ${s.name}? This removes every member, issue, notice, collection and payment record. It cannot be undone.`}
+              confirmLabel="Delete permanently"
+              busy={busy}
+              onConfirm={async () => {
+                setConfirmingDelete(false);
+                setBusy(true);
+                await onDelete();
+                setBusy(false);
+              }}
+              onCancel={() => setConfirmingDelete(false)}
+            />
+          )}
         </>
       )}
     </div>

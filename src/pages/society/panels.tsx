@@ -32,6 +32,7 @@ import {
   type ServiceVendor,
 } from '@/hooks/useSociety';
 import { Notice, Field, EmptyState, inputCls } from './ui';
+import { ConfirmInline } from '@/components/feature/ConfirmInline';
 
 /* ------------------------------------------------------------------ */
 /* Polls                                                               */
@@ -321,30 +322,18 @@ function PollCard({
       </div>
 
       {pending && (
-        <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 p-4">
-          <p className="text-sm text-amber-900">
-            {pending === 'close'
+        <ConfirmInline
+          tone={pending === 'close' ? 'caution' : 'danger'}
+          message={
+            pending === 'close'
               ? 'Close this poll? Nobody can vote after that, the results open to everyone, and it cannot be reopened.'
-              : 'Delete this poll? Every vote cast on it goes too, and members already notified keep the notification.'}
-          </p>
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => void confirmPending()}
-              disabled={busy}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 ${
-                pending === 'close' ? 'bg-charcoal' : 'bg-red-600'
-              }`}
-            >
-              {busy ? 'Working…' : pending === 'close' ? 'Close poll' : 'Delete poll'}
-            </button>
-            <button
-              onClick={() => setPending(null)}
-              className="px-4 py-2 rounded-lg border border-amber-200 text-amber-900 text-sm font-semibold"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+              : 'Delete this poll? Every vote cast on it goes too, and members already notified keep the notification.'
+          }
+          confirmLabel={pending === 'close' ? 'Close poll' : 'Delete poll'}
+          busy={busy}
+          onConfirm={() => void confirmPending()}
+          onCancel={() => setPending(null)}
+        />
       )}
 
       <div className="flex flex-wrap gap-1.5 mt-2">
@@ -567,6 +556,9 @@ export function Notices({
   const [form, setForm] = useState({ title: '', body: '', pinned: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // The notice awaiting a delete confirmation, asked on the row rather
+  // than through window.confirm() -- see ConfirmInline.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const startEdit = (a: Announcement) => {
     setForm({ title: a.title, body: a.body, pinned: a.pinned });
@@ -607,13 +599,9 @@ export function Notices({
     await refresh();
   };
 
-  const remove = async (a: Announcement) => {
-    // Deleting a notice cannot unsend the notifications it already
-    // produced, and pretending otherwise would be worse than saying so.
-    if (!window.confirm(`Delete "${a.title}"? Owners already notified keep the notification.`)) {
-      return;
-    }
-    const { error: e } = await deleteAnnouncement(a.id);
+  const remove = async (id: string) => {
+    const { error: e } = await deleteAnnouncement(id);
+    setConfirmingId(null);
     if (e) addToast(e, 'error');
     else await refresh();
   };
@@ -730,9 +718,10 @@ export function Notices({
                     <i className="ri-edit-line" />
                   </button>
                   <button
-                    onClick={() => void remove(a)}
+                    onClick={() => setConfirmingId(a.id)}
                     className="text-gray-300 hover:text-red-500"
                     title="Delete"
+                    aria-label={`Delete ${a.title}`}
                   >
                     <i className="ri-delete-bin-line" />
                   </button>
@@ -740,6 +729,17 @@ export function Notices({
               )}
             </div>
             <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap">{a.body}</p>
+            {confirmingId === a.id && (
+              // Deleting cannot unsend the notifications it already
+              // produced, and pretending otherwise would be worse than
+              // saying so.
+              <ConfirmInline
+                message={`Delete "${a.title}"? Owners already notified keep the notification.`}
+                confirmLabel="Delete notice"
+                onConfirm={() => void remove(a.id)}
+                onCancel={() => setConfirmingId(null)}
+              />
+            )}
           </div>
         ))
       )}

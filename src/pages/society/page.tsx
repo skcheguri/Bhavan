@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/useToast';
 import { Shell, PageTitle, Notice, Field, Pip, inputCls } from './ui';
 import { Notices, Maintenance, Polls } from './panels';
 import { Funds } from './funds';
+import { ConfirmInline } from '@/components/feature/ConfirmInline';
 import {
   useSociety,
   useSocietyMembers,
@@ -832,19 +833,19 @@ function DangerZone({
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState('');
+  const [confirmingClose, setConfirmingClose] = useState(false);
 
   const closed = society.status === 'closed';
   const requested = Boolean(society.deletion_requested_at);
 
+  // Reopening needs no confirmation -- it restores things rather than
+  // taking them away.
   const toggleClosed = async () => {
-    if (
-      !closed &&
-      !window.confirm(
-        `Close ${society.name}? The join code stops working and nobody can post new notices, issues or collections. Everything already here stays readable, and you can reopen it whenever you like.`
-      )
-    ) {
+    if (!closed && !confirmingClose) {
+      setConfirmingClose(true);
       return;
     }
+    setConfirmingClose(false);
     setBusy(true);
     const { error } = await setSocietyClosed(society.id, !closed);
     setBusy(false);
@@ -894,7 +895,7 @@ function DangerZone({
         <div className="flex flex-wrap items-center gap-4">
           <button
             onClick={() => void toggleClosed()}
-            disabled={busy}
+            disabled={busy || confirmingClose}
             className="text-xs font-semibold text-charcoal/60 hover:text-charcoal disabled:opacity-40"
           >
             {closed ? `Reopen ${society.name}` : `Close ${society.name}`}
@@ -906,6 +907,17 @@ function DangerZone({
             Ask Bhavan to delete it
           </button>
         </div>
+      )}
+
+      {confirmingClose && (
+        <ConfirmInline
+          tone="caution"
+          message={`Close ${society.name}? The join code stops working and nobody can post new notices, issues or collections. Everything already here stays readable, and you can reopen it whenever you like.`}
+          confirmLabel={`Close ${society.name}`}
+          busy={busy}
+          onConfirm={() => void toggleClosed()}
+          onCancel={() => setConfirmingClose(false)}
+        />
       )}
 
       {asking && !requested && (
@@ -1088,6 +1100,9 @@ function Members({
   const { members, loading, error, refresh } = list;
   const { addToast } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The membership awaiting a removal confirmation, asked on the row
+  // rather than through window.confirm() -- see ConfirmInline.
+  const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
 
   const act = async (id: string, fn: () => Promise<{ error: string | null }>) => {
     setBusyId(id);
@@ -1105,18 +1120,11 @@ function Members({
     await act(m.id, () => decideMembership(m.id, 'rejected', adminId, reason || undefined));
   };
 
-  // Both destructive and both irreversible from the app, so both confirm.
-  // The wording says what survives, because "remove" reads like it erases
-  // the person's history and it does not.
+  // Irreversible from the app, so it confirms. The wording says what
+  // survives, because "remove" reads like it erases the person's history
+  // and it does not.
   const removeMember = async (m: SocietyMember) => {
-    const who = m.user?.name ?? 'this owner';
-    if (
-      !window.confirm(
-        `Remove ${who} from the society? They lose access to notices, issues and collections. Anything they reported or paid stays on the record.`
-      )
-    ) {
-      return;
-    }
+    setConfirmingRemove(null);
     await act(m.id, () => removeMembership(m.id));
   };
 
@@ -1170,6 +1178,30 @@ function Members({
                 // Leaving lives on Overview, which every member can reach.
                 <span className="text-xs text-gray-400 px-2">You</span>
               ) : (
+                confirmingRemove === m.id ? (
+                  // Asked in the row rather than through window.confirm(),
+                  // for the reason in ConfirmInline -- but compact, since a
+                  // block would break up a dense list. The wording still
+                  // says what survives.
+                  <>
+                    <span className="text-xs text-red-700 mr-1">
+                      Remove from the society? Anything they reported or paid stays on the record.
+                    </span>
+                    <button
+                      onClick={() => void removeMember(m)}
+                      disabled={busyId === m.id}
+                      className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold disabled:opacity-40"
+                    >
+                      {busyId === m.id ? 'Removing…' : 'Remove'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingRemove(null)}
+                      className="px-3 py-1.5 border border-gray-200 text-charcoal rounded-lg text-xs font-semibold"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
                 <>
                   <button
                     onClick={() =>
@@ -1181,13 +1213,14 @@ function Members({
                     {m.role === 'admin' ? 'Remove admin' : 'Make admin'}
                   </button>
                   <button
-                    onClick={() => void removeMember(m)}
+                    onClick={() => setConfirmingRemove(m.id)}
                     disabled={busyId === m.id}
                     className="px-3 py-1.5 border border-gray-200 text-charcoal/60 rounded-lg text-xs font-semibold disabled:opacity-40 hover:border-red-300 hover:text-red-600"
                   >
                     Remove
                   </button>
                 </>
+                )
               )}
             </MemberRow>
           ))}
