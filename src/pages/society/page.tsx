@@ -6,6 +6,7 @@ import { Shell, PageTitle, Notice, Field, Pip, inputCls } from './ui';
 import { Notices, Maintenance, Polls } from './panels';
 import { Funds } from './funds';
 import { ConfirmInline } from '@/components/feature/ConfirmInline';
+import UserProfileModal from '@/components/feature/UserProfileModal';
 import {
   useSociety,
   useSocietyMembers,
@@ -1239,20 +1240,36 @@ function MemberRow({
   busy: boolean;
   children: React.ReactNode;
 }) {
+  // Two owners in the same building have no landlord/renter relationship,
+  // so there is nothing here to review -- but there is a person to look
+  // up before you vote them in as president or hand them the accounts.
+  const [profileOpen, setProfileOpen] = useState(false);
+
   return (
     <div
       className={`bg-white rounded-2xl border border-black/5 p-5 flex items-center gap-3 ${
         busy ? 'opacity-50' : ''
       }`}
     >
-      <img
-        src={member.user?.avatar_url || '/placeholders/avatar.svg'}
-        alt=""
-        className="w-9 h-9 rounded-full object-cover flex-shrink-0 bg-lightgray"
-      />
+      <button
+        onClick={() => setProfileOpen(true)}
+        className="flex-shrink-0"
+        aria-label={`View ${member.user?.name || 'this owner'}'s profile`}
+      >
+        <img
+          src={member.user?.avatar_url || '/placeholders/avatar.svg'}
+          alt=""
+          className="w-9 h-9 rounded-full object-cover bg-lightgray"
+        />
+      </button>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-charcoal truncate">
-          {member.user?.name || 'Owner'}
+          <button
+            onClick={() => setProfileOpen(true)}
+            className="hover:text-brand transition-colors"
+          >
+            {member.user?.name || 'Owner'}
+          </button>
           {member.role === 'admin' && (
             <i className="ri-shield-star-fill text-amber-500 ml-1.5 text-xs" title="Admin" />
           )}
@@ -1263,6 +1280,18 @@ function MemberRow({
         </p>
       </div>
       <div className="flex gap-2 flex-shrink-0">{children}</div>
+
+      {profileOpen && member.user_id && (
+        <UserProfileModal
+          userId={member.user_id}
+          roleLabel={member.role === 'admin' ? 'Society admin' : 'Owner in your society'}
+          // Sharing a building is not a tenancy, so there is nothing to
+          // review. The modal hides the whole review section rather than
+          // explaining an absence nobody asked about.
+          canReview={false}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
     </div>
   );
 }

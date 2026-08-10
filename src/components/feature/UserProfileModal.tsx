@@ -4,6 +4,9 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubjectReviews, useReviewableTenancies, type FeedbackRole } from '@/hooks/useReviews';
 import FeedbackModal from '@/pages/feedback/components/FeedbackModal';
+import { useIsBlocked, blockUser, unblockUser } from '@/hooks/useBlocks';
+import { ConfirmInline } from '@/components/feature/ConfirmInline';
+import { useToast } from '@/hooks/useToast';
 
 interface BasicProfile {
   name: string;
@@ -15,18 +18,28 @@ interface BasicProfile {
 interface UserProfileModalProps {
   userId: string;
   roleLabel: string;
-  reviewRole: FeedbackRole;
+  /**
+   * Only meaningful when `canReview` -- and then only as a fallback,
+   * since the tenancy the reviewer picks decides the real side. Omitted
+   * where the two people have no landlord/renter relationship at all,
+   * such as two owners in the same society.
+   */
+  reviewRole?: FeedbackRole;
   canReview: boolean;
   onClose: () => void;
 }
 
-export default function UserProfileModal({ userId, roleLabel, reviewRole, canReview, onClose }: UserProfileModalProps) {
+export default function UserProfileModal({ userId, roleLabel, reviewRole = 'renter_on_owner', canReview, onClose }: UserProfileModalProps) {
   useDismissableLayer(onClose);
   const { user: currentUser } = useAuth();
+  const { addToast } = useToast();
   const [profile, setProfile] = useState<BasicProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [confirmingBlock, setConfirmingBlock] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
   const { reviews, loading: reviewsLoading, refresh: refreshReviews } = useSubjectReviews(userId);
+  const { blocked, refresh: refreshBlocked } = useIsBlocked(userId);
 
   // Reviewing from a profile used to mean "you two have an approved
   // connection, so type a property name" -- which let the same person be
@@ -175,6 +188,63 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole, canRev
               </div>
             )}
           </div>
+
+          {/* Understated, at the bottom, below everything useful -- the
+              same treatment the society danger zone gets. */}
+          {currentUser && currentUser.id !== userId && (
+            <div className="pt-4 border-t border-black/5">
+              {blocked ? (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-xs text-charcoal/60">
+                    <i className="ri-forbid-line mr-1" />
+                    You blocked {profile?.name ?? 'this person'}. Neither of you can start an
+                    enquiry or send messages.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      setBlockBusy(true);
+                      const { error } = await unblockUser(currentUser.id, userId);
+                      setBlockBusy(false);
+                      if (error) addToast(error, 'error');
+                      else {
+                        addToast('Unblocked.', 'success');
+                        await refreshBlocked();
+                      }
+                    }}
+                    disabled={blockBusy}
+                    className="text-xs font-semibold text-charcoal/60 hover:text-charcoal disabled:opacity-40"
+                  >
+                    Unblock
+                  </button>
+                </div>
+              ) : confirmingBlock ? (
+                <ConfirmInline
+                  message={`Block ${profile?.name ?? 'this person'}? Neither of you will be able to start an enquiry or send messages. Anything already sent stays readable, and you can undo this whenever you like.`}
+                  confirmLabel="Block"
+                  busy={blockBusy}
+                  onConfirm={async () => {
+                    setBlockBusy(true);
+                    const { error } = await blockUser(currentUser.id, userId);
+                    setBlockBusy(false);
+                    setConfirmingBlock(false);
+                    if (error) addToast(error, 'error');
+                    else {
+                      addToast(`${profile?.name ?? 'They'} can no longer contact you.`, 'success');
+                      await refreshBlocked();
+                    }
+                  }}
+                  onCancel={() => setConfirmingBlock(false)}
+                />
+              ) : (
+                <button
+                  onClick={() => setConfirmingBlock(true)}
+                  className="text-xs text-gray-400 hover:text-red-600"
+                >
+                  Block this person
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

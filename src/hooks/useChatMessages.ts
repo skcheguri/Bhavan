@@ -77,6 +77,14 @@ export function useChatMessages(requestId: string | undefined) {
         .select()
         .single();
 
+      // The only thing that revokes a party's right to write in a thread
+      // they are on is a block, in either direction (migration 114). The
+      // wording stays vague on purpose: whether the other person blocked
+      // you is not something to confirm, and "no longer" is true either
+      // way.
+      if (error?.code === '42501') {
+        return { error: 'You can no longer send messages in this conversation.' };
+      }
       if (error) return { error: error.message };
 
       setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, data as ChatMessageFromDB]));

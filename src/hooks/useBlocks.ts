@@ -1,0 +1,74 @@
+import { useState, useEffect, useCallback } from 'react';
+import { getSupabase } from '@/lib/supabase';
+
+/**
+ * Blocking someone.
+ *
+ * Distinct from soft_block_states, which is moderation: an owner reports
+ * a renter as a broker and Bhavan resolves it. This is personal, nobody
+ * reviews it, and it is enforced in RLS on the two paths one member has
+ * to reach another -- enquiries and chat (migration 114).
+ *
+ * You can only ever read your own blocks. "Who has blocked me" is not
+ * available by design, so this hook answers "have I blocked them", never
+ * "have they blocked me". A blocked person simply finds that contact no
+ * longer works, which is the point of blocking rather than muting.
+ */
+export function useIsBlocked(otherUserId: string | undefined) {
+  const [blocked, setBlocked] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase || !otherUserId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { count } = await supabase
+      .from('user_blocks')
+      .select('blocked_id', { count: 'exact', head: true })
+      .eq('blocked_id', otherUserId);
+    setBlocked((count ?? 0) > 0);
+    setLoading(false);
+  }, [otherUserId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  return { blocked, loading, refresh };
+}
+
+export async function blockUser(
+  blockerId: string,
+  blockedId: string
+): Promise<{ error: string | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: 'Not connected to the database.' };
+
+  const { error } = await supabase
+    .from('user_blocks')
+    .insert({ blocker_id: blockerId, blocked_id: blockedId });
+
+  // Already blocked is the state they asked for, so it is not an error
+  // worth showing.
+  if (error && error.code !== '23505') return { error: error.message };
+  return { error: null };
+}
+
+export async function unblockUser(
+  blockerId: string,
+  blockedId: string
+): Promise<{ error: string | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: 'Not connected to the database.' };
+
+  const { error } = await supabase
+    .from('user_blocks')
+    .delete()
+    .eq('blocker_id', blockerId)
+    .eq('blocked_id', blockedId);
+
+  return { error: error ? error.message : null };
+}
