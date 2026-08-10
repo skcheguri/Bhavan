@@ -17,6 +17,12 @@ import {
   postTicketComment,
   deleteTicketComment,
   TICKET_CATEGORIES,
+  createPoll,
+  castPollVote,
+  closePoll,
+  deletePoll,
+  type usePolls,
+  type Poll,
   type useAnnouncements,
   type useTickets,
   type Announcement,
@@ -26,6 +32,441 @@ import {
   type ServiceVendor,
 } from '@/hooks/useSociety';
 import { Notice, Field, EmptyState, inputCls } from './ui';
+
+/* ------------------------------------------------------------------ */
+/* Polls                                                               */
+/* ------------------------------------------------------------------ */
+
+function PollForm({
+  communityId,
+  onDone,
+  onCancel,
+}: {
+  communityId: string;
+  onDone: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const { addToast } = useToast();
+  const [question, setQuestion] = useState('');
+  // Two empty answers to start, because a poll with one is not a poll and
+  // an empty list gives no hint that answers are what goes here.
+  const [options, setOptions] = useState<string[]>(['', '']);
+  const [allowMultiple, setAllowMultiple] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const setOption = (i: number, value: string) =>
+    setOptions((prev) => prev.map((o, idx) => (idx === i ? value : o)));
+
+  const filled = options.map((o) => o.trim()).filter(Boolean);
+  const distinct = new Set(filled).size;
+
+  const submit = async () => {
+    if (!question.trim()) {
+      setErr('A poll needs a question.');
+      return;
+    }
+    if (distinct < 2) {
+      setErr('Give at least two different answers.');
+      return;
+    }
+    setBusy(true);
+    const { error } = await createPoll(
+      communityId,
+      question.trim(),
+      allowMultiple,
+      isAnonymous,
+      options
+    );
+    setBusy(false);
+    if (error) {
+      setErr(error);
+      return;
+    }
+    addToast('Poll created. Every member has been notified.', 'success');
+    await onDone();
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+      <Field label="Question">
+        <input
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Who should be society president?"
+          className={inputCls}
+        />
+      </Field>
+
+      <div className="mt-4">
+        <label className="block text-sm font-semibold text-charcoal mb-1.5">Answers</label>
+        <div className="space-y-2">
+          {options.map((o, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={o}
+                onChange={(e) => setOption(i, e.target.value)}
+                placeholder={`Answer ${i + 1}`}
+                className={inputCls}
+              />
+              {options.length > 2 && (
+                <button
+                  onClick={() => setOptions((prev) => prev.filter((_, idx) => idx !== i))}
+                  className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500"
+                  title="Remove this answer"
+                  aria-label={`Remove answer ${i + 1}`}
+                >
+                  <i className="ri-close-line" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {options.length < 10 && (
+          <button
+            onClick={() => setOptions((prev) => [...prev, ''])}
+            className="mt-2 text-sm font-semibold text-brand"
+          >
+            <i className="ri-add-line mr-1" />
+            Add answer
+          </button>
+        )}
+      </div>
+
+      <label className="flex items-start gap-2 mt-5 text-sm text-charcoal cursor-pointer">
+        <input
+          type="checkbox"
+          checked={allowMultiple}
+          onChange={(e) => setAllowMultiple(e.target.checked)}
+          className="rounded mt-0.5"
+        />
+        <span>
+          Allow multiple answers
+          <span className="block text-xs text-gray-400">
+            Members can pick more than one.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 mt-3 text-sm text-charcoal cursor-pointer">
+        <input
+          type="checkbox"
+          checked={isAnonymous}
+          onChange={(e) => setIsAnonymous(e.target.checked)}
+          className="rounded mt-0.5"
+        />
+        <span>
+          Anonymous votes
+          {/* Stated in full because it cannot be changed later, and
+              because a member deciding how honestly to answer is relying
+              on it. */}
+          <span className="block text-xs text-gray-400">
+            {isAnonymous
+              ? 'Nobody sees who voted for what, including you. Only the totals are stored.'
+              : 'Every member can see who voted for what.'}
+          </span>
+        </span>
+      </label>
+
+      <p className="text-xs text-gray-400 mt-3">
+        The question, the answer mode and this setting are fixed once the poll is created -
+        members answer on the strength of them.
+      </p>
+
+      {err && <p className="text-sm text-red-600 mt-3">{err}</p>}
+      <div className="flex gap-2 mt-4">
+        <button
+          onClick={() => void submit()}
+          disabled={busy}
+          className="px-5 py-2.5 bg-brand text-white rounded-lg text-sm font-semibold disabled:opacity-40"
+        >
+          {busy ? 'Creating…' : 'Create poll'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-5 py-2.5 border border-gray-200 text-charcoal rounded-lg text-sm font-semibold"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PollCard({
+  poll,
+  isAdmin,
+  onChanged,
+}: {
+  poll: Poll;
+  isAdmin: boolean;
+  onChanged: () => Promise<void>;
+}) {
+  const { addToast } = useToast();
+  const [picks, setPicks] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const closed = poll.closed_at !== null;
+  const canVote = !closed && !poll.has_voted;
+
+  const toggle = (optionId: string) => {
+    setPicks((prev) =>
+      poll.allow_multiple
+        ? prev.includes(optionId)
+          ? prev.filter((id) => id !== optionId)
+          : [...prev, optionId]
+        : [optionId]
+    );
+  };
+
+  const vote = async () => {
+    setBusy(true);
+    const { error } = await castPollVote(poll.id, picks);
+    setBusy(false);
+    if (error) {
+      addToast(error, 'error');
+      return;
+    }
+    addToast(poll.is_anonymous ? 'Voted. Your answer is anonymous.' : 'Voted.', 'success');
+    await onChanged();
+  };
+
+  const close = async () => {
+    if (!window.confirm('Close this poll? Nobody can vote after that, and results become visible to everyone.')) return;
+    const { error } = await closePoll(poll.id);
+    if (error) addToast(error, 'error');
+    else await onChanged();
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`Delete "${poll.question}"? Every vote cast on it goes too.`)) return;
+    const { error } = await deletePoll(poll.id);
+    if (error) addToast(error, 'error');
+    else await onChanged();
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-charcoal">{poll.question}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {poll.author_name ?? 'Society admin'} ·{' '}
+            {new Date(poll.created_at).toLocaleDateString('en-IN', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })}
+            {' · '}
+            {poll.voter_count} {poll.voter_count === 1 ? 'vote' : 'votes'}
+          </p>
+        </div>
+        {isAdmin && (
+          <div className="flex gap-1 flex-shrink-0">
+            {!closed && (
+              <button
+                onClick={() => void close()}
+                className="text-gray-300 hover:text-charcoal"
+                title="Close poll"
+                aria-label="Close poll"
+              >
+                <i className="ri-lock-line" />
+              </button>
+            )}
+            <button
+              onClick={() => void remove()}
+              className="text-gray-300 hover:text-red-500"
+              title="Delete poll"
+              aria-label="Delete poll"
+            >
+              <i className="ri-delete-bin-line" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-lightgray text-charcoal/60">
+          <i className={`${poll.is_anonymous ? 'ri-spy-line' : 'ri-group-line'} mr-1`} />
+          {poll.is_anonymous ? 'Anonymous' : 'Names shown'}
+        </span>
+        {poll.allow_multiple && (
+          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-lightgray text-charcoal/60">
+            Pick more than one
+          </span>
+        )}
+        {closed && (
+          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+            Closed
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {poll.options.map((o) => {
+          const chosen = picks.includes(o.id);
+          const mine = poll.my_option_ids?.includes(o.id) ?? false;
+          // Share of people who voted, not of votes cast: on a
+          // multiple-answer poll the counts add up to more than the
+          // turnout, and a bar out of total votes would understate
+          // every option.
+          const pct =
+            poll.results_visible && o.votes !== null && poll.voter_count > 0
+              ? Math.round((o.votes / poll.voter_count) * 100)
+              : 0;
+
+          if (canVote) {
+            return (
+              <button
+                key={o.id}
+                onClick={() => toggle(o.id)}
+                className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                  chosen ? 'border-brand bg-brand/5' : 'border-black/10 hover:border-brand/40'
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <i
+                    className={
+                      poll.allow_multiple
+                        ? chosen
+                          ? 'ri-checkbox-fill text-brand'
+                          : 'ri-checkbox-blank-line text-gray-300'
+                        : chosen
+                          ? 'ri-radio-button-fill text-brand'
+                          : 'ri-circle-line text-gray-300'
+                    }
+                  />
+                  <span className="text-sm text-charcoal">{o.label}</span>
+                </span>
+              </button>
+            );
+          }
+
+          return (
+            <div key={o.id} className="px-4 py-3 rounded-xl border border-black/5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-charcoal">
+                  {o.label}
+                  {mine && <span className="text-xs text-brand font-semibold ml-2">Your answer</span>}
+                </span>
+                {poll.results_visible && o.votes !== null && (
+                  <span className="text-xs text-charcoal/50 tabular-nums flex-shrink-0">
+                    {o.votes} · {pct}%
+                  </span>
+                )}
+              </div>
+              {poll.results_visible && o.votes !== null && (
+                <div className="mt-2 h-1.5 bg-lightgray rounded-full overflow-hidden">
+                  <div className="h-full bg-brand rounded-full" style={{ width: `${pct}%` }} />
+                </div>
+              )}
+              {o.voters && o.voters.length > 0 && (
+                <p className="text-xs text-gray-400 mt-1.5">{o.voters.join(', ')}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {canVote && (
+        <button
+          onClick={() => void vote()}
+          disabled={busy || picks.length === 0}
+          className="mt-4 px-5 py-2.5 bg-brand text-white rounded-lg text-sm font-semibold disabled:opacity-40"
+        >
+          {busy ? 'Voting…' : 'Vote'}
+        </button>
+      )}
+
+      {!canVote && !poll.results_visible && (
+        <p className="text-xs text-gray-400 mt-3">
+          Results appear once you have voted, or once the poll closes.
+        </p>
+      )}
+
+      {/* An anonymous poll cannot show a member what they picked, because
+          nothing recorded it. Saying so is the difference between a
+          working secret ballot and one that looks broken. */}
+      {poll.has_voted && poll.is_anonymous && (
+        <p className="text-xs text-gray-400 mt-3">
+          <i className="ri-shield-check-line mr-1" />
+          Your vote was counted but not recorded against your name - so this page cannot show
+          you which answer you chose.
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function Polls({
+  list,
+  communityId,
+  isAdmin,
+}: {
+  list: ReturnType<typeof usePolls>;
+  communityId: string;
+  isAdmin: boolean;
+}) {
+  const { polls, loading, loadingMore, error, refresh, loadMore, hasMore } = list;
+  const [composing, setComposing] = useState(false);
+
+  if (loading) return <div className="h-32 bg-gray-100 rounded-xl animate-pulse" />;
+  if (error) {
+    return (
+      <Notice tone="error" icon="ri-error-warning-line" title="Couldn't load polls">
+        {error}
+      </Notice>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {isAdmin && !composing && (
+        <button
+          onClick={() => setComposing(true)}
+          className="w-full sm:w-auto px-5 py-2.5 bg-brand text-white rounded-lg text-sm font-semibold"
+        >
+          <i className="ri-add-line mr-1.5" />
+          Create a poll
+        </button>
+      )}
+
+      {composing && (
+        <PollForm
+          communityId={communityId}
+          onCancel={() => setComposing(false)}
+          onDone={async () => {
+            setComposing(false);
+            await refresh();
+          }}
+        />
+      )}
+
+      {polls.length === 0 ? (
+        <EmptyState icon="ri-bar-chart-box-line">
+          {isAdmin
+            ? 'No polls yet. Create one and every member is notified.'
+            : 'No polls from your society admin yet.'}
+        </EmptyState>
+      ) : (
+        polls.map((p) => (
+          <PollCard key={p.id} poll={p} isAdmin={isAdmin} onChanged={refresh} />
+        ))
+      )}
+
+      {hasMore && (
+        <button
+          onClick={() => void loadMore()}
+          disabled={loadingMore}
+          className="w-full py-2.5 border border-gray-200 text-charcoal rounded-lg text-sm font-semibold disabled:opacity-40"
+        >
+          {loadingMore ? 'Loading…' : 'Show older polls'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* Notices -- free                                                     */

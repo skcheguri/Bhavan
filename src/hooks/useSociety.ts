@@ -624,6 +624,173 @@ export async function deleteAnnouncement(id: string): Promise<{ error: string | 
   return { error: error ? error.message : null };
 }
 
+/* ------------------------------------------------------------------ */
+/* Polls                                                              */
+/* ------------------------------------------------------------------ */
+
+export interface PollOption {
+  id: string;
+  label: string;
+  position: number;
+  /** Null until the member has voted or the poll has closed. */
+  votes: number | null;
+  /** Names, on a poll the admin marked non-anonymous. Null otherwise. */
+  voters: string[] | null;
+}
+
+export interface Poll {
+  id: string;
+  community_id: string;
+  author_id: string;
+  question: string;
+  allow_multiple: boolean;
+  is_anonymous: boolean;
+  closed_at: string | null;
+  created_at: string;
+  author_name: string | null;
+  has_voted: boolean;
+  voter_count: number;
+  results_visible: boolean;
+  /**
+   * What the signed-in member chose. Always null on an anonymous poll --
+   * nothing recorded it, which is the point. The panel says so rather
+   * than leaving someone unsure their vote landed.
+   */
+  my_option_ids: string[] | null;
+  options: PollOption[];
+}
+
+/** Polls for one society. Reading is free; only admins can create one. */
+export function usePolls(communityId: string | undefined) {
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchPage = useCallback(
+    async (offset: number, append: boolean) => {
+      const supabase = client();
+      if (!supabase || !communityId) {
+        setLoading(false);
+        return;
+      }
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+
+      const { data, error: dbError } = await supabase.rpc('get_community_polls', {
+        p_community: communityId,
+        p_limit: PAGE,
+        p_offset: offset,
+      });
+
+      if (dbError) {
+        setError(dbError.message);
+        if (!append) setPolls([]);
+      } else {
+        setError(null);
+        const rows = (data ?? []) as unknown as (Omit<Poll, 'options'> & {
+          options: PollOption[];
+          total_count: number;
+        })[];
+        setTotal(rows[0]?.total_count ?? (append ? total : 0));
+        const mapped = rows.map((r) => ({ ...r, options: r.options ?? [] })) as Poll[];
+        setPolls((prev) => (append ? [...prev, ...mapped] : mapped));
+      }
+      setLoading(false);
+      setLoadingMore(false);
+    },
+    [communityId, total]
+  );
+
+  const refresh = useCallback(() => fetchPage(0, false), [fetchPage]);
+  const loadMore = useCallback(() => fetchPage(polls.length, true), [fetchPage, polls.length]);
+
+  useEffect(() => {
+    void fetchPage(0, false);
+    // fetchPage depends on `total`, which it also sets -- including it here
+    // would refetch page one every time a page lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [communityId]);
+
+  return {
+    polls,
+    total,
+    hasMore: polls.length < total,
+    loading,
+    loadingMore,
+    error,
+    refresh,
+    loadMore,
+  };
+}
+
+/**
+ * The poll and its answers are written by one function, so a member is
+ * never notified about a poll that has nothing to click yet.
+ */
+export async function createPoll(
+  communityId: string,
+  question: string,
+  allowMultiple: boolean,
+  isAnonymous: boolean,
+  options: string[]
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.rpc('create_community_poll', {
+    p_community: communityId,
+    p_question: question,
+    p_allow_multiple: allowMultiple,
+    p_is_anonymous: isAnonymous,
+    p_options: options,
+  });
+  return { error: error ? error.message : null };
+}
+
+export async function castPollVote(
+  pollId: string,
+  optionIds: string[]
+): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase.rpc('cast_poll_vote', {
+    p_poll: pollId,
+    p_option_ids: optionIds,
+  });
+  return { error: error ? error.message : null };
+}
+
+/**
+ * Closing is the only edit a poll accepts -- a trigger pins the question,
+ * the answer mode and the anonymity setting, so a poll cannot be reworded
+ * under people who have already answered it.
+ */
+export async function closePoll(pollId: string): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+
+  const { error } = await supabase
+    .from('community_polls')
+    .update({ closed_at: new Date().toISOString() })
+    .eq('id', pollId);
+
+  if (!error) return { error: null };
+  if (error.code === '42501') return { error: 'Only a society admin can close a poll.' };
+  return { error: error.message };
+}
+
+export async function deletePoll(pollId: string): Promise<{ error: string | null }> {
+  const supabase = client();
+  if (!supabase) return { error: NOT_CONNECTED };
+  const { error } = await supabase.from('community_polls').delete().eq('id', pollId);
+  if (!error) return { error: null };
+  if (error.code === '42501') return { error: 'Only a society admin can delete a poll.' };
+  return { error: error.message };
+}
+
 /** Maintenance tickets for one society. Reading is free; raising needs a plan. */
 export function useTickets(communityId: string | undefined) {
   const [tickets, setTickets] = useState<Ticket[]>([]);

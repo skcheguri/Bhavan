@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { Shell, PageTitle, Notice, Field, Pip, inputCls } from './ui';
-import { Notices, Maintenance } from './panels';
+import { Notices, Maintenance, Polls } from './panels';
 import { Funds } from './funds';
 import {
   useSociety,
@@ -21,6 +21,7 @@ import {
   cancelSocietyDeletion,
   SOCIETY_PLAN,
   useAnnouncements,
+  usePolls,
   useTickets,
   useCollections,
   postAnnouncement,
@@ -606,7 +607,22 @@ function SocietyHome({
   onRefresh: () => Promise<void>;
 }) {
   const isAdmin = membership.role === 'admin';
-  const [tab, setTab] = useState<SocietyTab>('overview');
+
+  // A poll notification links to /society?tab=polls. Without this the tab
+  // is pure local state, so the link would land every member on Overview
+  // with no sign of the poll they were told about -- the same dead-end
+  // that migrations 105 and 111 had to go back and fix elsewhere.
+  // Validated, not trusted: an unknown tab falls back to Overview.
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [tab, setTab] = useState<SocietyTab>(
+    requestedTab === 'polls' ||
+      requestedTab === 'notices' ||
+      requestedTab === 'maintenance' ||
+      requestedTab === 'funds'
+      ? requestedTab
+      : 'overview'
+  );
   const [units, setUnits] = useState(membership.unit_numbers);
   const { addToast } = useToast();
 
@@ -621,10 +637,15 @@ function SocietyHome({
   const noticeList = useAnnouncements(society.id);
   const collectionList = useCollections(society.id);
   const openCollections = collectionList.collections.filter((c) => c.status === 'open').length;
+  const pollList = usePolls(society.id);
+  // Open polls the member has not answered. This is the only thing that
+  // tells someone a vote is waiting on them once the notification has
+  // been read and cleared.
+  const pollsToAnswer = pollList.polls.filter((p) => !p.closed_at && !p.has_voted).length;
 
   const tabs: SocietyTab[] = isAdmin
-    ? ['overview', 'notices', 'maintenance', 'funds', 'members']
-    : ['overview', 'notices', 'maintenance', 'funds'];
+    ? ['overview', 'notices', 'polls', 'maintenance', 'funds', 'members']
+    : ['overview', 'notices', 'polls', 'maintenance', 'funds'];
 
   const copyCode = () => {
     void navigator.clipboard?.writeText(society.join_code);
@@ -671,7 +692,7 @@ function SocietyHome({
               tab === t ? 'bg-brand text-white' : 'text-charcoal/60 hover:text-charcoal hover:bg-lightgray'
             }`}
           >
-            {t === 'notices' ? 'Notices' : t === 'maintenance' ? 'Maintenance' : t === 'funds' ? 'Funds' : t}
+            {t === 'notices' ? 'Notices' : t === 'polls' ? 'Polls' : t === 'maintenance' ? 'Maintenance' : t === 'funds' ? 'Funds' : t}
             {/* Counts are the only thing telling anyone there is something
                 to do here. Without them these tabs never get opened. */}
             {t === 'members' && pendingCount > 0 && (
@@ -682,6 +703,9 @@ function SocietyHome({
             )}
             {t === 'funds' && openCollections > 0 && (
               <Pip active={tab === t}>{openCollections}</Pip>
+            )}
+            {t === 'polls' && pollsToAnswer > 0 && (
+              <Pip active={tab === t}>{pollsToAnswer}</Pip>
             )}
           </button>
         ))}
@@ -694,6 +718,8 @@ function SocietyHome({
           userId={userId}
           isAdmin={isAdmin}
         />
+      ) : tab === 'polls' ? (
+        <Polls list={pollList} communityId={society.id} isAdmin={isAdmin} />
       ) : tab === 'maintenance' ? (
         <Maintenance
           list={ticketList}
@@ -776,7 +802,7 @@ function SocietyHome({
   );
 }
 
-type SocietyTab = 'overview' | 'notices' | 'maintenance' | 'funds' | 'members';
+type SocietyTab = 'overview' | 'notices' | 'polls' | 'maintenance' | 'funds' | 'members';
 
 
 /**

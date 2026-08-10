@@ -805,6 +805,202 @@ export type Database = {
           },
         ]
       }
+      community_poll_ballots: {
+        Row: {
+          id: string
+          option_ids: string[]
+          poll_id: string
+        }
+        Insert: {
+          id?: string
+          option_ids: string[]
+          poll_id: string
+        }
+        Update: {
+          id?: string
+          option_ids?: string[]
+          poll_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_poll_ballots_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "community_polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_poll_open_votes: {
+        Row: {
+          option_ids: string[]
+          poll_id: string
+          user_id: string
+          voted_at: string
+        }
+        Insert: {
+          option_ids: string[]
+          poll_id: string
+          user_id: string
+          voted_at?: string
+        }
+        Update: {
+          option_ids?: string[]
+          poll_id?: string
+          user_id?: string
+          voted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_poll_open_votes_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "community_polls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_poll_open_votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_poll_open_votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_poll_options: {
+        Row: {
+          id: string
+          label: string
+          poll_id: string
+          position: number
+        }
+        Insert: {
+          id?: string
+          label: string
+          poll_id: string
+          position: number
+        }
+        Update: {
+          id?: string
+          label?: string
+          poll_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_poll_options_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "community_polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_poll_voters: {
+        Row: {
+          poll_id: string
+          user_id: string
+          voted_at: string
+        }
+        Insert: {
+          poll_id: string
+          user_id: string
+          voted_at?: string
+        }
+        Update: {
+          poll_id?: string
+          user_id?: string
+          voted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_poll_voters_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "community_polls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_poll_voters_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_poll_voters_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_polls: {
+        Row: {
+          allow_multiple: boolean
+          author_id: string
+          closed_at: string | null
+          community_id: string
+          created_at: string
+          id: string
+          is_anonymous: boolean
+          question: string
+          updated_at: string
+        }
+        Insert: {
+          allow_multiple?: boolean
+          author_id: string
+          closed_at?: string | null
+          community_id: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          question: string
+          updated_at?: string
+        }
+        Update: {
+          allow_multiple?: boolean
+          author_id?: string
+          closed_at?: string | null
+          community_id?: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean
+          question?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_polls_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_polls_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_polls_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_post_reports: {
         Row: {
           created_at: string | null
@@ -3385,6 +3581,10 @@ export type Database = {
           total_users: number
         }[]
       }
+      cast_poll_vote: {
+        Args: { p_option_ids: string[]; p_poll: string }
+        Returns: undefined
+      }
       check_and_record_rate_limit: {
         Args: {
           p_action: string
@@ -3400,6 +3600,16 @@ export type Database = {
       collection_community: { Args: { p_collection: string }; Returns: string }
       community_is_open: { Args: { p_community: string }; Returns: boolean }
       community_is_paid: { Args: { p_community: string }; Returns: boolean }
+      create_community_poll: {
+        Args: {
+          p_allow_multiple: boolean
+          p_community: string
+          p_is_anonymous: boolean
+          p_options: string[]
+          p_question: string
+        }
+        Returns: string
+      }
       delete_my_account: { Args: never; Returns: undefined }
       expire_lapsed_subscriptions: { Args: never; Returns: number }
       find_community_by_code: {
@@ -3460,6 +3670,26 @@ export type Database = {
           total_count: number
           unit_numbers: string[]
           user_id: string
+        }[]
+      }
+      get_community_polls: {
+        Args: { p_community: string; p_limit?: number; p_offset?: number }
+        Returns: {
+          allow_multiple: boolean
+          author_id: string
+          author_name: string
+          closed_at: string
+          community_id: string
+          created_at: string
+          has_voted: boolean
+          id: string
+          is_anonymous: boolean
+          my_option_ids: string[]
+          options: Json
+          question: string
+          results_visible: boolean
+          total_count: number
+          voter_count: number
         }[]
       }
       get_community_tickets: {
@@ -3592,6 +3822,7 @@ export type Database = {
         Args: { p_visit_id: string }
         Returns: undefined
       }
+      poll_community: { Args: { p_poll: string }; Returns: string }
       property_has_active_tenancy: {
         Args: { p_property: string }
         Returns: boolean
