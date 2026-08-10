@@ -40,6 +40,43 @@ export function useIsBlocked(otherUserId: string | undefined) {
   return { blocked, loading, refresh };
 }
 
+/**
+ * Whether the two of you have a tenancy that has not ended yet.
+ *
+ * Blocking is still allowed in that case -- someone who needs to cut
+ * contact with their landlord is often exactly the person who most needs
+ * to -- but they should be told what it costs, because rent and
+ * maintenance are arranged through the channel they are about to close.
+ */
+export function useLiveTenancyWith(otherUserId: string | undefined, myId: string | undefined) {
+  const [live, setLive] = useState(false);
+
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase || !otherUserId || !myId) return;
+    let cancelled = false;
+
+    void (async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { count } = await supabase
+        .from('rental_agreements')
+        .select('id', { count: 'exact', head: true })
+        .or(
+          `and(owner_id.eq.${myId},tenant_id.eq.${otherUserId}),and(owner_id.eq.${otherUserId},tenant_id.eq.${myId})`
+        )
+        // A missing end date means open-ended, which is still live.
+        .or(`lease_end_date.gte.${today},lease_end_date.is.null`);
+      if (!cancelled) setLive((count ?? 0) > 0);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [otherUserId, myId]);
+
+  return live;
+}
+
 export async function blockUser(
   blockerId: string,
   blockedId: string

@@ -4,7 +4,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubjectReviews, useReviewableTenancies, type FeedbackRole } from '@/hooks/useReviews';
 import FeedbackModal from '@/pages/feedback/components/FeedbackModal';
-import { useIsBlocked, blockUser, unblockUser } from '@/hooks/useBlocks';
+import { useIsBlocked, useLiveTenancyWith, blockUser, unblockUser } from '@/hooks/useBlocks';
 import { ConfirmInline } from '@/components/feature/ConfirmInline';
 import { useToast } from '@/hooks/useToast';
 
@@ -40,6 +40,7 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole = 'rent
   const [blockBusy, setBlockBusy] = useState(false);
   const { reviews, loading: reviewsLoading, refresh: refreshReviews } = useSubjectReviews(userId);
   const { blocked, refresh: refreshBlocked } = useIsBlocked(userId);
+  const liveTenancy = useLiveTenancyWith(userId, currentUser?.id);
 
   // Reviewing from a profile used to mean "you two have an approved
   // connection, so type a property name" -- which let the same person be
@@ -219,7 +220,17 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole = 'rent
                 </div>
               ) : confirmingBlock ? (
                 <ConfirmInline
-                  message={`Block ${profile?.name ?? 'this person'}? Neither of you will be able to start an enquiry or send messages. Anything already sent stays readable, and you can undo this whenever you like.`}
+                  message={
+                    `Block ${profile?.name ?? 'this person'}? Neither of you will be able to start an enquiry or send messages. Anything already sent stays readable, and you can undo this whenever you like.` +
+                    // Not a reason to forbid it -- someone who needs to
+                    // cut contact with their landlord is often exactly
+                    // the person who most needs to -- but they should
+                    // know they are closing the channel rent and repairs
+                    // are arranged through.
+                    (liveTenancy
+                      ? ' You have a tenancy with them that has not ended: rent reminders and maintenance messages go through this channel, so you will need another way to reach each other.'
+                      : '')
+                  }
                   confirmLabel="Block"
                   busy={blockBusy}
                   onConfirm={async () => {

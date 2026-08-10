@@ -1,4 +1,5 @@
 import BiometricSetting from '@/components/feature/BiometricSetting';
+import BlockedList from '@/components/feature/BlockedList';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -823,6 +824,10 @@ export default function TenantProfile() {
             </div>
 
             {/* Security */}
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+              <BlockedList />
+            </div>
+
             <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <h2 className="text-base font-bold text-charcoal mb-4">Security</h2>
               <BiometricSetting />

@@ -1,4 +1,6 @@
 import BiometricSetting from '@/components/feature/BiometricSetting';
+import BlockedList from '@/components/feature/BlockedList';
+import UserProfileModal from '@/components/feature/UserProfileModal';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -63,6 +65,7 @@ export default function OwnerProfile() {
   // Real data hooks for new users (empty initially)
   const { listings: myListingsFromDB, loading: listingsLoading, refresh: refreshListings } = useOwnerListings(user?.id);
 
+  const [tenantProfileId, setTenantProfileId] = useState<string | null>(null);
   const [qrModalListing, setQrModalListing] = useState<ListingFromDB | null>(null);
   const [editModalListing, setEditModalListing] = useState<ListingFromDB | null>(null);
   const [deleteListing, setDeleteListing] = useState<ListingFromDB | null>(null);
@@ -217,6 +220,11 @@ export default function OwnerProfile() {
     return {
       id: a.tenantId ?? a.id,
       agreementId: a.id,
+      // Kept separate from `id`, which falls back to the agreement. An
+      // agreement drafted before the tenant had an account has nobody to
+      // open a profile for, and a row id would open a profile for
+      // nobody.
+      tenantId: a.tenantId ?? null,
       name: a.tenantName || 'Tenant',
       flat: a.flatNumber || '\u2014',
       property: a.propertyAddress || '\u2014',
@@ -296,6 +304,15 @@ export default function OwnerProfile() {
       <div className="max-w-6xl mx-auto px-4 md:px-8">
 
         <QRCodeModal listing={qrModalListing} onClose={() => setQrModalListing(null)} />
+        {tenantProfileId && (
+          <UserProfileModal
+            userId={tenantProfileId}
+            roleLabel="Tenant"
+            reviewRole="owner_on_renter"
+            canReview
+            onClose={() => setTenantProfileId(null)}
+          />
+        )}
         {showDeleteAccount && <DeleteAccountModal onClose={() => setShowDeleteAccount(false)} />}
         {showPhoneVerify && user.phone && (
           <PhoneVerifyModal
@@ -886,7 +903,21 @@ export default function OwnerProfile() {
                                 <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                                   <span className="text-xs font-bold text-amber-600">{t.name[0]}</span>
                                 </div>
-                                <p className="text-sm font-semibold text-charcoal">{t.name}</p>
+                                {/* Same profile view as Inquiries and
+                                    Messages. This is the list where an
+                                    owner is most likely to want it --
+                                    these are the people actually living
+                                    in their flats. */}
+                                {t.tenantId ? (
+                                  <button
+                                    onClick={() => setTenantProfileId(t.tenantId)}
+                                    className="text-sm font-semibold text-charcoal hover:text-brand transition-colors text-left"
+                                  >
+                                    {t.name}
+                                  </button>
+                                ) : (
+                                  <p className="text-sm font-semibold text-charcoal">{t.name}</p>
+                                )}
                               </div>
                             </td>
                             <td className="px-5 py-4 text-sm text-charcoal font-medium">{t.flat}</td>
@@ -1182,6 +1213,10 @@ export default function OwnerProfile() {
                 Choose how you receive each type of notification. If push fails, SMS and email fallbacks activate automatically.
               </p>
               <ChannelPreferences />
+            </div>
+
+            <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
+              <BlockedList />
             </div>
 
             <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
