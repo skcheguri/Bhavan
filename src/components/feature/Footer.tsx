@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
+import { SOCIAL_ACCOUNTS } from '@/lib/content/socialAccounts';
 
 /**
  * The pages the full footer belongs on.
@@ -23,23 +24,6 @@ const FULL_FOOTER_ROUTES = new Set([
   '/cookies',
   '/accessibility',
 ]);
-
-/**
- * Bhavan's own accounts. Fill in a href to make an icon appear -- an
- * entry with no href does not render at all.
- *
- * These were four icons pointing at "#": controls that look live, invite
- * a click and do nothing, on a product whose whole pitch is being
- * trustworthy. An absent icon says "no account yet"; a dead one says
- * "this is a mock-up".
- */
-const SOCIAL_ACCOUNTS = [
-  { label: 'Instagram', icon: 'ri-instagram-line', href: '' },
-  { label: 'YouTube', icon: 'ri-youtube-fill', href: '' },
-  { label: 'LinkedIn', icon: 'ri-linkedin-fill', href: '' },
-  { label: 'X', icon: 'ri-twitter-x-fill', href: '' },
-  { label: 'Facebook', icon: 'ri-facebook-fill', href: '' },
-].filter((a) => a.href);
 
 const LEGAL_LINKS = [
   { to: '/terms', label: 'Terms' },

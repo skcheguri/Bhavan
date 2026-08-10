@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSubmitContactInquiry } from '@/hooks/useContactInquiries';
+import { SOCIAL_ACCOUNTS } from '@/lib/content/socialAccounts';
 
 export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
@@ -71,31 +72,27 @@ export default function Contact() {
                   </div>
                 </div>
 
-                <div className="mt-8">
-                  <h3 className="font-semibold text-charcoal mb-4">Follow Us</h3>
-                  <div className="flex items-center gap-4">
-                    <a href="#" className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center hover:bg-brand hover:text-white transition-colors text-brand" rel="nofollow">
-                      <div className="w-5 h-5 flex items-center justify-center">
-                        <i className="ri-linkedin-fill" />
-                      </div>
-                    </a>
-                    <a href="#" className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center hover:bg-brand hover:text-white transition-colors text-brand" rel="nofollow">
-                      <div className="w-5 h-5 flex items-center justify-center">
-                        <i className="ri-twitter-x-fill" />
-                      </div>
-                    </a>
-                    <a href="#" className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center hover:bg-brand hover:text-white transition-colors text-brand" rel="nofollow">
-                      <div className="w-5 h-5 flex items-center justify-center">
-                        <i className="ri-instagram-line" />
-                      </div>
-                    </a>
-                    <a href="#" className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center hover:bg-brand hover:text-white transition-colors text-brand" rel="nofollow">
-                      <div className="w-5 h-5 flex items-center justify-center">
-                        <i className="ri-facebook-fill" />
-                      </div>
-                    </a>
+                {SOCIAL_ACCOUNTS.length > 0 && (
+                  <div className="mt-8">
+                    <h3 className="font-semibold text-charcoal mb-4">Follow Us</h3>
+                    <div className="flex items-center gap-4">
+                      {SOCIAL_ACCOUNTS.map((account) => (
+                        <a
+                          key={account.label}
+                          href={account.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Bhavan on ${account.label}`}
+                          className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center hover:bg-brand hover:text-white transition-colors text-brand"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center">
+                            <i className={account.icon} />
+                          </div>
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Contact Form */}

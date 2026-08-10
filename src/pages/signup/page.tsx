@@ -379,9 +379,9 @@ export default function Signup() {
                 />
                 <span className="text-sm text-charcoal/70">
                   I agree to the{' '}
-                  <a href="#" className="text-brand hover:text-brand-dark font-medium">Terms of Service</a>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark font-medium">Terms of Service</a>
                   {' '}and{' '}
-                  <a href="#" className="text-brand hover:text-brand-dark font-medium">Privacy Policy</a>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark font-medium">Privacy Policy</a>
                 </span>
               </label>
               {signupError && <p className="text-xs text-red-500 font-medium">{signupError}</p>}
@@ -455,9 +455,9 @@ export default function Signup() {
                     />
                     <span className="text-sm text-charcoal/70">
                       I agree to the{' '}
-                      <a href="#" className="text-brand hover:text-brand-dark font-medium">Terms of Service</a>
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark font-medium">Terms of Service</a>
                       {' '}and{' '}
-                      <a href="#" className="text-brand hover:text-brand-dark font-medium">Privacy Policy</a>
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand hover:text-brand-dark font-medium">Privacy Policy</a>
                     </span>
                   </label>
                   {signupError && <p className="text-xs text-red-500 font-medium">{signupError}</p>}
