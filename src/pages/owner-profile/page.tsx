@@ -1,5 +1,6 @@
 import BiometricSetting from '@/components/feature/BiometricSetting';
 import BlockedList from '@/components/feature/BlockedList';
+import { partyName } from '@/hooks/useReviews';
 import UserProfileModal from '@/components/feature/UserProfileModal';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -225,7 +226,13 @@ export default function OwnerProfile() {
       // open a profile for, and a row id would open a profile for
       // nobody.
       tenantId: a.tenantId ?? null,
-      name: a.tenantName || 'Tenant',
+      // rental_agreements.tenant_name is free text and on some rows it
+      // holds an email, which then reads as a person's name in this
+      // table. The account's real name would be better still, but this
+      // hook is typed straight against the schema row on purpose (those
+      // fields go into a legal document), so an embed here would trade a
+      // compile-time guarantee for a nicety.
+      name: partyName(a.tenantName, null) || 'Tenant',
       flat: a.flatNumber || '\u2014',
       property: a.propertyAddress || '\u2014',
       rent: formatINR(a.monthlyRent),
@@ -899,26 +906,38 @@ export default function OwnerProfile() {
                         return (
                           <tr key={t.agreementId} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
                             <td className="px-5 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                                  <span className="text-xs font-bold text-amber-600">{t.name[0]}</span>
-                                </div>
-                                {/* Same profile view as Inquiries and
-                                    Messages. This is the list where an
-                                    owner is most likely to want it --
-                                    these are the people actually living
-                                    in their flats. */}
-                                {t.tenantId ? (
-                                  <button
-                                    onClick={() => setTenantProfileId(t.tenantId)}
-                                    className="text-sm font-semibold text-charcoal hover:text-brand transition-colors text-left"
-                                  >
+                              {/* Same profile view as Inquiries and
+                                  Messages. This is the list where an
+                                  owner is most likely to want it -- these
+                                  are the people actually living in their
+                                  flats.
+
+                                  Avatar and name are one button rather
+                                  than two: a picture of a person next to
+                                  a clickable name reads as part of the
+                                  same control, and clicking it and
+                                  getting nothing just looks broken. */}
+                              {t.tenantId ? (
+                                <button
+                                  onClick={() => setTenantProfileId(t.tenantId)}
+                                  className="flex items-center gap-3 group text-left"
+                                  aria-label={`View ${t.name}'s profile`}
+                                >
+                                  <span className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs font-bold text-amber-600">{t.name[0]}</span>
+                                  </span>
+                                  <span className="text-sm font-semibold text-charcoal group-hover:text-brand transition-colors">
                                     {t.name}
-                                  </button>
-                                ) : (
+                                  </span>
+                                </button>
+                              ) : (
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs font-bold text-amber-600">{t.name[0]}</span>
+                                  </div>
                                   <p className="text-sm font-semibold text-charcoal">{t.name}</p>
-                                )}
-                              </div>
+                                </div>
+                              )}
                             </td>
                             <td className="px-5 py-4 text-sm text-charcoal font-medium">{t.flat}</td>
                             <td className="px-5 py-4 text-sm text-charcoal/60">{t.property}</td>

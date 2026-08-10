@@ -29,6 +29,12 @@ describe('partyName', () => {
     expect(partyName('a@b.com', 'c@d.com')).toBe('a');
   });
 
+  // The Active Tenants table reads the agreement's free-text name and has
+  // no account name to fall back on, so this is the shape that reaches it.
+  it('shows the local part when an email is all there is', () => {
+    expect(partyName('skrockster@gmail.com', null)).toBe('skrockster');
+  });
+
   it('does not mistake a name containing @ for an email', () => {
     expect(partyName('Flat 2 @ Rohini', null)).toBe('Flat 2 @ Rohini');
   });
