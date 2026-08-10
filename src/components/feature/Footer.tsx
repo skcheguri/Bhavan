@@ -1,9 +1,69 @@
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
+
+/**
+ * The pages the full footer belongs on.
+ *
+ * It is a marketing surface: four columns of links a visitor uses while
+ * deciding whether to trust Bhavan. On a dashboard or a payment screen
+ * it is just weight under someone's work.
+ *
+ * The legal pages are in the list on purpose. So are About, Contact and
+ * How It Works -- they are where the footer's own links go, and the
+ * navbar carries only Browse Listings, List Property and How It Works,
+ * so dropping the footer there would strand a visitor who followed it.
+ */
+const FULL_FOOTER_ROUTES = new Set([
+  '/',
+  '/about',
+  '/how-it-works',
+  '/contact',
+  '/terms',
+  '/privacy',
+  '/cookies',
+  '/accessibility',
+]);
+
+const LEGAL_LINKS = [
+  { to: '/terms', label: 'Terms' },
+  { to: '/privacy', label: 'Privacy' },
+  { to: '/cookies', label: 'Cookies' },
+  { to: '/accessibility', label: 'Accessibility' },
+];
+
+/**
+ * Everywhere else. These four pages had no route into them but this
+ * footer -- nothing in the navbar or settings links to them, and they
+ * only cross-reference each other -- so scoping the full footer without
+ * this would leave a privacy policy reachable only by typing the URL.
+ */
+function SlimFooter() {
+  return (
+    <footer className="border-t border-black/5 bg-white">
+      <div className="w-full px-4 md:px-8 lg:px-12 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <p className="text-xs text-charcoal/40">&copy; 2025 Bhavan</p>
+        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          {LEGAL_LINKS.map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              className="text-xs text-charcoal/50 hover:text-charcoal transition-colors"
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </footer>
+  );
+}
 
 export default function Footer() {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const isTenant = user?.role === 'tenant';
+
+  if (!FULL_FOOTER_ROUTES.has(pathname)) return <SlimFooter />;
 
   // Dashboard/verification links shouldn't dead-end a signed-out visitor
   // on a "please sign in" page, and shouldn't send a signed-in user to a
