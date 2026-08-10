@@ -230,6 +230,13 @@ function PollCard({
   const { addToast } = useToast();
   const [picks, setPicks] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  // Which destructive action is waiting to be confirmed, asked inline
+  // rather than through window.confirm(). A browser will stop showing
+  // native dialogs from a page that has thrown a few -- Chromium offers
+  // "don't allow this page to prompt you again", and once that is ticked
+  // confirm() returns false forever with nothing on screen. The button
+  // then looks broken, which is exactly how this was reported.
+  const [pending, setPending] = useState<'close' | 'delete' | null>(null);
 
   // The server's answer, not a comparison against the browser's clock --
   // a card reading "open" beside a vote the server will refuse is the
@@ -259,18 +266,18 @@ function PollCard({
     await onChanged();
   };
 
-  const close = async () => {
-    if (!window.confirm('Close this poll? Nobody can vote after that, and results become visible to everyone.')) return;
-    const { error } = await closePoll(poll.id);
-    if (error) addToast(error, 'error');
-    else await onChanged();
-  };
-
-  const remove = async () => {
-    if (!window.confirm(`Delete "${poll.question}"? Every vote cast on it goes too.`)) return;
-    const { error } = await deletePoll(poll.id);
-    if (error) addToast(error, 'error');
-    else await onChanged();
+  const confirmPending = async () => {
+    setBusy(true);
+    const { error } =
+      pending === 'close' ? await closePoll(poll.id) : await deletePoll(poll.id);
+    setBusy(false);
+    setPending(null);
+    if (error) {
+      addToast(error, 'error');
+      return;
+    }
+    addToast(pending === 'close' ? 'Poll closed.' : 'Poll deleted.', 'success');
+    await onChanged();
   };
 
   return (
@@ -289,11 +296,11 @@ function PollCard({
             {poll.voter_count} {poll.voter_count === 1 ? 'vote' : 'votes'}
           </p>
         </div>
-        {isAdmin && (
+        {isAdmin && !pending && (
           <div className="flex gap-1 flex-shrink-0">
             {!closed && (
               <button
-                onClick={() => void close()}
+                onClick={() => setPending('close')}
                 className="text-gray-300 hover:text-charcoal"
                 title="Close poll"
                 aria-label="Close poll"
@@ -302,7 +309,7 @@ function PollCard({
               </button>
             )}
             <button
-              onClick={() => void remove()}
+              onClick={() => setPending('delete')}
               className="text-gray-300 hover:text-red-500"
               title="Delete poll"
               aria-label="Delete poll"
@@ -312,6 +319,33 @@ function PollCard({
           </div>
         )}
       </div>
+
+      {pending && (
+        <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 p-4">
+          <p className="text-sm text-amber-900">
+            {pending === 'close'
+              ? 'Close this poll? Nobody can vote after that, the results open to everyone, and it cannot be reopened.'
+              : 'Delete this poll? Every vote cast on it goes too, and members already notified keep the notification.'}
+          </p>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => void confirmPending()}
+              disabled={busy}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 ${
+                pending === 'close' ? 'bg-charcoal' : 'bg-red-600'
+              }`}
+            >
+              {busy ? 'Working…' : pending === 'close' ? 'Close poll' : 'Delete poll'}
+            </button>
+            <button
+              onClick={() => setPending(null)}
+              className="px-4 py-2 rounded-lg border border-amber-200 text-amber-900 text-sm font-semibold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1.5 mt-2">
         <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-lightgray text-charcoal/60">
