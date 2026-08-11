@@ -8,7 +8,7 @@ import { useListings } from '@/hooks/useListings';
 import { useCreateConnectionRequest, useTenantConnectionRequests } from '@/hooks/useConnectionRequests';
 import { useContactRateLimit, getContactLimitStatus } from '@/hooks/useContactRateLimit';
 import { useBrokerReport } from '@/hooks/useBrokerReport';
-import { useListingReservedDates, useCreateVacationBooking } from '@/hooks/useVacationBookings';
+import { useListingReservedDates, useBookVacationStay } from '@/hooks/useVacationBookings';
 import { useTenantPropertyVisits, useCreatePropertyVisit } from '@/hooks/usePropertyVisits';
 import { isValidIndianPhone, formatIndianPhoneInput } from '@/lib/validation';
 import VacationCalendar from './components/VacationCalendar';
@@ -104,7 +104,7 @@ export default function ListingDetail() {
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
   const [bookingError, setBookingError] = useState('');
   const { reservedDates, refresh: refreshReservedDates } = useListingReservedDates(id);
-  const { create: createVacationBooking, creating: bookingSubmitting } = useCreateVacationBooking();
+  const { book: bookVacationStay, payStatus: bookingPayStatus } = useBookVacationStay();
 
   // Keyboard nav for the photo lightbox -- declared unconditionally
   // (before the loading/error/not-found early returns below) since hooks
@@ -225,11 +225,12 @@ export default function ListingDetail() {
     const diff = new Date(checkOut).getTime() - new Date(checkIn).getTime();
     return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
   })();
-  const totalPrice = nightCount * listing.price;
-  // listings has no real per-property guest-capacity column yet -- this
-  // is a placeholder default, not a wired value, kept consistent across
-  // every place it's shown rather than three different hardcoded guesses.
-  const maxGuests = 2;
+  const baseTotal = nightCount * listing.price;
+  // Mirrors create-booking-order's server-side math exactly -- the
+  // server derives the charge itself, this is only the preview.
+  const serviceFee = Math.round(baseTotal * 0.05);
+  const totalPrice = baseTotal + serviceFee;
+  const maxGuests = listing.max_guests ?? 4;
 
   const rangeOverlapsBlocked = (from: string, to: string): boolean => {
     if (!from || !to) return false;
@@ -250,18 +251,20 @@ export default function ListingDetail() {
       return;
     }
     setBookingError('');
-    const { success, error } = await createVacationBooking({
+    // Opens Razorpay Checkout; the booking request only exists as a real
+    // request once the payment is verified server-side. A dismissed
+    // Checkout resolves with success=false and no error - not a failure.
+    const { success, error } = await bookVacationStay({
       listingId: listing.id,
-      tenantId: user.id,
-      ownerId: listing.owner_id,
       checkIn,
       checkOut,
       guestCount,
-      totalPrice: Math.round(totalPrice * 1.05),
     });
     if (!success) {
-      setBookingError(error || 'Failed to submit booking request. Please try again.');
-      await refreshReservedDates();
+      if (error) {
+        setBookingError(error);
+        await refreshReservedDates();
+      }
       return;
     }
     await refreshReservedDates();
@@ -869,7 +872,7 @@ export default function ListingDetail() {
                   </div>
                   <div>
                     <h2 className="text-[15px] font-semibold text-charcoal">Book Your Stay</h2>
-                    <p className="text-xs text-charcoal/40 mt-0.5">Select dates and confirm your booking instantly</p>
+                    <p className="text-xs text-charcoal/40 mt-0.5">Pay securely now — the host confirms, or you&apos;re refunded in full</p>
                   </div>
                 </div>
 
@@ -878,10 +881,17 @@ export default function ListingDetail() {
                     <div className="w-14 h-14 rounded-full bg-sage-light flex items-center justify-center mx-auto mb-4">
                       <i className="ri-check-line text-sage text-2xl" />
                     </div>
-                    <h3 className="text-[15px] font-semibold text-charcoal">Booking Request Sent!</h3>
+                    <h3 className="text-[15px] font-semibold text-charcoal">Payment received — request sent!</h3>
                     <p className="text-sm text-charcoal/60 mt-2 leading-relaxed">
-                      {listing.landlord_name} will confirm your stay within 24 hours. Check your email for details.
+                      {listing.landlord_name} has been notified and will confirm or decline your stay.
+                      You&apos;ll get a notification either way — a decline refunds you in full, automatically.
                     </p>
+                    <Link
+                      to="/tenant-profile?tab=bookings"
+                      className="inline-block mt-3 text-sm text-sage font-semibold hover:text-sage-dark"
+                    >
+                      Track it in My Bookings
+                    </Link>
                     <button
                       onClick={() => { setBookingSubmitted(false); setCheckIn(''); setCheckOut(''); setGuestCount(1); setBookingError(''); }}
                       className="mt-4 text-sm text-sage font-medium hover:text-sage-dark cursor-pointer"
@@ -946,15 +956,15 @@ export default function ListingDetail() {
                       <div className="bg-sage-light rounded-xl p-4 space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-charcoal/70">₹{listing.price.toLocaleString('en-IN')} × {nightCount} night{nightCount > 1 ? 's' : ''}</span>
-                          <span className="font-semibold text-charcoal">₹{totalPrice.toLocaleString('en-IN')}</span>
+                          <span className="font-semibold text-charcoal">₹{baseTotal.toLocaleString('en-IN')}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-charcoal/70">Service fee</span>
-                          <span className="font-semibold text-charcoal">₹{Math.round(totalPrice * 0.05).toLocaleString('en-IN')}</span>
+                          <span className="text-charcoal/70">Platform fee (5%)</span>
+                          <span className="font-semibold text-charcoal">₹{serviceFee.toLocaleString('en-IN')}</span>
                         </div>
                         <div className="border-t border-sage/30 pt-2 flex justify-between">
-                          <span className="text-[15px] font-semibold text-charcoal">Total</span>
-                          <span className="text-[15px] font-semibold text-sage">₹{Math.round(totalPrice * 1.05).toLocaleString('en-IN')}</span>
+                          <span className="text-[15px] font-semibold text-charcoal">Total — paid now</span>
+                          <span className="text-[15px] font-semibold text-sage">₹{totalPrice.toLocaleString('en-IN')}</span>
                         </div>
                       </div>
                     )}
@@ -989,10 +999,16 @@ export default function ListingDetail() {
                     ) : user ? (
                       <button
                         type="submit"
-                        disabled={!checkIn || !checkOut || nightCount < 1 || bookingSubmitting}
+                        disabled={!checkIn || !checkOut || nightCount < 1 || bookingPayStatus !== 'idle'}
                         className="w-full flex items-center justify-center gap-2 bg-sage text-white text-sm font-semibold px-4 py-3 rounded-full hover:bg-sage-dark transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        {bookingSubmitting ? <><i className="ri-loader-4-line animate-spin" /> Sending Request...</> : <><i className="ri-calendar-check-line" /> Request to Book</>}
+                        {bookingPayStatus === 'opening' ? (
+                          <><i className="ri-loader-4-line animate-spin" /> Opening payment...</>
+                        ) : bookingPayStatus === 'verifying' ? (
+                          <><i className="ri-loader-4-line animate-spin" /> Verifying payment...</>
+                        ) : (
+                          <><i className="ri-bank-card-line" /> Pay &amp; Request to Book</>
+                        )}
                       </button>
                     ) : (
                       <Link
@@ -1002,7 +1018,9 @@ export default function ListingDetail() {
                         <i className="ri-login-circle-line" /> Sign In to Book
                       </Link>
                     )}
-                    <p className="text-xs text-center text-charcoal/40">You won&apos;t be charged yet — owner confirms first</p>
+                    <p className="text-xs text-center text-charcoal/40">
+                      Full refund if the host declines — and free cancellation until 24 hours before check-in
+                    </p>
                   </form>
                 )}
               </div>
@@ -1210,7 +1228,7 @@ export default function ListingDetail() {
                 {(isVacation ? [
                   { icon: 'ri-time-line', label: 'Min. stay', value: '1 night' },
                   { icon: 'ri-group-line', label: 'Max guests', value: `${maxGuests} guests` },
-                  { icon: 'ri-shield-check-line', label: 'Cancellation', value: 'Flexible' },
+                  { icon: 'ri-shield-check-line', label: 'Cancellation', value: 'Free until 24h before' },
                 ] : [
                   { icon: 'ri-calendar-check-line', label: 'Available from', value: 'Immediately' },
                   { icon: 'ri-time-line', label: 'Minimum lease', value: '11 months' },
@@ -1310,9 +1328,9 @@ export default function ListingDetail() {
               </div>
               <ul className="space-y-1.5">
                 {(isVacation ? [
-                  'Owner confirms within 24 hours',
-                  'You won\'t be charged until confirmed',
-                  'Free cancellation up to 48h before check-in',
+                  'You pay upfront; the host then confirms or declines',
+                  'A decline refunds you in full, automatically',
+                  'Free cancellation until 24h before check-in',
                   'Govt. ID required at check-in',
                 ] : [
                   'Always verify Aadhaar before meeting',

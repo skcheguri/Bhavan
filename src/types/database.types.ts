@@ -1488,6 +1488,54 @@ export type Database = {
           },
         ]
       }
+      host_payout_accounts: {
+        Row: {
+          account_holder: string | null
+          account_number: string | null
+          created_at: string
+          ifsc: string | null
+          method: string
+          upi_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_holder?: string | null
+          account_number?: string | null
+          created_at?: string
+          ifsc?: string | null
+          method: string
+          upi_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_holder?: string | null
+          account_number?: string | null
+          created_at?: string
+          ifsc?: string | null
+          method?: string
+          upi_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "host_payout_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "host_payout_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       listing_reports: {
         Row: {
           admin_note: string | null
@@ -1565,6 +1613,7 @@ export type Database = {
           location: string | null
           longitude: number | null
           maintenance_charge: number | null
+          max_guests: number | null
           nearby_places: Json | null
           owner_id: string
           parking: string | null
@@ -1597,6 +1646,7 @@ export type Database = {
           location?: string | null
           longitude?: number | null
           maintenance_charge?: number | null
+          max_guests?: number | null
           nearby_places?: Json | null
           owner_id: string
           parking?: string | null
@@ -1629,6 +1679,7 @@ export type Database = {
           location?: string | null
           longitude?: number | null
           maintenance_charge?: number | null
+          max_guests?: number | null
           nearby_places?: Json | null
           owner_id?: string
           parking?: string | null
@@ -3314,6 +3365,7 @@ export type Database = {
       }
       vacation_bookings: {
         Row: {
+          base_amount: number | null
           check_in: string
           check_out: string
           created_at: string | null
@@ -3321,12 +3373,23 @@ export type Database = {
           id: string
           listing_id: string
           owner_id: string
+          paid_at: string | null
+          payment_status: string
+          payout_at: string | null
+          payout_reference: string | null
+          payout_status: string
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          razorpay_refund_id: string | null
+          refunded_at: string | null
+          service_fee: number | null
           status: string | null
           tenant_id: string
           total_price: number
           updated_at: string | null
         }
         Insert: {
+          base_amount?: number | null
           check_in: string
           check_out: string
           created_at?: string | null
@@ -3334,12 +3397,23 @@ export type Database = {
           id?: string
           listing_id: string
           owner_id: string
+          paid_at?: string | null
+          payment_status?: string
+          payout_at?: string | null
+          payout_reference?: string | null
+          payout_status?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_refund_id?: string | null
+          refunded_at?: string | null
+          service_fee?: number | null
           status?: string | null
           tenant_id: string
           total_price: number
           updated_at?: string | null
         }
         Update: {
+          base_amount?: number | null
           check_in?: string
           check_out?: string
           created_at?: string | null
@@ -3347,6 +3421,16 @@ export type Database = {
           id?: string
           listing_id?: string
           owner_id?: string
+          paid_at?: string | null
+          payment_status?: string
+          payout_at?: string | null
+          payout_reference?: string | null
+          payout_status?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_refund_id?: string | null
+          refunded_at?: string | null
+          service_fee?: number | null
           status?: string | null
           tenant_id?: string
           total_price?: number
@@ -3444,6 +3528,14 @@ export type Database = {
       }
     }
     Functions: {
+      admin_mark_payout_paid: {
+        Args: { p_booking: string; p_reference?: string }
+        Returns: undefined
+      }
+      admin_withhold_payout: {
+        Args: { p_booking: string }
+        Returns: undefined
+      }
       admin_get_user: {
         Args: { target_id: string }
         Returns: {

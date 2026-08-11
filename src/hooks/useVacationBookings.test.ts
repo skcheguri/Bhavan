@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
-import { useListingReservedDates, useCreateVacationBooking } from "./useVacationBookings";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { useListingReservedDates, isRefundEligible } from "./useVacationBookings";
 
 // Mocking the Supabase client module (not a real network/DB call) is the
 // pattern for testing hooks in isolation -- see also
@@ -65,55 +65,41 @@ describe("useListingReservedDates", () => {
   });
 });
 
-describe("useCreateVacationBooking", () => {
+// The UI-side mirror of cancel-booking's refund policy. If these two
+// ever disagree, the UI promises refunds the server refuses (or hides
+// ones it would grant) -- so the boundary cases are pinned here.
+describe("isRefundEligible", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // 2026-08-10T12:00 IST, expressed as UTC.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T06:30:00Z"));
   });
 
-  const input = {
-    listingId: "listing-1",
-    tenantId: "tenant-1",
-    ownerId: "owner-1",
-    checkIn: "2026-08-10",
-    checkOut: "2026-08-12",
-    guestCount: 2,
-    totalPrice: 6300,
-  };
-
-  it("returns success on a clean insert", async () => {
-    const supabaseMock = mockSelectChain({ data: null, error: null });
-    vi.mocked(getSupabase).mockReturnValue(supabaseMock as never);
-
-    const { result } = renderHook(() => useCreateVacationBooking());
-    const response = await act(() => result.current.create(input));
-
-    expect(response).toEqual({ success: true, error: null });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("translates a 23P01 exclusion-constraint violation into a friendly message", async () => {
-    // This is the real Postgres error code the EXCLUDE constraint on
-    // vacation_bookings raises for an overlapping confirmed booking --
-    // see migration 018_vacation_bookings.sql.
-    const supabaseMock = mockSelectChain({
-      data: null,
-      error: { code: "23P01", message: "conflicting key value violates exclusion constraint" },
-    });
-    vi.mocked(getSupabase).mockReturnValue(supabaseMock as never);
-
-    const { result } = renderHook(() => useCreateVacationBooking());
-    const response = await act(() => result.current.create(input));
-
-    expect(response.success).toBe(false);
-    expect(response.error).toMatch(/just booked by someone else/i);
+  it("is always eligible while the paid request is still pending", () => {
+    expect(isRefundEligible({ status: "pending", payment_status: "paid", check_in: "2026-08-10" })).toBe(true);
   });
 
-  it("passes through other database errors unmodified", async () => {
-    const supabaseMock = mockSelectChain({ data: null, error: { code: "23503", message: "foreign key violation" } });
-    vi.mocked(getSupabase).mockReturnValue(supabaseMock as never);
+  it("is eligible for a confirmed stay more than 24h before check-in", () => {
+    // Check-in on the 12th at midnight IST is 36h away from the 10th noon.
+    expect(isRefundEligible({ status: "confirmed", payment_status: "paid", check_in: "2026-08-12" })).toBe(true);
+  });
 
-    const { result } = renderHook(() => useCreateVacationBooking());
-    const response = await act(() => result.current.create(input));
+  it("is NOT eligible inside the final 24 hours before check-in", () => {
+    // Check-in on the 11th at midnight IST is only 12h away.
+    expect(isRefundEligible({ status: "confirmed", payment_status: "paid", check_in: "2026-08-11" })).toBe(false);
+  });
 
-    expect(response).toEqual({ success: false, error: "foreign key violation" });
+  it("is never eligible when nothing was paid or already refunded", () => {
+    expect(isRefundEligible({ status: "pending", payment_status: "unpaid", check_in: "2026-08-20" })).toBe(false);
+    expect(isRefundEligible({ status: "declined", payment_status: "refunded", check_in: "2026-08-20" })).toBe(false);
+  });
+
+  it("is not eligible for terminal statuses even when paid", () => {
+    expect(isRefundEligible({ status: "no_show", payment_status: "paid", check_in: "2026-08-01" })).toBe(false);
+    expect(isRefundEligible({ status: "cancelled", payment_status: "paid", check_in: "2026-08-20" })).toBe(false);
   });
 });

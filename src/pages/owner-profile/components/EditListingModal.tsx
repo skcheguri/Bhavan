@@ -56,6 +56,7 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
     description: '',
     furnished: false,
     parking: 'none',
+    maxGuests: '',
     amenities: [] as string[],
     nearbyPlaces: [] as { label: string; distance: string }[],
   });
@@ -74,6 +75,7 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
         description: listing.description ?? '',
         furnished: listing.furnished ?? false,
         parking: listing.parking ?? 'none',
+        maxGuests: listing.max_guests != null ? String(listing.max_guests) : '',
         amenities: listing.amenities ?? [],
         nearbyPlaces: listing.nearby_places ?? [],
       });
@@ -217,6 +219,9 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
       amenities: form.amenities,
       nearby_places: form.nearbyPlaces.filter((p) => p.label.trim() && p.distance.trim()),
       images,
+      ...(listing.category === 'vacation'
+        ? { max_guests: Number(form.maxGuests) >= 1 ? Number(form.maxGuests) : null }
+        : {}),
       ...(addressChanged ? { latitude: coords?.latitude ?? null, longitude: coords?.longitude ?? null } : {}),
     };
 
@@ -349,16 +354,32 @@ export default function EditListingModal({ listing, onClose, onSave }: EditListi
           {/* Price + Location */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">Monthly Rent (₹)</label>
+              <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">
+                {listing?.category === 'vacation' ? 'Nightly Rate (₹)' : 'Monthly Rent (₹)'}
+              </label>
               <input
                 type="number"
                 required
-                min={1000}
+                min={listing?.category === 'vacation' ? 500 : 1000}
                 value={form.price}
                 onChange={(e) => handleChange('price', e.target.value)}
                 className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
               />
             </div>
+            {listing?.category === 'vacation' && (
+              <div>
+                <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">Maximum Guests</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={form.maxGuests}
+                  onChange={(e) => handleChange('maxGuests', e.target.value)}
+                  placeholder="4"
+                  className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">City</label>
               <select

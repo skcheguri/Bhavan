@@ -18,6 +18,9 @@ import { useRentPayment } from '@/hooks/useRentPayment';
 import { useOwnerMaintenanceRequests } from '@/hooks/useMaintenanceRequests';
 import { useOwnerConnectionRequests } from '@/hooks/useConnectionRequests';
 import NotificationBell from './components/NotificationBell';
+import BookingsTab from './components/BookingsTab';
+import PayoutAccountCard from './components/PayoutAccountCard';
+import { useOwnerBookings } from '@/hooks/useVacationBookings';
 import RequestsTab from './components/RequestsTab';
 import SocietyIssuesCard from './components/SocietyIssuesCard';
 import InquiriesTab from './components/InquiriesTab';
@@ -42,9 +45,9 @@ import {
   composeIsoDate,
 } from '@/lib/validation';
 
-type ProfileTab = 'overview' | 'listings' | 'tenants' | 'inquiries' | 'messages' | 'requests' | 'documents' | 'billing' | 'settings';
+type ProfileTab = 'overview' | 'listings' | 'bookings' | 'tenants' | 'inquiries' | 'messages' | 'requests' | 'documents' | 'billing' | 'settings';
 
-const PROFILE_TABS: ProfileTab[] = ['overview', 'listings', 'tenants', 'inquiries', 'messages', 'requests', 'documents', 'billing', 'settings'];
+const PROFILE_TABS: ProfileTab[] = ['overview', 'listings', 'bookings', 'tenants', 'inquiries', 'messages', 'requests', 'documents', 'billing', 'settings'];
 
 function formatINR(num: number): string {
   return `\u20b9${num.toLocaleString('en-IN')}`;
@@ -74,7 +77,7 @@ export default function OwnerProfile() {
   const [togglingListingId, setTogglingListingId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const { addToast } = useToast();
-  const { inquiry, community } = useOwnerRateLimit(user?.id);
+  const { inquiry } = useOwnerRateLimit(user?.id);
 
   const [formName, setFormName] = useState(user?.name ?? '');
   const [formPhone, setFormPhone] = useState(user?.phone ?? '');
@@ -99,6 +102,8 @@ export default function OwnerProfile() {
   const { payments: allPayments } = useRentPayment();
   const { requests: maintenanceRequests } = useOwnerMaintenanceRequests(user?.id);
   const { requests: connectionRequests } = useOwnerConnectionRequests(user?.id);
+  const { bookings: ownerBookings } = useOwnerBookings(user?.id);
+  const pendingBookings = ownerBookings.filter((b) => b.status === 'pending').length;
 
   const initEditForm = () => {
     if (!user) return;
@@ -253,6 +258,7 @@ export default function OwnerProfile() {
   const tabs: { id: ProfileTab; label: string; icon: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: 'ri-home-4-line' },
     { id: 'listings', label: 'My Listings', icon: 'ri-list-check-3' },
+    { id: 'bookings', label: 'Bookings', icon: 'ri-calendar-2-line', badge: pendingBookings },
     { id: 'tenants', label: 'Tenants', icon: 'ri-group-line', badge: tenantRows.length },
     { id: 'inquiries', label: 'Inquiries', icon: 'ri-message-3-line', badge: pendingInquiries },
     { id: 'messages', label: 'Messages', icon: 'ri-chat-3-line' },
@@ -968,6 +974,25 @@ export default function OwnerProfile() {
           </div>
         )}
 
+        {activeTab === 'bookings' && (
+          <BookingsTab
+            ownerId={user?.id}
+            onMessageGuest={(tenantId, listingId) => {
+              // The thread is the approved connection request migration
+              // 127 guarantees for every confirmed booking.
+              const thread = connectionRequests.find(
+                (r) => r.prospectId === tenantId && r.listingId === listingId && r.status === 'approved'
+              );
+              if (thread) {
+                setActiveChatRequestId(thread.id);
+                setActiveTab('messages');
+              } else {
+                addToast('Chat thread not ready yet — refresh and try again.', 'error');
+              }
+            }}
+          />
+        )}
+
         {activeTab === 'inquiries' && <InquiriesTab onOpenChat={(id) => { setActiveChatRequestId(id); setActiveTab('messages'); }} />}
 
         {activeTab === 'messages' && <ChatTab initialRequestId={activeChatRequestId} />}
@@ -1077,6 +1102,7 @@ export default function OwnerProfile() {
 
         {activeTab === 'billing' && (
           <div className="max-w-4xl space-y-6">
+            <PayoutAccountCard userId={user?.id} />
             {/* Plan Summary */}
             <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
@@ -1295,30 +1321,6 @@ export default function OwnerProfile() {
                   <p className="text-[11px] text-charcoal/40 mt-1">{inquiry.weeklyRemaining} / 200 weekly remaining</p>
                 </div>
 
-                {/* Community Posts */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-purple-50">
-                        <i className="ri-discuss-line text-xs text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-charcoal">Community Posts</p>
-                        <p className="text-[11px] text-charcoal/40">Discussions, advice and reviews</p>
-                      </div>
-                    </div>
-                    <span className={`text-xs font-bold ${community.canSend ? 'text-green-600' : 'text-red-500'}`}>
-                      {community.dailyRemaining} / 5 daily
-                    </span>
-                  </div>
-                  <div className="w-full bg-lightgray rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition ${community.dailyRemaining === 0 ? 'bg-red-500' : 'bg-purple-500'}`}
-                      style={{ width: `${community.dailyCount + community.dailyRemaining > 0 ? (community.dailyRemaining / (community.dailyRemaining + community.dailyCount)) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <p className="text-[11px] text-charcoal/40 mt-1">{community.weeklyRemaining} / 15 weekly remaining</p>
-                </div>
               </div>
             </div>
 

@@ -11,6 +11,9 @@ import { useToast } from '@/hooks/useToast';
 import AvatarPicker from '@/components/feature/AvatarPicker';
 import TenantInquiriesTab from './components/TenantInquiriesTab';
 import TenantChatTab from './components/TenantChatTab';
+import BookingsTab from './components/BookingsTab';
+import { useTenantBookings } from '@/hooks/useVacationBookings';
+import { useTenantConnectionRequests } from '@/hooks/useConnectionRequests';
 import RentManagementTab from './components/RentManagementTab';
 import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 
@@ -31,9 +34,9 @@ import {
   composeIsoDate,
 } from '@/lib/validation';
 
-type ProfileTab = 'overview' | 'saved' | 'inquiries' | 'messages' | 'rentManagement' | 'settings';
+type ProfileTab = 'overview' | 'saved' | 'bookings' | 'inquiries' | 'messages' | 'rentManagement' | 'settings';
 
-const PROFILE_TABS: ProfileTab[] = ['overview', 'saved', 'inquiries', 'messages', 'rentManagement', 'settings'];
+const PROFILE_TABS: ProfileTab[] = ['overview', 'saved', 'bookings', 'inquiries', 'messages', 'rentManagement', 'settings'];
 
 function leaseCountdown(leaseEndDate: string, noticePeriodDays: number) {
   const end = new Date(`${leaseEndDate}T00:00:00`);
@@ -68,6 +71,9 @@ export default function TenantProfile() {
   const { agreements: rentalAgreements } = useTenantRentalAgreements(user?.id);
   const activeAgreement = rentalAgreements[0];
   const { listings: savedListingsFromDB, loading: savedLoading, refresh: refreshSaved } = useSavedListings(user?.id);
+  const { bookings: tenantBookings } = useTenantBookings(user?.id);
+  const activeBookings = tenantBookings.filter((b) => b.status === 'pending' || b.status === 'confirmed').length;
+  const { requests: myConnectionRequests } = useTenantConnectionRequests(user?.id);
   const brokerReport = useBrokerReport(user?.id);
   const [softBlockModalOpen, setSoftBlockModalOpen] = useState(false);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
@@ -235,6 +241,7 @@ export default function TenantProfile() {
   const tabs: { id: ProfileTab; label: string; icon: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: 'ri-home-4-line' },
     { id: 'saved', label: 'Saved Listings', icon: 'ri-bookmark-line', badge: savedListingsFromDB.length },
+    { id: 'bookings', label: 'My Bookings', icon: 'ri-suitcase-line', badge: activeBookings },
     { id: 'inquiries', label: 'Inquiries', icon: 'ri-message-3-line' },
     { id: 'messages', label: 'Messages', icon: 'ri-chat-3-line' },
     { id: 'rentManagement', label: 'Rent Management', icon: 'ri-home-gear-line', badge: activeMaint },
@@ -794,6 +801,25 @@ export default function TenantProfile() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'bookings' && (
+          <BookingsTab
+            tenantId={user?.id}
+            onMessageHost={(ownerId, listingId) => {
+              // The thread is the approved connection request migration
+              // 127 guarantees for every confirmed booking.
+              const thread = myConnectionRequests.find(
+                (r) => r.ownerId === ownerId && r.listingId === listingId && r.status === 'approved'
+              );
+              if (thread) {
+                setActiveChatRequestId(thread.id);
+                setActiveTab('messages');
+              } else {
+                addToast('Chat thread not ready yet — refresh and try again.', 'error');
+              }
+            }}
+          />
         )}
 
         {activeTab === 'inquiries' && (

@@ -150,6 +150,7 @@ export default function ListProperty() {
     // filter.
     const parking = String(fd.get('parking') ?? 'none');
     const propType = String(fd.get('property_type') ?? 'apartment');
+    const maxGuests = parseInt(String(fd.get('max_guests') ?? '0'), 10) || 0;
 
     const amenityFields = Array.from(form.querySelectorAll('input[type="checkbox"][name^="amenity_"]'))
       .filter((el) => (el as HTMLInputElement).checked)
@@ -221,6 +222,7 @@ export default function ListProperty() {
         status: 'active',
         verified: false,
         category: propertyCategory || 'residential',
+        max_guests: propertyCategory === 'vacation' && maxGuests > 0 ? maxGuests : null,
         latitude: coords?.latitude ?? null,
         longitude: coords?.longitude ?? null,
       });
@@ -880,6 +882,25 @@ export default function ListProperty() {
                         />
                       </div>
                     </div>
+                    {propertyCategory === 'vacation' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                          <label className="block text-sm font-medium text-charcoal mb-1.5">
+                            Maximum Guests <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            name="max_guests"
+                            required
+                            min={1}
+                            max={50}
+                            placeholder="e.g. 4"
+                            className="w-full border border-black/10 rounded-lg px-4 py-3 text-sm text-charcoal placeholder-charcoal/40 focus:outline-none focus:border-brand transition-colors"
+                          />
+                          <p className="text-xs text-charcoal/40 mt-1">Booking requests are capped at this guest count.</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                       <div>
                         <label className="block text-sm font-medium text-charcoal mb-1.5">

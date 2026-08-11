@@ -49,6 +49,7 @@ const AdminSocieties = lazy(() => import("../pages/admin/societies/page"));
 const AdminUsers = lazy(() => import("../pages/admin/users/page"));
 const AdminListings = lazy(() => import("../pages/admin/listings/page"));
 const AdminSupport = lazy(() => import("../pages/admin/support/page"));
+const AdminPayouts = lazy(() => import("../pages/admin/payouts/page"));
 const AdminErrors = lazy(() => import("../pages/admin/errors/page"));
 const AdminLogin = lazy(() => import("../pages/admin/login/page"));
 const AdminMfaSetup = lazy(() => import("../pages/admin/mfa-setup/page"));
@@ -219,6 +220,10 @@ const routes: RouteObject[] = [
   {
     path: "/admin/support",
     element: <RequireAdmin><AdminSupport /></RequireAdmin>,
+  },
+  {
+    path: "/admin/payouts",
+    element: <RequireAdmin><AdminPayouts /></RequireAdmin>,
   },
   {
     path: "/admin/errors",

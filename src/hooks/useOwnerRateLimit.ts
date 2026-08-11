@@ -8,11 +8,6 @@ const INQUIRY_MAX_DAILY = 50;
 const INQUIRY_MAX_WEEKLY = 200;
 const INQUIRY_KEY_PREFIX = 'bhavan_owner_inquiry_responses_';
 
-/* ───────── Community Post Limits ───────── */
-const COMMUNITY_MAX_DAILY = 5;
-const COMMUNITY_MAX_WEEKLY = 15;
-const COMMUNITY_KEY_PREFIX = 'bhavan_owner_community_';
-
 /* ───────── Shared helpers ───────── */
 function getKey(userId: string, prefix: string): string {
   return `${prefix}${userId}`;
@@ -109,41 +104,15 @@ export function recordInquiryResponse(userId: string): boolean {
   );
 }
 
-/* ───────── Community Posts ───────── */
-export function getCommunityLimitStatus(userId: string): RateLimitStatus {
-  return buildStatus(
-    getTimestamps(userId, COMMUNITY_KEY_PREFIX),
-    COMMUNITY_MAX_DAILY,
-    COMMUNITY_MAX_WEEKLY,
-    'community posts',
-  );
-}
-
-export function recordCommunityPost(userId: string): boolean {
-  return recordAttempt(
-    userId,
-    COMMUNITY_KEY_PREFIX,
-    COMMUNITY_MAX_DAILY,
-    COMMUNITY_MAX_WEEKLY,
-    'community posts',
-  );
-}
-
 /* ───────── React Hook ───────── */
 export interface OwnerRateLimits {
   inquiry: RateLimitStatus;
-  community: RateLimitStatus;
   recordInquiry: () => boolean;
-  recordCommunity: () => boolean;
 }
 
 export function useOwnerRateLimit(userId: string | undefined): OwnerRateLimits {
   const inquiry = useMemo(
     () => getInquiryLimitStatus(userId || ''),
-    [userId],
-  );
-  const community = useMemo(
-    () => getCommunityLimitStatus(userId || ''),
     [userId],
   );
 
@@ -152,10 +121,5 @@ export function useOwnerRateLimit(userId: string | undefined): OwnerRateLimits {
     return recordInquiryResponse(userId);
   }, [userId]);
 
-  const recordCommunity = useCallback((): boolean => {
-    if (!userId) return false;
-    return recordCommunityPost(userId);
-  }, [userId]);
-
-  return { inquiry, community, recordInquiry, recordCommunity };
+  return { inquiry, recordInquiry };
 }

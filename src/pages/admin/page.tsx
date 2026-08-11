@@ -7,6 +7,7 @@ import { useAdminListingReports } from '@/hooks/useListingReports';
 import { useAdminPurgedAccounts } from '@/hooks/useAdminPurgedAccounts';
 import { useAdminUserStats } from '@/hooks/useAdminUsers';
 import { useAdminOverviewCounts } from '@/hooks/useAdminOverview';
+import { useAdminDuePayouts } from '@/hooks/useHostPayouts';
 import { useAdminContactInquiries } from '@/hooks/useContactInquiries';
 import { useAdminErrorLogs } from '@/hooks/useAdminErrorLogs';
 import { useErrorRateAlerts } from '@/hooks/useErrorRateAlerts';
@@ -37,6 +38,8 @@ export default function AdminDashboard() {
   const pendingPropertyVerifications = propertyVerificationRequests.filter((r) => r.status === 'pending').length;
   const { pendingCount: pendingSocieties } = useAdminSocieties();
   const pendingListingReports = listingReports.filter((r) => r.status === 'pending').length;
+  const { payouts: duePayoutRows } = useAdminDuePayouts();
+  const duePayouts = duePayoutRows.length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
   const recentErrors = errorLogs.filter((l) => Date.now() - new Date(l.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000).length;
 
@@ -128,6 +131,14 @@ export default function AdminDashboard() {
       color: 'bg-lightgray text-charcoal/60',
       to: '/admin/purged-accounts',
       description: 'Record of unconfirmed signups auto-removed after 30 days by the daily cleanup job.',
+    },
+    {
+      title: 'Host Payouts',
+      count: duePayouts,
+      icon: 'ri-bank-line',
+      color: 'bg-amber-50 text-amber-600',
+      to: '/admin/payouts',
+      description: 'Booking earnings retained by the platform and not yet transferred to hosts.',
     },
     {
       title: 'Soft Blocks',

@@ -34,6 +34,7 @@ export interface Listing {
   views_count: number;
   inquiries_count: number;
   saves_count: number;
+  max_guests: number | null;
 }
 
 function isValidUUID(str: string | undefined): boolean {
@@ -135,6 +136,7 @@ export function useListingDetail(id: string | undefined): {
         views_count: Number(db.views_count ?? 0),
         inquiries_count: Number(db.inquiries_count ?? 0),
         saves_count: Number(db.saves_count ?? 0),
+        max_guests: db.max_guests != null ? Number(db.max_guests) : null,
       };
       setListing(mapped);
       setLoading(false);
