@@ -5,9 +5,9 @@ import { loadRazorpayScript } from '@/lib/razorpay';
 /**
  * The apartment complex / villa community feature.
  *
- * Named "society" throughout the UI because /community is already the
- * public discussion forum and reusing the word would make two unrelated
- * things share a name. The database tables are still `communities` and
+ * Named "society" throughout the UI (the word "community" historically
+ * belonged to the public discussion forum, removed as out of MVP scope
+ * in migration 125). The database tables are still `communities` and
  * `community_members` -- that mapping is deliberate, not an oversight.
  *
  * Every rule this file appears to enforce is really enforced in Postgres

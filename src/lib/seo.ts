@@ -97,7 +97,6 @@ const ROUTE_META: [string, RouteMeta][] = [
   ['/how-it-works', { title: 'How It Works', description: 'How Bhavan connects verified tenants and owners directly: browse, connect, chat in-app, and close with digital agreements.' }],
   ['/about', { title: 'About Us', description: 'Bhavan is India\'s broker-free rental platform, built on verified users and direct owner-tenant connections.' }],
   ['/contact', { title: 'Contact Us', description: 'Questions or feedback? Reach the Bhavan team.' }],
-  ['/community', { title: 'Community Forum', description: 'Ask questions and share experiences with renters and owners in the Bhavan community.' }],
   ['/feedback', { title: 'Reviews & Feedback', description: 'Read reviews from tenants and owners on Bhavan.' }],
   ['/subscription', { title: 'Pro Plans for Landlords', description: 'Upgrade to Bhavan Pro: advanced analytics, bulk receipts, priority placement, and more. One-time payment, no auto-charges.' }],
   ['/terms', { title: 'Terms of Service' }],

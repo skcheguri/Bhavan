@@ -11,7 +11,6 @@ import { useSubscription } from '@/hooks/useSubscription';
 const sharedMenuItems = [
   { to: '/notifications', icon: 'ri-notification-3-line', label: 'Notifications' },
   { to: '/feedback', icon: 'ri-star-line', label: 'My Reviews' },
-  { to: '/community', icon: 'ri-discuss-line', label: 'Community Forum' },
 ];
 
 interface Props {

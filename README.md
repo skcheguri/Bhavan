@@ -52,7 +52,7 @@ src/
 │   │   └── ToastContainer.tsx
 │   └── base/               # Reusable UI primitives
 ├── pages/
-│   ├── home/, listings/, listing-detail/, community/, about/, contact/
+│   ├── home/, listings/, listing-detail/, about/, contact/
 │   ├── how-it-works/, feedback/, scan/
 │   ├── terms/, privacy/, cookies/, accessibility/    # Legal pages
 │   ├── login/, signup/, auth-callback/, reset-password/
@@ -63,7 +63,7 @@ src/
 │   ├── notifications/, subscription/
 │   ├── admin/               # Admin dashboard overview
 │   │   ├── login/, users/, listings/, support/, errors/
-│   │   ├── broker-reports/, verification/, property-verification/, community/
+│   │   ├── broker-reports/, verification/, property-verification/
 │   ├── Forbidden.tsx, NotFound.tsx, ServerError.tsx   # /403, catch-all, /500
 ├── hooks/                   # One hook per data domain -- see "Custom Hooks" below
 ├── router/
@@ -99,7 +99,6 @@ e2e/                          # Playwright end-to-end specs
 | `/` | Home | No |
 | `/listings` | Browse Listings | No |
 | `/listings/:id` | Listing Detail | No |
-| `/community` | Community Forum | No |
 | `/about` | About Us | No |
 | `/contact` | Contact | No |
 | `/how-it-works` | How It Works | No |
@@ -128,7 +127,6 @@ e2e/                          # Playwright end-to-end specs
 | `/admin/broker-reports` | Broker Report Moderation | Yes (Admin) |
 | `/admin/verification` | Aadhaar Verification Queue | Yes (Admin) |
 | `/admin/property-verification` | Property Ownership Verification | Yes (Admin) |
-| `/admin/community` | Community Moderation | Yes (Admin) |
 | `/admin/users` | User Management | Yes (Admin) |
 | `/admin/listings` | Listing Moderation | Yes (Admin) |
 | `/admin/support` | Support Queue | Yes (Admin) |
@@ -159,11 +157,11 @@ Two distinct user roles with separate dashboards:
 Role is set at signup and stored in the `users` table (synced to Supabase `users` table).
 
 ### 3. Trust & Safety Stack
-- **Rate Limiting**: server-enforced, not client-side. The public "Request to Connect" flow uses Edge Functions (`check-contact-limit` + `record-contact`) with device fingerprinting and IP throttling; authenticated-user actions (community posts, inquiry responses, the Contact form) are enforced by Postgres triggers via `check_and_record_rate_limit()` and the `rate_limit_events` table — a client bypass (clearing storage, incognito) cannot defeat either path.
+- **Rate Limiting**: server-enforced, not client-side. The public "Request to Connect" flow uses Edge Functions (`check-contact-limit` + `record-contact`) with device fingerprinting and IP throttling; authenticated-user actions (inquiry responses, the Contact form) are enforced by Postgres triggers via `check_and_record_rate_limit()` and the `rate_limit_events` table — a client bypass (clearing storage, incognito) cannot defeat either path.
 - **Broker Reporting**: Owners can flag tenants; 2 reports in 48h triggers soft block
 - **Soft Block Resolution**: Aadhaar re-verification + additional details form
 - **Aadhaar Verification**: OCR extraction → name matching → provider verification (IDfy/Signzy)
-- **RLS Hardening**: every owner/author-scoped table (`rent_payments`, `rental_agreements`, `connection_requests`, `maintenance_requests`, `community_posts`, `rent_receipts`, `broker_reports`) has an explicit `WITH CHECK` or immutability trigger restricting writes to exactly what the real UI does — not just "does this row belong to you." Each has a rollback-safe regression script in `supabase/tests/`.
+- **RLS Hardening**: every owner/author-scoped table (`rent_payments`, `rental_agreements`, `connection_requests`, `maintenance_requests`, `rent_receipts`, `broker_reports`) has an explicit `WITH CHECK` or immutability trigger restricting writes to exactly what the real UI does — not just "does this row belong to you." Each has a rollback-safe regression script in `supabase/tests/`.
 - **Client Error Logging**: uncaught errors and React error-boundary catches are logged to the `client_error_logs` table (RLS: anyone inserts their own, admin-only read), viewable at `/admin/errors`.
 
 ### 4. Subscription Model (Freemium for Owners)
@@ -243,7 +241,6 @@ RLS regression scripts in `supabase/tests/` follow the same pattern and are mean
 - `useConnectionRequests`: Create and manage tenant inquiries
 - `useMaintenanceRequests`: Create maintenance tickets (tenant) and manage them (owner)
 - `useProperties` / `usePropertyVisits`: Owner properties, unit breakdown, visit scheduling
-- `useCommunity`: Community posts and comments
 - `useReviews` / `useReviewEligibility`: Tenant↔owner reviews, restricted to actual relationships
 - `useNotifications` / `useNotificationPreferences`: Notification center + delivery channel prefs
 - `useSubscription`: Tier checking, feature gating, billing history
@@ -272,28 +269,25 @@ RLS regression scripts in `supabase/tests/` follow the same pattern and are mean
 6. `chat_messages` — tenant-landlord threaded messages
 7. `broker_reports` — owner-reported broker flags (insert-time status/admin_note locked to admin-only)
 8. `soft_block_states` — active restriction records
-9. `community_posts` — forum posts and discussions (author cannot self-unhide an admin-moderated post)
-10. `community_comments` — post comments
-11. `community_post_reports` — moderation flags on posts
-12. `saved_listings` — user bookmarked listings
-13. `documents` — uploaded agreements, receipts, Aadhaar, utility bills
-14. `qr_analytics` — per-listing scan and conversion tracking
-15. `notifications` — user notifications
-16. `notification_preferences` — delivery channel prefs
-17. `owner_subscriptions` — premium plans
-18. `billing_history` — invoice records
-19. `subscription_features` — feature flags
-20. `rent_payments` — rent transaction records (status can only reach `paid` via the verified Razorpay edge function, never a direct client write)
-21. `rent_receipts` — issued receipts (immutable once issued; only `sent_to_tenant`/`sent_at` are owner-writable)
-22. `rental_agreements` — generated lease agreements (owner cannot self-mark `signed_by_tenant`)
-23. `upi_mandates` — auto-pay setups
-24. `contact_attempts` — rate limit audit trail (public "Request to Connect" flow)
-25. `contact_inquiries` — public Contact form submissions (server rate-limited via device fingerprint)
-26. `user_push_tokens` — push notification tokens
-27. `audit_logs` — security audit trail
-28. `maintenance_requests` — maintenance tickets (owner cannot rewrite the tenant's original description/category/images)
-29. `reviews` — tenant↔owner reviews, restricted to actual tenancy relationships
-30. `property_visits` — scheduled in-person visits
+9. `saved_listings` — user bookmarked listings
+10. `documents` — uploaded agreements, receipts, Aadhaar, utility bills
+11. `qr_analytics` — per-listing scan and conversion tracking
+12. `notifications` — user notifications
+13. `notification_preferences` — delivery channel prefs
+14. `owner_subscriptions` — premium plans
+15. `billing_history` — invoice records
+16. `subscription_features` — feature flags
+17. `rent_payments` — rent transaction records (status can only reach `paid` via the verified Razorpay edge function, never a direct client write)
+18. `rent_receipts` — issued receipts (immutable once issued; only `sent_to_tenant`/`sent_at` are owner-writable)
+19. `rental_agreements` — generated lease agreements (owner cannot self-mark `signed_by_tenant`)
+20. `upi_mandates` — auto-pay setups
+21. `contact_attempts` — rate limit audit trail (public "Request to Connect" flow)
+22. `contact_inquiries` — public Contact form submissions (server rate-limited via device fingerprint)
+23. `user_push_tokens` — push notification tokens
+24. `audit_logs` — security audit trail
+25. `maintenance_requests` — maintenance tickets (owner cannot rewrite the tenant's original description/category/images)
+26. `reviews` — tenant↔owner reviews, restricted to actual tenancy relationships
+27. `property_visits` — scheduled in-person visits
 31. `vacation_bookings` — short-stay booking calendar
 32. `aadhaar_verification_attempts` — KYC attempt history (retry limiting)
 33. `client_error_logs` — client-side error capture (insert own / admin read)

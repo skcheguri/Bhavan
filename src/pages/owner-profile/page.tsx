@@ -711,7 +711,6 @@ export default function OwnerProfile() {
                     { to: '/rent-receipts', icon: 'ri-file-text-line', label: 'Rent Receipts', color: 'bg-orange-50 text-orange-600' },
                     { to: '/tax-forms', icon: 'ri-government-line', label: 'Tax Forms', color: 'bg-blue-50 text-blue-600' },
                     { to: '/feedback', icon: 'ri-star-line', label: 'View Reviews', color: 'bg-brand/10 text-brand' },
-                    { to: '/community', icon: 'ri-discuss-line', label: 'Community Forum', color: 'bg-teal-50 text-teal-600' },
                   ].map((action) => (
                     <Link key={action.to} to={action.to} className="flex items-center gap-3 p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
                       <div className={`w-8 h-8 flex items-center justify-center rounded-lg flex-shrink-0 ${action.color}`}>

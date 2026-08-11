@@ -651,7 +651,6 @@ export default function TenantProfile() {
                     { to: '/rent-payment', icon: 'ri-money-rupee-circle-line', label: 'Pay Rent', color: 'bg-red-50 text-red-500' },
                     { to: '/aadhaar-verify', icon: 'ri-shield-check-line', label: 'Aadhaar Verify', color: 'bg-green-50 text-green-600' },
                     { to: '/feedback', icon: 'ri-star-line', label: 'Write a Review', color: 'bg-orange-50 text-orange-500' },
-                    { to: '/community', icon: 'ri-discuss-line', label: 'Community Forum', color: 'bg-teal-50 text-teal-600' },
                   ].map((action) => (
                     <Link key={action.to} to={action.to} className="flex items-center gap-3 p-3 rounded-xl hover:bg-offwhite transition-colors cursor-pointer">
                       <div className={`w-8 h-8 flex items-center justify-center rounded-lg flex-shrink-0 ${action.color}`}>

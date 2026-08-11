@@ -87,7 +87,6 @@ export default function Footer() {
       links: [
         { to: '/listings', label: 'Browse Listings' },
         ...tenantDashboard,
-        { to: '/community', label: 'Community Forum' },
         { to: '/feedback', label: 'Reviews & Feedback' },
       ],
     },

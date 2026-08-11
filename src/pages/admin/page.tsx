@@ -5,7 +5,6 @@ import { useAdminPropertyVerification } from '@/hooks/useAdminPropertyVerificati
 import { useAdminSocieties } from '@/hooks/useAdminSocieties';
 import { useAdminListingReports } from '@/hooks/useListingReports';
 import { useAdminPurgedAccounts } from '@/hooks/useAdminPurgedAccounts';
-import { useAdminCommunityModeration } from '@/hooks/useCommunity';
 import { useAdminUserStats } from '@/hooks/useAdminUsers';
 import { useAdminOverviewCounts } from '@/hooks/useAdminOverview';
 import { useAdminContactInquiries } from '@/hooks/useContactInquiries';
@@ -27,7 +26,6 @@ export default function AdminDashboard() {
   const { requests: propertyVerificationRequests } = useAdminPropertyVerification();
   const { reports: listingReports } = useAdminListingReports();
   const { accounts: purgedAccounts } = useAdminPurgedAccounts();
-  const { posts: communityPosts } = useAdminCommunityModeration();
   const { stats: userStats } = useAdminUserStats();
   const { counts: overviewCounts } = useAdminOverviewCounts();
   const { inquiries } = useAdminContactInquiries();
@@ -39,7 +37,6 @@ export default function AdminDashboard() {
   const pendingPropertyVerifications = propertyVerificationRequests.filter((r) => r.status === 'pending').length;
   const { pendingCount: pendingSocieties } = useAdminSocieties();
   const pendingListingReports = listingReports.filter((r) => r.status === 'pending').length;
-  const flaggedPosts = communityPosts.filter((p) => p.report_count > 0 && !p.hidden).length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
   const recentErrors = errorLogs.filter((l) => Date.now() - new Date(l.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000).length;
 
@@ -131,14 +128,6 @@ export default function AdminDashboard() {
       color: 'bg-lightgray text-charcoal/60',
       to: '/admin/purged-accounts',
       description: 'Record of unconfirmed signups auto-removed after 30 days by the daily cleanup job.',
-    },
-    {
-      title: 'Community Moderation',
-      count: flaggedPosts,
-      icon: 'ri-discuss-line',
-      color: 'bg-blue-50 text-blue-600',
-      to: '/admin/community',
-      description: 'Moderate community posts and comments flagged by users.',
     },
     {
       title: 'Soft Blocks',

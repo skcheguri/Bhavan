@@ -1,17 +1,14 @@
 import { Link } from 'react-router';
 import { useListings } from '@/hooks/useListings';
-import { useCommunity } from '@/hooks/useCommunity';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Home() {
   const { user } = useAuth();
   const isTenant = user?.role === 'tenant';
   const { listings: dbListings, loading: listingsLoading } = useListings();
-  const { posts: dbPosts, loading: postsLoading } = useCommunity();
 
   const featuredListings = dbListings.filter((l) => l.category === 'residential').slice(0, 3);
   const featuredVacation = dbListings.filter((l) => l.category === 'vacation').slice(0, 3);
-  const featuredPosts = dbPosts.slice(0, 3);
 
   return (
     <div className="min-h-screen bg-offwhite">
@@ -338,64 +335,6 @@ export default function Home() {
                   <i className="ri-arrow-right-line text-charcoal/30 text-sm ml-auto flex-shrink-0" />
                 </Link>
               ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Community Preview */}
-      <section className="bg-offwhite py-16 md:py-24">
-        <div className="w-full px-5 md:px-10 lg:px-16">
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-12">
-              <span className="text-xs font-semibold text-brand uppercase tracking-wider">Renter voices</span>
-              <h2 className="mt-2 text-3xl md:text-[2.75rem] font-bold text-charcoal tracking-tight">Join our renter community</h2>
-              <p className="mt-3 text-charcoal/60 max-w-md mx-auto">Connect with fellow tenants, share experiences, and get support</p>
-            </div>
-
-            {postsLoading ? (
-              <div className="text-center py-12">
-                <i className="ri-loader-4-line animate-spin text-brand text-2xl" />
-                <p className="mt-3 text-charcoal/50">Loading community posts&hellip;</p>
-              </div>
-            ) : featuredPosts.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-charcoal/50">No community posts yet. Start the first discussion.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-7">
-                {featuredPosts.map((post) => (
-                  <div
-                    key={post.id}
-                    className="bg-white border border-black/5 rounded-3xl p-6 hover:-translate-y-0.5 hover:border-brand/20 transition duration-300"
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center">
-                        <span className="text-sm font-bold text-brand">{(post.author?.name ?? 'U')[0]}</span>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-charcoal text-sm">{post.author?.name ?? 'Community Member'}</p>
-                        <p className="text-xs text-charcoal/50 capitalize">{post.category}</p>
-                      </div>
-                    </div>
-                    <h4 className="text-sm font-bold text-charcoal mb-2">{post.title}</h4>
-                    <p className="text-charcoal/60 text-sm leading-relaxed line-clamp-3">&ldquo;{post.content}&rdquo;</p>
-                    <div className="mt-3 flex items-center gap-4 text-xs text-charcoal/40">
-                      <span>{new Date(post.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-10 text-center">
-              <Link
-                to="/community"
-                className="inline-flex items-center gap-2 text-brand font-semibold hover:gap-3 transition-[gap]"
-              >
-                Explore community
-                <i className="ri-arrow-right-line" />
-              </Link>
             </div>
           </div>
         </div>
