@@ -9,6 +9,11 @@ import { getMessaging, isSupported, type Messaging } from 'firebase/messaging';
 // file Vite never processes, and so can't read import.meta.env -- can
 // hold the same values without a second source of truth drifting.
 //
+// Being public doesn't mean unrestricted: the key should carry HTTP
+// referrer restrictions (Google Cloud Console -> Credentials -> this
+// key -> Application restrictions), limiting it to the production
+// domain and localhost so it can't be lifted into someone else's app.
+//
 // KEEP IN SYNC with public/firebase-messaging-sw.js if this ever changes.
 export const firebaseConfig = {
   apiKey: 'AIzaSyD8bw-eKs-dIeAU3eHkbdHcAqrEp_-Sup4',

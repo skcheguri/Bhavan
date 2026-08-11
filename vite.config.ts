@@ -63,7 +63,10 @@ export default defineConfig({
   ],
   base,
   build: {
-    sourcemap: true,
+    // Source maps stay out of production deploys: they reconstruct the
+    // full original source (comments, internal naming, security-relevant
+    // logic) for anyone who opens devtools on the deployed site.
+    sourcemap: false,
     outDir: 'out',
   },
   resolve: {

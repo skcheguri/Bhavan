@@ -28,6 +28,23 @@ interface ServiceAccount {
   project_id: string;
 }
 
+// Constant-time secret comparison. A plain === short-circuits at the
+// first differing character, which leaks how much of a guessed secret
+// matched through response timing. Comparing fixed-length SHA-256
+// digests removes both the length leak and the position leak.
+async function secretsMatch(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [da, db] = await Promise.all([
+    crypto.subtle.digest("SHA-256", enc.encode(a)),
+    crypto.subtle.digest("SHA-256", enc.encode(b)),
+  ]);
+  const va = new Uint8Array(da);
+  const vb = new Uint8Array(db);
+  let diff = 0;
+  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
+  return diff === 0;
+}
+
 function loadServiceAccount(): ServiceAccount | null {
   const b64 = Deno.env.get("FCM_SERVICE_ACCOUNT_B64") ?? "";
   if (!b64) return null;
@@ -142,7 +159,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const triggerSecret = Deno.env.get("PUSH_TRIGGER_SECRET") ?? "";
     const providedSecret = req.headers.get("x-push-trigger-secret") ?? "";
-    const fromTrigger = triggerSecret.length > 0 && providedSecret === triggerSecret;
+    const fromTrigger = triggerSecret.length > 0 && (await secretsMatch(providedSecret, triggerSecret));
 
     let targetUserId: string;
     let title: string;
