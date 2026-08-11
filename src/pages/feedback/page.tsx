@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   useReviews,
   useReviewableTenancies,
@@ -252,6 +252,25 @@ export default function FeedbackPage() {
               {loading ? (
                 <div className="bg-white rounded-3xl border border-black/5 p-12 text-center text-sm text-charcoal/40">
                   Loading reviews…
+                </div>
+              ) : !user ? (
+                // Reviews name real people and real addresses, so reading
+                // them requires signing in (migration 118) -- without this
+                // branch a visitor would see "No reviews found", which
+                // reads as an empty product rather than a closed door.
+                <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
+                  <div className="w-14 h-14 rounded-full bg-lightgray flex items-center justify-center mx-auto">
+                    <i className="ri-lock-line text-charcoal/30 text-2xl" />
+                  </div>
+                  <p className="mt-4 text-charcoal/60 text-sm max-w-sm mx-auto">
+                    Reviews mention real people and properties, so they&apos;re only visible to signed-in members.
+                  </p>
+                  <Link
+                    to="/login"
+                    className="inline-block mt-5 bg-brand text-white text-sm font-medium px-6 py-2.5 rounded-full hover:bg-brand-dark transition-colors whitespace-nowrap"
+                  >
+                    Sign in to read reviews
+                  </Link>
                 </div>
               ) : filtered.length === 0 ? (
                 <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">

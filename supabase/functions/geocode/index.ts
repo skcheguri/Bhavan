@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -11,6 +13,13 @@ interface GeocodeResponse {
   configured: boolean;
   latitude: number | null;
   longitude: number | null;
+}
+
+function json401(): Response {
+  return new Response(JSON.stringify({ error: "Not authenticated" }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    status: 401,
+  });
 }
 
 Deno.serve(async (req) => {
@@ -30,6 +39,21 @@ Deno.serve(async (req) => {
         status: 200,
       });
     }
+
+    // Signed-in callers only. This proxies a metered, billed API key --
+    // with no caller check, anyone on the internet could burn the Google
+    // Maps quota through this endpoint. The app's own logged-out flows
+    // (the listings location search) already fall back to Nominatim when
+    // this function declines, so anon visitors lose nothing.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return json401();
+    const callerClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: userData, error: userError } = await callerClient.auth.getUser();
+    if (userError || !userData?.user) return json401();
 
     const body: GeocodeRequest = await req.json().catch(() => ({}));
     const query = (body.query ?? "").trim();

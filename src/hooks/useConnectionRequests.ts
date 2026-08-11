@@ -227,7 +227,8 @@ export function useCreateConnectionRequest() {
         if (dbError) {
           return { success: false, error: dbError.message };
         }
-        await supabase.rpc('increment_listing_counter', { p_listing_id: payload.listingId, p_counter: 'inquiries_count', p_delta: 1 });
+        // listings.inquiries_count is maintained by a trigger on
+        // connection_requests (migration 119) -- no client-side bump.
         return { success: true };
       } finally {
         setSubmitting(false);

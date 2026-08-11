@@ -64,8 +64,9 @@ export function useSaveListing(userId: string | undefined): SavedListingState {
     if (dbError) {
       setError(dbError.message);
     } else {
+      // listings.saves_count is maintained by a trigger on saved_listings
+      // (migration 119) -- no client-side counter bump.
       setSavedIds((prev) => [...prev, listingId]);
-      await supabase.rpc('increment_listing_counter', { p_listing_id: listingId, p_counter: 'saves_count', p_delta: 1 });
     }
     setSaving(false);
   }, [userId]);
@@ -88,7 +89,6 @@ export function useSaveListing(userId: string | undefined): SavedListingState {
       setError(dbError.message);
     } else {
       setSavedIds((prev) => prev.filter((id) => id !== listingId));
-      await supabase.rpc('increment_listing_counter', { p_listing_id: listingId, p_counter: 'saves_count', p_delta: -1 });
     }
     setSaving(false);
   }, [userId]);
