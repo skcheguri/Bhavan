@@ -3538,7 +3538,6 @@ export type Database = {
           created_at: string | null
           id: string | null
           name: string | null
-          role: string | null
           verified_aadhaar: boolean | null
         }
         Insert: {
@@ -3546,7 +3545,6 @@ export type Database = {
           created_at?: string | null
           id?: string | null
           name?: string | null
-          role?: string | null
           verified_aadhaar?: boolean | null
         }
         Update: {
@@ -3554,7 +3552,6 @@ export type Database = {
           created_at?: string | null
           id?: string | null
           name?: string | null
-          role?: string | null
           verified_aadhaar?: boolean | null
         }
         Relationships: []
@@ -3807,6 +3804,16 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_public_profile: {
+        Args: { p_user_id: string }
+        Returns: {
+          avatar_url: string | null
+          created_at: string | null
+          id: string
+          name: string | null
+          verified_aadhaar: boolean | null
+        }[]
+      }
       get_society_deletion_summary: {
         Args: { p_community: string }
         Returns: {
@@ -3851,7 +3858,10 @@ export type Database = {
       is_community_admin: { Args: { p_community: string }; Returns: boolean }
       is_community_member: { Args: { p_community: string }; Returns: boolean }
       is_verified_owner: { Args: { p_user?: string }; Returns: boolean }
-      mark_aadhaar_verified: { Args: { p_last4: string }; Returns: undefined }
+      mark_aadhaar_verified: {
+        Args: { p_user_id: string; p_last4: string }
+        Returns: undefined
+      }
       notify_agreement_shared: {
         Args: { p_agreement_id: string }
         Returns: undefined
@@ -3893,7 +3903,7 @@ export type Database = {
       run_maintenance_escalation: { Args: never; Returns: number }
       run_society_renewal_reminders: { Args: never; Returns: number }
       set_aadhaar_verification_status: {
-        Args: { p_status: string }
+        Args: { p_user_id: string; p_status: string }
         Returns: undefined
       }
       ticket_community: { Args: { p_ticket: string }; Returns: string }

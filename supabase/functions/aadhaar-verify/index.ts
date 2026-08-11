@@ -156,6 +156,16 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Service-role client for the two verification-status RPCs ONLY.
+    // Migration 115 revoked them from `authenticated` -- they used to be
+    // callable by any logged-in browser session, which meant anyone could
+    // self-grant the "Aadhaar Verified" badge from the console. Every
+    // other query here stays on the caller-scoped client above.
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData?.user) return json({ error: "Not authenticated" }, 401);
     const userId = userData.user.id;
@@ -191,12 +201,11 @@ Deno.serve(async (req) => {
       });
       if (insertError) throw insertError;
 
-      // A dedicated RPC, not a raw table update -- see migration 042.
-      // protect_privileged_user_columns() pins verification columns back
-      // to their old value for any caller that isn't an admin, which
-      // includes this function (it deliberately runs as the user's own
-      // JWT). Only this RPC can flip the trusted-write escape hatch.
-      const { error: statusError } = await supabase.rpc("set_aadhaar_verification_status", { p_status: "pending" });
+      // A dedicated RPC, not a raw table update -- see migrations 042 and
+      // 115. protect_privileged_user_columns() pins verification columns
+      // back to their old value for non-admin callers, and since 115 the
+      // RPC itself is service_role-only, so it must go through `admin`.
+      const { error: statusError } = await admin.rpc("set_aadhaar_verification_status", { p_user_id: userId, p_status: "pending" });
       if (statusError) throw statusError;
 
       return json({ referenceId, maskedAadhaar: `XXXX XXXX ${last4}` });
@@ -245,7 +254,7 @@ Deno.serve(async (req) => {
         .update({ status: "verified", verified_at: now })
         .eq("id", attempt.id);
 
-      const { error: verifyError } = await supabase.rpc("mark_aadhaar_verified", { p_last4: attempt.aadhaar_last4 });
+      const { error: verifyError } = await admin.rpc("mark_aadhaar_verified", { p_user_id: userId, p_last4: attempt.aadhaar_last4 });
       if (verifyError) throw verifyError;
 
       return json({ success: true, name: result.name, dob: result.dob, gender: result.gender });

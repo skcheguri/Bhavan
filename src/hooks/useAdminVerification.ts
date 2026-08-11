@@ -57,7 +57,10 @@ export function useAdminVerification() {
     const [{ data: attemptRows, error: attemptsError }, { data: verifiedRows, error: verifiedError }] = await Promise.all([
       supabase
         .from('aadhaar_verification_attempts')
-        .select('id, user_id, aadhaar_last4, status, failure_reason, requested_at, verified_at, user:users_public!aadhaar_verification_attempts_user_id_fkey(name, role)')
+        // Base `users` table, not users_public: the view no longer
+        // carries `role` (migration 116), and this page is admin-only,
+        // where the "Admins can read all users" policy applies.
+        .select('id, user_id, aadhaar_last4, status, failure_reason, requested_at, verified_at, user:users!aadhaar_verification_attempts_user_id_fkey(name, role)')
         .order('requested_at', { ascending: false })
         .limit(100),
       supabase

@@ -61,10 +61,12 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole = 'rent
       setLoadingProfile(false);
       return;
     }
+    // Relationship-gated RPC (migration 116) rather than an open
+    // users_public lookup: it only answers for people the viewer knows
+    // through the product (connection request, tenancy, shared society,
+    // or an active listing). Anyone else resolves to "Profile not found."
     supabase
-      .from('users_public')
-      .select('name, avatar_url, verified_aadhaar, created_at')
-      .eq('id', userId)
+      .rpc('get_public_profile', { p_user_id: userId })
       .maybeSingle()
       .then(({ data }) => {
         setProfile(data as BasicProfile | null);
