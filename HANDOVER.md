@@ -322,6 +322,49 @@ what's real:
 - Whatever isn't enforced by launch should come off the pricing page —
   advertising unenforced features is the actual exposure here.
 
+### 4.3f GST is charged but no compliant tax invoice is produced
+
+`create-subscription-order` / `create-society-subscription-order` add 18%
+GST (`gst_amount` on `billing_history`) and the owner is charged it, but
+the only artefact is a row and an `invoice_number` string — no GST-
+compliant **tax invoice** document is ever generated. Charging GST while
+issuing no compliant invoice is a real compliance exposure, not cosmetic.
+
+This is blocked on business/legal data that isn't (and shouldn't be) in
+the repo, plus a document template:
+- The registered entity's **GSTIN**, legal name and registered address.
+- **SAC code** for the service (SaaS/subscription) and the **place of
+  supply** rules (intra- vs inter-state changes CGST+SGST vs IGST — the
+  code currently lumps it as one 18% line, which itself needs review).
+- A sequential, financial-year-scoped invoice number series (the current
+  `INV-<year>-<order-suffix>` is not a compliant series).
+- A rendered invoice document (the app already has an HTML→document
+  pipeline in `src/lib/documents/` used for rent receipts and rental
+  agreements — a GST invoice template belongs alongside those), delivered
+  to the owner and stored.
+Get this reviewed by whoever handles the entity's GST filing before
+launch; do not ship "we charge GST" without the invoice behind it.
+
+### 4.3g Rent reconciliation is a scratchpad, not a ledger
+
+The owner **Reconcile** tab (`ReconciliationPanel`) lets an owner type
+bank-statement lines and match them to rent payments. It now refuses a
+match whose amounts disagree (that guard shipped), but the bank entries
+themselves live in React `useState` — they are **not persisted**: close
+the panel and every entry and match-in-progress is gone, and there is no
+stored audit trail of what was reconciled against what. `reconcilePayment`
+only flips the payment's status to `reconciled` and stores a free-text
+note; the bank side is never recorded. To make it a real ledger:
+- Persist bank entries in a `rent_reconciliation_entries` table (owner_id,
+  date, amount, description, matched_payment_id, created_at) with owner-
+  scoped RLS.
+- Store the match linkage (which entry ↔ which payment) so a reconciled
+  payment can be traced back to its bank line, and make reconciled rows
+  immutable.
+- Optional but expected of a ledger: CSV/statement import instead of
+  hand-typing, and a running matched/unmatched balance that survives
+  reloads.
+
 ### 4.3b Societies: what is not finished
 
 The feature works end to end and is covered by E2E tests. What is missing

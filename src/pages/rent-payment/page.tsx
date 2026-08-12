@@ -252,7 +252,12 @@ export default function RentPayment() {
                 <div className="bg-green-50 rounded-xl px-4 py-3 border border-green-100">
                   <p className="text-xs text-charcoal/40 uppercase tracking-wide">Collected This Month</p>
                   <p className="text-xl font-black text-charcoal">
-                    ₹{((payments.filter((p) => p.status === 'paid' || p.status === 'reconciled').reduce((s, p) => s + p.amount, 0)) / 100).toLocaleString('en-IN')}
+                    ₹{((payments
+                      .filter((p) =>
+                        p.owner_id === user?.id &&
+                        p.month === formatMonthKey(new Date()) &&
+                        (p.status === 'paid' || p.status === 'reconciled'))
+                      .reduce((s, p) => s + p.amount, 0)) / 100).toLocaleString('en-IN')}
                   </p>
                 </div>
               </div>

@@ -52,7 +52,21 @@ export default function ReconciliationPanel({ ownerId, onClose }: Props) {
 
   const handleMatch = async () => {
     if (!selectedEntry || !selectedPayment) return;
-    const { error } = await reconcilePayment(selectedPayment, note || 'Matched with bank statement');
+
+    // A ledger match means the two sides agree. Matching a bank line to a
+    // rent payment of a different amount is exactly the "reconciliation"
+    // that hides an error rather than catching one, so it's refused.
+    const entry = entries.find((e) => e.id === selectedEntry);
+    const payment = ownerPayments.find((p) => p.id === selectedPayment);
+    if (entry && payment && entry.amount !== payment.amount) {
+      addToast(
+        `Amounts don't match — bank entry ₹${(entry.amount / 100).toLocaleString('en-IN')} vs payment ₹${(payment.amount / 100).toLocaleString('en-IN')}. Only exact amounts can be reconciled.`,
+        'error'
+      );
+      return;
+    }
+
+    const { error } = await reconcilePayment(selectedPayment, note || `Matched with bank entry: ${entry?.description ?? ''}`.trim());
     if (error) {
       addToast(error, 'error');
       return;

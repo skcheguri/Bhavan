@@ -270,7 +270,10 @@ export default function RentManagementTab({ initialSubTab }: Props) {
                         }`} />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-charcoal">₹{payment.amount.toLocaleString('en-IN')}</p>
+                        {/* amount is stored in paise (see
+                            create-rent-payment-order and the cash logger,
+                            both x100) -- render in rupees. */}
+                        <p className="text-sm font-semibold text-charcoal">₹{(payment.amount / 100).toLocaleString('en-IN')}</p>
                         <p className="text-xs text-charcoal/60">
                           {new Date(payment.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                           {' · '}
