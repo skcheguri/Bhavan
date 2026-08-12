@@ -2431,6 +2431,7 @@ export type Database = {
           landlord_address: string | null
           landlord_name: string
           landlord_pan: string | null
+          landlord_signed_at: string | null
           listing_id: string | null
           maintenance_amount: number | null
           notes: string | null
@@ -2445,6 +2446,7 @@ export type Database = {
           rent_payment_id: string | null
           sent_at: string | null
           sent_to_tenant: boolean | null
+          signed_by_landlord: boolean | null
           tenant_id: string | null
           tenant_name: string
           tenant_pan: string | null
@@ -2457,6 +2459,7 @@ export type Database = {
           landlord_address?: string | null
           landlord_name: string
           landlord_pan?: string | null
+          landlord_signed_at?: string | null
           listing_id?: string | null
           maintenance_amount?: number | null
           notes?: string | null
@@ -2471,6 +2474,7 @@ export type Database = {
           rent_payment_id?: string | null
           sent_at?: string | null
           sent_to_tenant?: boolean | null
+          signed_by_landlord?: boolean | null
           tenant_id?: string | null
           tenant_name: string
           tenant_pan?: string | null
@@ -2483,6 +2487,8 @@ export type Database = {
           landlord_address?: string | null
           landlord_name?: string
           landlord_pan?: string | null
+          landlord_signed_at?: string | null
+          signed_by_landlord?: boolean | null
           listing_id?: string | null
           maintenance_amount?: number | null
           notes?: string | null

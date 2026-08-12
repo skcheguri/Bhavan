@@ -120,6 +120,27 @@ export default function RequestsTab({ tenantId }: Props) {
   const [requestForm, setRequestForm] = useState<{ issue: string; description: string; urgency: 'low' | 'medium' | 'high'; preferredTime: string }>({ issue: '', description: '', urgency: 'medium', preferredTime: '' });
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
+  const MAX_PHOTOS = 5;
+
+  const addPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    const accepted: { file: File; preview: string }[] = [];
+    for (const file of files) {
+      if (photos.length + accepted.length >= MAX_PHOTOS) break;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) continue;
+      if (file.size > 5 * 1024 * 1024) continue;
+      accepted.push({ file, preview: URL.createObjectURL(file) });
+    }
+    if (accepted.length) setPhotos((prev) => [...prev, ...accepted]);
+  };
+  const removePhoto = (i: number) => {
+    setPhotos((prev) => {
+      if (prev[i]) URL.revokeObjectURL(prev[i].preview);
+      return prev.filter((_, idx) => idx !== i);
+    });
+  };
 
   const handleSubmitRequest = async () => {
     if (!selectedCategory || !requestForm.issue.trim() || !selectedAgreement) return;
@@ -134,6 +155,7 @@ export default function RequestsTab({ tenantId }: Props) {
       priority: requestForm.urgency,
       unit: selectedAgreement.flatNumber || '',
       preferred_time: requestForm.preferredTime,
+      photos: photos.map((p) => p.file),
     });
 
     if (error) {
@@ -141,6 +163,8 @@ export default function RequestsTab({ tenantId }: Props) {
       return;
     }
 
+    photos.forEach((p) => URL.revokeObjectURL(p.preview));
+    setPhotos([]);
     setSubmitted(true);
     refreshMaint();
     setTimeout(() => {
@@ -514,6 +538,31 @@ export default function RequestsTab({ tenantId }: Props) {
                         className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">Photos (optional)</label>
+                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                      {photos.map((p, i) => (
+                        <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-black/10">
+                          <img src={p.preview} alt={`Attachment ${i + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removePhoto(i)}
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer hover:bg-black/80"
+                          >
+                            <i className="ri-close-line text-xs" />
+                          </button>
+                        </div>
+                      ))}
+                      {photos.length < MAX_PHOTOS && (
+                        <label className="aspect-square rounded-lg border-2 border-dashed border-black/15 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-brand/40 transition-colors">
+                          <i className="ri-camera-line text-lg text-charcoal/40" />
+                          <span className="text-[10px] text-charcoal/50">Add</span>
+                          <input type="file" accept="image/jpeg,image/png,image/webp" multiple capture="environment" onChange={addPhotos} className="hidden" />
+                        </label>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] text-charcoal/40">A photo of the problem helps your landlord act faster. JPG/PNG/WebP, up to 5MB each.</p>
                   </div>
                   {submitError && (
                     <p className="text-xs text-red-500">{submitError}</p>

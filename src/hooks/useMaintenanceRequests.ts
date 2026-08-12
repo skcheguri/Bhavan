@@ -41,6 +41,26 @@ export interface CreateMaintenanceRequestInput {
   priority: 'low' | 'medium' | 'high';
   unit?: string;
   preferred_time?: string;
+  photos?: File[];
+}
+
+// Uploads maintenance photos to the maintenance-images bucket under the
+// tenant's own folder (migration 139) and returns their public URLs.
+async function uploadMaintenanceImages(tenantId: string, requestId: string, files: File[]): Promise<string[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+  const urls: string[] = [];
+  for (const file of files) {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) continue;
+    if (file.size > 5 * 1024 * 1024) continue;
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${tenantId}/${requestId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from('maintenance-images').upload(path, file);
+    if (error) continue;
+    const { data } = supabase.storage.from('maintenance-images').getPublicUrl(path);
+    if (data?.publicUrl) urls.push(data.publicUrl);
+  }
+  return urls;
 }
 
 export function useMaintenanceRequests(tenantId: string | undefined) {
@@ -125,10 +145,25 @@ export function useCreateMaintenanceRequest() {
       return { data: null, error: dbError.message };
     }
 
+    // Upload any attached photos and fold their URLs back into the row.
+    let row = data;
+    if (input.photos && input.photos.length > 0) {
+      const urls = await uploadMaintenanceImages(input.tenant_id, data.id, input.photos);
+      if (urls.length > 0) {
+        const { data: updated } = await supabase
+          .from('maintenance_requests')
+          .update({ images: urls })
+          .eq('id', data.id)
+          .select('*')
+          .single();
+        if (updated) row = updated;
+      }
+    }
+
     await supabase.rpc('notify_maintenance_request_created', { p_request_id: data.id });
 
     setCreating(false);
-    return { data: data as MaintenanceRequest, error: null };
+    return { data: row as MaintenanceRequest, error: null };
   }, []);
 
   return { create, creating, error };

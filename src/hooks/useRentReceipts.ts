@@ -39,6 +39,7 @@ function mapRow(r: Tables<'rent_receipts'>): RentReceiptRow {
     maintenanceAmount: Number(r.maintenance_amount ?? 0),
     notes: String(r.notes ?? ''),
     createdAt: String(r.created_at ?? ''),
+    landlordSignedAt: (r.landlord_signed_at as string | null) ?? null,
     sentToTenant: Boolean(r.sent_to_tenant),
     sentAt: (r.sent_at as string | null) ?? null,
   };
@@ -111,6 +112,9 @@ export function useRentReceipts(ownerId: string | undefined) {
           includes_maintenance: payload.includesMaintenance,
           maintenance_amount: Math.round(payload.maintenanceAmount) || 0,
           notes: payload.notes,
+          // Issuing a receipt is the landlord signing it.
+          signed_by_landlord: true,
+          landlord_signed_at: new Date().toISOString(),
         })
         .select('id')
         .single();

@@ -16,6 +16,7 @@ export interface RentReceiptData {
   maintenanceAmount: number;
   notes: string;
   createdAt: string;
+  landlordSignedAt?: string | null;
 }
 
 // `iso` here is usually a date-only string ("2026-08-01") from a <input
@@ -131,7 +132,7 @@ export function buildRentReceiptHtml(r: RentReceiptData): string {
     ${r.paymentMode === 'cash' && r.rentAmount > 5000 ? `<p class="stamp-note">Revenue stamp affixed as required for cash payments exceeding ₹5,000, per the Indian Stamp Act.</p>` : ''}
 
     <div class="signature">
-      <span class="sig-line">${escapeHtml(r.landlordName)}<br/>Landlord's Signature</span>
+      <span class="sig-line">${escapeHtml(r.landlordName)}<br/>Landlord's Signature${r.landlordSignedAt ? `<br/><small>Digitally signed on ${formatDate(r.landlordSignedAt)}</small>` : ''}</span>
     </div>
   </div>
 
