@@ -8,7 +8,7 @@ import { getSupabase } from '@/lib/supabase';
  * dashboard badge, but must never be rendered with the error-count
  * wording, which would read "0 errors in the last N minutes".
  */
-export type AlertKind = 'error_rate' | 'cron_stalled';
+export type AlertKind = 'error_rate' | 'cron_stalled' | 'webhook_failed';
 
 export interface ErrorRateAlert {
   id: string;
@@ -44,6 +44,13 @@ export function describeAlert(alert: Pick<ErrorRateAlert, 'kind' | 'detail' | 'e
       headline: `${alert.errorCount} scheduled job${alert.errorCount === 1 ? '' : 's'} not running`,
       context: alert.detail ?? 'A scheduled job has stopped succeeding.',
       timeLabel: 'last checked',
+    };
+  }
+  if (alert.kind === 'webhook_failed') {
+    return {
+      headline: `${alert.errorCount} Razorpay webhook failure${alert.errorCount === 1 ? '' : 's'}`,
+      context: alert.detail ?? 'A payment webhook could not be fulfilled.',
+      timeLabel: 'last 24h',
     };
   }
   const minutes = Math.round(

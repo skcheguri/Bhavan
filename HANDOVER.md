@@ -365,6 +365,47 @@ note; the bank side is never recorded. To make it a real ledger:
   hand-typing, and a running matched/unmatched balance that survives
   reloads.
 
+### 4.3h UPI AutoPay is a non-functional scaffold — DO NOT enable for real
+
+The "UPI AutoPay" tab looks complete (set up a mandate, pause, cancel)
+but is **entirely fake**: `useRentPayment.createMandate` writes an
+`upi_mandates` row with a fabricated `razorpay_token` (`token_<Date.now>`)
+and never touches Razorpay. There is no real UPI e-mandate, no
+tokenization, and — critically — **nothing that ever debits it**: no
+recurring charge job exists, so even the fake mandate collects no rent.
+It must not be presented to real users as working autopay.
+
+A real implementation is a substantial integration, not a wiring fix:
+- Razorpay **UPI AutoPay / e-mandate** (Subscriptions or the Recurring
+  Payments API): create an authenticated mandate, store the real token,
+  handle the mandate-approval webhook.
+- A recurring **pre-debit notification** (mandatory in India, ~24h before
+  each debit) plus the scheduled debit itself — a new cron that raises a
+  charge on each due date and reconciles the result through the existing
+  `razorpay-webhook`.
+- Mandate lifecycle: pause/resume/cancel must call Razorpay, not just
+  flip a local status; handle failed debits and expiry.
+Until all of that exists, keep the tab hidden or clearly labelled
+"coming soon". The honest launch position is one-tap manual Razorpay
+rent (which works) without recurring autopay.
+
+### 4.3i CORS `*` on payment functions — reviewed, kept on purpose
+
+The payment/refund/booking edge functions send
+`Access-Control-Allow-Origin: *`. This was flagged and **deliberately
+left as-is**, not overlooked. It is safe here: every one of these
+functions authenticates with a **bearer JWT** (or, for the webhook, a
+Razorpay signature) and reads **no cookies**, so a wildcard CORS grants a
+malicious page nothing — it cannot obtain the caller's token, and a
+cross-origin `fetch` without it is rejected 401 by the function itself.
+An origin allowlist would add real fragility for zero security gain: the
+**Capacitor mobile app** sends `Origin: capacitor://localhost` (or
+`http://localhost`), and Vercel **preview deploys** each have their own
+origin — an allowlist would silently break payments on those surfaces. If
+a future reason to tighten appears, do it via an env-driven allowlist
+that explicitly includes the Capacitor origin(s) and reflects the request
+Origin, never a single hard-coded domain.
+
 ### 4.3b Societies: what is not finished
 
 The feature works end to end and is covered by E2E tests. What is missing

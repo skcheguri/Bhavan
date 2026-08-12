@@ -15,7 +15,6 @@ export interface RentPayment {
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
   failure_reason: string | null;
-  receipt_url: string | null;
   reconciled_at: string | null;
   reconciliation_note: string | null;
   created_at: string;
@@ -263,7 +262,6 @@ export function useRentPayment(): UseRentPaymentReturn {
         razorpay_order_id: null,
         razorpay_payment_id: null,
         failure_reason: null,
-        receipt_url: null,
         reconciled_at: null,
         reconciliation_note: null,
         created_at: new Date().toISOString(),

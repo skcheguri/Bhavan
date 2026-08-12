@@ -2324,7 +2324,6 @@ export type Database = {
           property_unit_id: string | null
           razorpay_order_id: string | null
           razorpay_payment_id: string | null
-          receipt_url: string | null
           reconciled_at: string | null
           reconciliation_note: string | null
           status: string | null
@@ -2345,7 +2344,6 @@ export type Database = {
           property_unit_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
-          receipt_url?: string | null
           reconciled_at?: string | null
           reconciliation_note?: string | null
           status?: string | null
@@ -2366,7 +2364,6 @@ export type Database = {
           property_unit_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
-          receipt_url?: string | null
           reconciled_at?: string | null
           reconciliation_note?: string | null
           status?: string | null
