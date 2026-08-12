@@ -11,6 +11,7 @@
 -- ============================================================
 
 ALTER TABLE rent_receipts
+  ADD COLUMN IF NOT EXISTS signed_by_landlord boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS landlord_signed_at timestamptz;
 
 -- Existing receipts were issued by their landlord; stamp them as signed
