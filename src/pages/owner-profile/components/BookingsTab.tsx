@@ -51,21 +51,30 @@ export default function BookingsTab({ ownerId, onMessageGuest }: BookingsTabProp
   const act = async (bookingId: string, action: OwnerBookingAction) => {
     setBusyId(bookingId);
     setConfirming(null);
-    const { error } = await respondToBooking(bookingId, action);
+    const { error, refundFailures } = await respondToBooking(bookingId, action);
     setBusyId(null);
     if (error) {
       addToast(error, 'error');
     } else {
-      addToast(
-        action === 'confirm'
-          ? 'Booking confirmed. Overlapping requests were declined and refunded.'
-          : action === 'decline'
-            ? 'Request declined. The guest gets a full refund.'
-            : action === 'cancel'
-              ? 'Booking cancelled. The guest gets a full refund.'
-              : 'Marked as no-show.',
-        'success'
-      );
+      if (action === 'confirm' && refundFailures > 0) {
+        // Don't claim a clean sweep when some overlapping guests are still
+        // paid and pending -- the host (or support) needs to retry those.
+        addToast(
+          `Booking confirmed, but ${refundFailures} overlapping ${refundFailures === 1 ? 'request' : 'requests'} could not be auto-refunded. Decline ${refundFailures === 1 ? 'it' : 'them'} again to retry the refund.`,
+          'error'
+        );
+      } else {
+        addToast(
+          action === 'confirm'
+            ? 'Booking confirmed. Overlapping requests were declined and refunded.'
+            : action === 'decline'
+              ? 'Request declined. The guest gets a full refund.'
+              : action === 'cancel'
+                ? 'Booking cancelled. The guest gets a full refund.'
+                : 'Marked as no-show.',
+          'success'
+        );
+      }
       await refresh();
     }
   };

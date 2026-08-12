@@ -235,19 +235,33 @@ export type OwnerBookingAction = 'confirm' | 'decline' | 'cancel' | 'no_show';
 // All status changes go through edge functions: three of the four
 // actions move money (refunds), and confirming refunds the losing
 // overlapping requests. There is deliberately no client-side write path.
+//
+// On confirm the server also reports how the overlapping requests fared:
+// `declinedOverlapping` were refunded, `refundFailures` could not be
+// refunded and remain pending-and-paid for a retry. The caller surfaces
+// the failure count so the host isn't told "all refunded" when some
+// weren't.
 export async function respondToBooking(
   bookingId: string,
   action: OwnerBookingAction
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; declinedOverlapping: number; refundFailures: number }> {
   const supabase = getSupabase();
-  if (!supabase) return { error: 'Not available right now.' };
+  if (!supabase) return { error: 'Not available right now.', declinedOverlapping: 0, refundFailures: 0 };
   const { data, error } = await supabase.functions.invoke('respond-booking', {
     body: { bookingId, action },
   });
   if (error || !data?.success) {
-    return { error: (await functionErrorMessage(error)) || 'Could not update this booking. Please try again.' };
+    return {
+      error: (await functionErrorMessage(error)) || 'Could not update this booking. Please try again.',
+      declinedOverlapping: 0,
+      refundFailures: 0,
+    };
   }
-  return { error: null };
+  return {
+    error: null,
+    declinedOverlapping: Number(data.declinedOverlapping ?? 0),
+    refundFailures: Number(data.refundFailures ?? 0),
+  };
 }
 
 export async function cancelBooking(

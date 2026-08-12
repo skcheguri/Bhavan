@@ -206,12 +206,20 @@ Deno.serve(async (req) => {
 
     if (rent) return finish(await fulfilRent(serviceClient, rent, paymentId));
 
+    const { data: booking } = await serviceClient
+      .from("vacation_bookings")
+      .select("id, status, payment_status")
+      .eq("razorpay_order_id", orderId)
+      .maybeSingle();
+
+    if (booking) return finish(await fulfilBooking(serviceClient, booking, paymentId));
+
     // A captured payment we cannot place. Worth recording loudly: it means
     // either an order created outside this app, or a row that went missing.
     return finish({
       target: "unknown",
       status: "failed",
-      error: `No invoice or rent payment references order ${orderId}.`,
+      error: `No invoice, rent payment, or booking references order ${orderId}.`,
     });
   } catch (err) {
     return finish({ target: "unknown", status: "failed", error: (err as Error).message });
@@ -456,6 +464,40 @@ async function reconcileRefund(
   // Already reconciled (in-app path or an earlier delivery), or a payment
   // we don't have. Either way nothing more to do.
   return { target: "refund", status: "ignored", error: `No unrefunded record for payment ${paymentId}.` };
+}
+
+// Promotes a paid vacation booking from `awaiting_payment` to `pending`,
+// exactly what verify-booking-payment does on the browser path. Without
+// this branch a booking whose browser never returned from Checkout was
+// captured-but-never-promoted, and create-booking-order's hourly sweep of
+// stale awaiting_payment rows would then DELETE it -- money taken, request
+// gone. The compare-and-set on status makes the browser path (if it won
+// the race) and any re-delivery no-ops, and the status change fires the
+// migration-126 trigger that notifies the host, same as the browser path.
+async function fulfilBooking(
+  client: ReturnType<typeof createClient>,
+  booking: Record<string, string | null>,
+  paymentId: string
+): Promise<Fulfilment> {
+  const { data: claimed, error } = await client
+    .from("vacation_bookings")
+    .update({
+      status: "pending",
+      payment_status: "paid",
+      razorpay_payment_id: paymentId,
+      paid_at: new Date().toISOString(),
+    })
+    .eq("id", booking.id)
+    .eq("status", "awaiting_payment")
+    .neq("payment_status", "paid")
+    .select("id");
+
+  if (error) return { target: "booking", status: "failed", error: error.message };
+  if (!claimed || claimed.length === 0) {
+    // The browser path already promoted it, or this is a re-delivery.
+    return { target: "booking", status: "ignored", error: "Already promoted." };
+  }
+  return { target: "booking", status: "processed" };
 }
 
 async function fulfilRent(
