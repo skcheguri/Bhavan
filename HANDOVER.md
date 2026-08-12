@@ -237,6 +237,56 @@ One thing that is easy to misread as a gap and is not: fund collections
 are a **ledger**, not a payment path. That is a legal boundary, explained
 in migration 085 and ARCHITECTURE.md.
 
+### 4.3c Vacation booking payouts — Stage 2 (Razorpay Route), before launch
+
+Booking payments work end to end (guest pays upfront via Razorpay;
+decline/cancel refunds are automatic — migrations 126–128, four
+`*-booking*` edge functions). Host payouts are **Stage 1**: money
+accumulates in the platform Razorpay account, hosts register a UPI/bank
+account in Owner Profile → Billing, and an admin executes each transfer
+manually from `/admin/payouts` (completed stays and no-shows are owed
+automatically; late-cancel forfeits default to the platform and the
+admin releases or keeps each one). Stage 1 is fine for early volume but
+does not scale and makes the platform a manual money-forwarder.
+
+**Stage 2 is Razorpay Route — do these before launch:**
+
+1. **Apply for Route now** — it is approval-gated and the clock is
+   Razorpay's. Dashboard (Live mode) → sidebar **Route** → Get
+   Started/Activate; if the product isn't visible, raise a support
+   ticket asking for Route activation for marketplace host payouts.
+   Prerequisite: live-mode KYC/activation complete.
+2. **Host onboarding as linked accounts.** Each host completes KYC with
+   Razorpay and becomes a linked account (`acc_*`). Store the linked
+   account id on `host_payout_accounts` (add a column; the table and its
+   RLS already exist). Build the "connect your Razorpay account" step in
+   the Payout Account card (replaces/supplements the raw UPI/bank form
+   for Route-onboarded hosts).
+3. **Split at capture.** In `create-booking-order`, attach `transfers[]`
+   to the order (host's linked account gets `base_amount`, platform
+   retains `service_fee`) — or create transfers post-capture from
+   `verify-booking-payment` for held-until-checkout semantics. Decide
+   hold policy first: Route supports `on_hold` transfers released later,
+   which matches the current "payout after check-out" promise.
+4. **Refund interplay.** Declines/cancellations currently refund the full
+   payment from the platform balance. With Route splits, a refund after
+   transfer needs a **transfer reversal** first — wire reversals into
+   `respond-booking` / `cancel-booking` for any booking whose transfer
+   already settled, or keep transfers on hold until the refund window
+   closes (simpler; recommended).
+5. **Webhooks.** Subscribe to `transfer.processed` / `transfer.failed`
+   (and settlement events) in the existing `razorpay-webhook` function
+   and flip `vacation_bookings.payout_status` from them — the admin
+   queue then only handles exceptions and forfeit decisions.
+6. **Reconciliation view.** Once splits are automatic, extend
+   `/admin/payouts` to show Route transfer state instead of manual
+   mark-paid for Route-onboarded hosts; keep the manual path as fallback
+   for hosts who never complete linked-account KYC.
+
+Until Route is approved, Stage 1 is the operating procedure — nothing
+blocks bookings, but plan the launch messaging around "payouts within N
+days" that an admin can actually honor manually.
+
 ### 4.4 Auth configuration is wrong in production
 
 Supabase **Site URL** is still `http://localhost:3000`, and the Vercel URL
@@ -355,14 +405,19 @@ Each of these was a real bug, not a hypothetical:
 1. Stand up a staging Supabase project; repoint CI and E2E (§4.1)
 2. Fix Supabase Site URL / Redirect URLs — this affects real users today (§4.4)
 3. Close out push (§5), then confirm delivery end-to-end on web
-4. Razorpay: confirm live keys, add the webhook (§4.3)
-5. `cap add android` → device testing → Play Store (§4.2)
-6. iOS after Android — longer review cycle, more account setup
-7. Aadhaar and OTP providers, contracts permitting (§4.3)
-8. Accessibility pass (§4.5), then the §4.6 list
+4. Razorpay: confirm live keys, add the webhook (§4.3), and **apply for
+   Route immediately** — its approval clock is the long pole for booking
+   payouts (§4.3c)
+5. Booking payouts Stage 2 once Route is approved (§4.3c)
+6. `cap add android` → device testing → Play Store (§4.2)
+7. iOS after Android — longer review cycle, more account setup
+8. Aadhaar and OTP providers, contracts permitting (§4.3)
+9. Accessibility pass (§4.5), then the §4.6 list
 
-Items 1–4 are web launch blockers. Item 5 onward is a separate project in
-practice; scope it as one.
+Items 1–4 are web launch blockers (for item 4, the Route *application*
+is the blocker — approval and Stage 2 can land after launch as long as
+Stage 1 manual payouts are being honored). Item 6 onward is a separate
+project in practice; scope it as one.
 
 ---
 
