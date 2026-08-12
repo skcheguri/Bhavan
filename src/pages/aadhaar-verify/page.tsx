@@ -24,9 +24,13 @@ async function extractFunctionError(error: unknown): Promise<string> {
   return 'Something went wrong. Please try again.';
 }
 
+type VerifyMode = 'otp' | 'ocr' | 'unconfigured' | 'loading';
+
 export default function AadhaarVerify() {
   const { user, loading: authLoading, refreshProfile } = useAuth();
 
+  const [mode, setMode] = useState<VerifyMode>('loading');
+  const [otpTestMode, setOtpTestMode] = useState(false);
   const [step, setStep] = useState<Step>(1);
   const [aadhaar, setAadhaar] = useState('');
   const [name, setName] = useState('');
@@ -42,9 +46,34 @@ export default function AadhaarVerify() {
   const [maskedAadhaar, setMaskedAadhaar] = useState('');
   const [verifiedName, setVerifiedName] = useState('');
 
+  // Document-OCR mode state. Front is required (carries name + number);
+  // back is optional (address only, which we don't use). Files are held
+  // locally for preview and uploaded to the private aadhaar-temp bucket
+  // only on submit.
+  const [frontFile, setFrontFile] = useState<File | null>(null);
+  const [frontPreview, setFrontPreview] = useState('');
+  const [backFile, setBackFile] = useState<File | null>(null);
+  const [backPreview, setBackPreview] = useState('');
+  const [uploadError, setUploadError] = useState('');
+
   useEffect(() => {
     if (user?.name) setName(user.name);
   }, [user?.name]);
+
+  // Which flow to render is decided by the server (configuration), never
+  // guessed here -- so the UI can't offer the weaker OCR path when real
+  // OTP e-KYC is configured, or vice versa.
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase || !user) return;
+    supabase.functions
+      .invoke('aadhaar-verify', { body: { action: 'config' } })
+      .then(({ data }) => {
+        setMode((data?.mode as VerifyMode) ?? 'unconfigured');
+        setOtpTestMode(Boolean(data?.otpTestMode));
+      })
+      .catch(() => setMode('unconfigured'));
+  }, [user]);
 
   const formatAadhaar = (val: string) => {
     const digits = val.replace(/\D/g, '').slice(0, 12);
@@ -140,6 +169,76 @@ export default function AadhaarVerify() {
     setStep(3);
   };
 
+  const handleCardSelect = (side: 'front' | 'back') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadError('');
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setUploadError('Use a JPG, PNG or WebP photo of your Aadhaar card.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('That image is larger than 5MB. Retake or pick a smaller photo.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result);
+      if (side === 'front') { setFrontFile(file); setFrontPreview(result); }
+      else { setBackFile(file); setBackPreview(result); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleVerifyDocument = async () => {
+    setUploadError('');
+    if (!consent || !name.trim() || !frontFile || !user) return;
+    const supabase = getSupabase();
+    if (!supabase) { setUploadError('You must be signed in to verify your Aadhaar.'); return; }
+
+    setVerifying(true);
+
+    // Upload to the private aadhaar-temp bucket under our own folder; the
+    // function signs these paths for IDfy and deletes them right after.
+    const ext = (f: File) => (f.type === 'image/png' ? 'png' : f.type === 'image/webp' ? 'webp' : 'jpg');
+    const stamp = Date.now();
+    const frontPath = `${user.id}/front-${stamp}.${ext(frontFile)}`;
+    const backPath = backFile ? `${user.id}/back-${stamp}.${ext(backFile)}` : '';
+
+    // No upsert: paths are timestamp-unique, and upsert would require an
+    // UPDATE policy the bucket deliberately doesn't have.
+    const up1 = await supabase.storage.from('aadhaar-temp').upload(frontPath, frontFile);
+    if (up1.error) {
+      setVerifying(false);
+      setUploadError(`Could not upload the front image: ${up1.error.message}`);
+      return;
+    }
+    if (backFile) {
+      const up2 = await supabase.storage.from('aadhaar-temp').upload(backPath, backFile);
+      if (up2.error) {
+        setVerifying(false);
+        setUploadError(`Could not upload the back image: ${up2.error.message}`);
+        return;
+      }
+    }
+
+    const { data, error } = await supabase.functions.invoke('aadhaar-verify', {
+      body: { action: 'verify-document', frontPath, backPath, name: name.trim() },
+    });
+    setVerifying(false);
+
+    if (error || !data || data.error || !data.success) {
+      setUploadError(data?.error || (await extractFunctionError(error)));
+      return;
+    }
+
+    setVerifiedName(data.name || name);
+    setMaskedAadhaar(data.maskedAadhaar ?? '');
+    await refreshProfile();
+    setStep(3);
+  };
+
   const otpFilled = otp.every((d) => d !== '');
 
   if (authLoading) {
@@ -221,7 +320,7 @@ export default function AadhaarVerify() {
               <div className="w-4 h-4 flex items-center justify-center">
                 <i className="ri-shield-check-line" />
               </div>
-              Powered by UIDAI Aadhaar OTP
+              {mode === 'ocr' ? 'Secure document verification' : 'Powered by UIDAI Aadhaar OTP'}
             </div>
             <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight">
               Aadhaar Verification
@@ -259,10 +358,142 @@ export default function AadhaarVerify() {
           {/* Left: Verification Form */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-3xl border border-black/5 p-6 md:p-8">
-              <VerificationSteps currentStep={step} />
+              <VerificationSteps currentStep={step} mode={mode === 'ocr' ? 'ocr' : 'otp'} />
 
-              {/* Step 1: Enter Aadhaar */}
-              {step === 1 && (
+              {step === 1 && mode === 'loading' && (
+                <div className="py-10 text-center text-sm text-charcoal/40">
+                  <i className="ri-loader-4-line animate-spin text-2xl text-brand" />
+                  <p className="mt-3">Preparing verification…</p>
+                </div>
+              )}
+
+              {step === 1 && mode === 'unconfigured' && (
+                <div className="py-8 text-center">
+                  <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto">
+                    <i className="ri-tools-line text-amber-500 text-2xl" />
+                  </div>
+                  <h2 className="mt-4 text-lg font-bold text-charcoal">Verification is being set up</h2>
+                  <p className="mt-2 text-sm text-charcoal/60 max-w-xs mx-auto">
+                    Aadhaar verification isn&apos;t available just yet. Please check back shortly.
+                  </p>
+                </div>
+              )}
+
+              {/* Step 1 (OCR mode): Upload Aadhaar card */}
+              {step === 1 && mode === 'ocr' && (
+                <div>
+                  <h2 className="text-xl font-bold text-charcoal mb-1">Verify with your Aadhaar card</h2>
+                  <p className="text-sm text-charcoal/60 mb-6">
+                    Upload a clear photo of the front of your Aadhaar card. We read the details, confirm the name
+                    matches your profile, and keep only the last 4 digits.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-charcoal mb-1.5">Full Name (as on Aadhaar)</label>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full px-4 py-3 bg-lightgray rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+                        placeholder="e.g. Rajesh Kumar"
+                      />
+                      <p className="mt-1 text-xs text-charcoal/40">Must match the name printed on the card.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-charcoal mb-1.5">Aadhaar Card Photo</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Front (required) */}
+                        {frontPreview ? (
+                          <div className="relative rounded-xl overflow-hidden border border-black/10">
+                            <img src={frontPreview} alt="Aadhaar front" className="w-full h-32 object-contain bg-lightgray" />
+                            <button
+                              type="button"
+                              onClick={() => { setFrontFile(null); setFrontPreview(''); }}
+                              className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer hover:bg-black/80"
+                            >
+                              <i className="ri-close-line text-sm" />
+                            </button>
+                            <span className="absolute bottom-1.5 left-1.5 text-[10px] font-semibold text-white bg-black/50 px-1.5 py-0.5 rounded">Front</span>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-black/15 rounded-xl h-32 cursor-pointer hover:border-brand/40 transition-colors">
+                            <i className="ri-camera-line text-xl text-charcoal/40" />
+                            <span className="text-xs font-medium text-charcoal/70">Front <span className="text-red-500">*</span></span>
+                            <span className="text-[10px] text-charcoal/40">Required</span>
+                            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handleCardSelect('front')} className="hidden" />
+                          </label>
+                        )}
+
+                        {/* Back (optional) */}
+                        {backPreview ? (
+                          <div className="relative rounded-xl overflow-hidden border border-black/10">
+                            <img src={backPreview} alt="Aadhaar back" className="w-full h-32 object-contain bg-lightgray" />
+                            <button
+                              type="button"
+                              onClick={() => { setBackFile(null); setBackPreview(''); }}
+                              className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer hover:bg-black/80"
+                            >
+                              <i className="ri-close-line text-sm" />
+                            </button>
+                            <span className="absolute bottom-1.5 left-1.5 text-[10px] font-semibold text-white bg-black/50 px-1.5 py-0.5 rounded">Back</span>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-black/15 rounded-xl h-32 cursor-pointer hover:border-brand/40 transition-colors">
+                            <i className="ri-camera-line text-xl text-charcoal/40" />
+                            <span className="text-xs font-medium text-charcoal/70">Back</span>
+                            <span className="text-[10px] text-charcoal/40">Optional</span>
+                            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handleCardSelect('back')} className="hidden" />
+                          </label>
+                        )}
+                      </div>
+                      <p className="mt-1.5 text-xs text-charcoal/40">JPG, PNG or WebP · up to 5MB each. The front is enough — your name and Aadhaar number are read from it.</p>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <i className="ri-information-line text-amber-600 mt-0.5" />
+                        <p className="text-xs text-amber-700 leading-relaxed">
+                          Your full Aadhaar number is <strong>never stored</strong> — only the last 4 digits are saved for display.
+                          The photo is sent to our verification partner to read the card and is not retained by Bhavan.
+                        </p>
+                      </div>
+                    </div>
+
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={consent}
+                        onChange={(e) => setConsent(e.target.checked)}
+                        className="w-4 h-4 mt-0.5 rounded border-black/15 text-brand focus:ring-brand"
+                      />
+                      <span className="text-sm text-charcoal/70 leading-relaxed">
+                        I confirm this is my own Aadhaar card and consent to Bhavan verifying it. I am{' '}
+                        <strong className="text-charcoal">not a real estate broker or agent</strong>.
+                      </span>
+                    </label>
+
+                    {uploadError && <p className="text-xs text-red-500 font-medium">{uploadError}</p>}
+
+                    <button
+                      type="button"
+                      onClick={handleVerifyDocument}
+                      disabled={!frontFile || !consent || !name.trim() || verifying}
+                      className="w-full bg-brand text-white font-medium py-3.5 rounded-full hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap flex items-center justify-center gap-2"
+                    >
+                      {verifying ? (
+                        <><i className="ri-loader-4-line animate-spin" /> Verifying your card…</>
+                      ) : (
+                        <><i className="ri-shield-check-line" /> Verify &amp; Activate Badge</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 1 (OTP mode): Enter Aadhaar */}
+              {step === 1 && mode === 'otp' && (
                 <div>
                   <h2 className="text-xl font-bold text-charcoal mb-1">Enter Your Aadhaar Details</h2>
                   <p className="text-sm text-charcoal/60 mb-6">
@@ -407,6 +638,14 @@ export default function AadhaarVerify() {
                   </button>
 
                   <div className="space-y-5">
+                    {otpTestMode && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                        <i className="ri-flask-line text-amber-600" />
+                        <p className="text-xs text-amber-700">
+                          <strong>Test environment:</strong> no real OTP is sent — enter the test code your team configured (default <span className="font-mono font-semibold">123456</span>).
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <label className="block text-sm font-medium text-charcoal mb-3">6-Digit OTP</label>
                       <div className="flex gap-2 justify-between">

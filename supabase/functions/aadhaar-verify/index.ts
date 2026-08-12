@@ -1,22 +1,25 @@
 // ============================================================
-// Real Aadhaar e-KYC verification.
+// Aadhaar verification, two modes behind one function.
 //
-// UIDAI does not let arbitrary apps call its e-KYC servers directly --
-// that access is restricted to licensed AUA/KUA entities. This function
-// instead proxies to a licensed third-party KYC API provider (Surepass,
-// Cashfree Verification Suite, Digio, HyperVerge, IDfy, etc.), which is
-// the standard way consumer apps get real Aadhaar OTP verification.
+//   MODE 'otp' -- real UIDAI e-KYC: OTP to the Aadhaar-linked mobile via
+//   a licensed KYC provider (Surepass-shaped adapter below). This is the
+//   production-grade check (proves the person controls the cardholder's
+//   phone) but requires a commercial provider contract; it is NOT
+//   available on IDfy's self-serve test account.
 //
-// Runs server-side so the provider's secret API key never reaches the
-// browser. Requires two secrets to be set on this Supabase project
-// (`supabase secrets set NAME=value`):
-//   AADHAAR_PROVIDER_BASE_URL   e.g. https://kyc-api.surepass.io
-//   AADHAAR_PROVIDER_API_KEY    bearer token from your provider dashboard
+//   MODE 'ocr' -- IDfy Aadhaar OCR: the user photographs their Aadhaar
+//   card, IDfy extracts the fields server-side, and we cross-check the
+//   Verhoeff checksum and the name against the profile before granting
+//   the badge. Weaker than OTP by design (it proves possession of a
+//   plausible card image, not identity) -- it exists so verification
+//   works TODAY on test credentials, and as a documented fallback.
 //
-// The exact request/response shape differs by vendor -- see the
-// "PROVIDER ADAPTER" block below. It's written against Surepass's
-// documented Aadhaar-v2 OTP endpoints as a working default; if you sign
-// up with a different provider, that block is the only thing to edit.
+// The active mode is decided by configuration, never by the caller:
+//   AADHAAR_MODE=otp|ocr  explicit override, else
+//   otp  if AADHAAR_PROVIDER_BASE_URL + AADHAAR_PROVIDER_API_KEY are set
+//   ocr  if IDFY_ACCOUNT_ID + IDFY_API_KEY are set
+// The frontend asks via {action:'config'} and renders the matching UI,
+// so switching modes later is a secrets change, not a deploy.
 // ============================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -28,6 +31,33 @@ const corsHeaders = {
 
 const PROVIDER_BASE_URL = Deno.env.get("AADHAAR_PROVIDER_BASE_URL") ?? "";
 const PROVIDER_API_KEY = Deno.env.get("AADHAAR_PROVIDER_API_KEY") ?? "";
+
+const IDFY_BASE_URL = Deno.env.get("IDFY_BASE_URL") ?? "https://eve.idfy.com";
+const IDFY_ACCOUNT_ID = Deno.env.get("IDFY_ACCOUNT_ID") ?? "";
+const IDFY_API_KEY = Deno.env.get("IDFY_API_KEY") ?? "";
+
+// TEST-ONLY OTP BYPASS. Real UIDAI OTP e-KYC needs a licensed provider
+// contract that IDfy's self-serve test account does not include, so the
+// OTP *flow* can't be exercised end to end in staging. When -- and ONLY
+// when -- AADHAAR_OTP_TEST_CODE is set, the OTP path runs without a
+// provider and accepts exactly that code (e.g. "123456"). It is gated on
+// the secret existing: production simply never sets it, so this branch
+// is dead code there. If a real provider IS configured, the test code is
+// ignored entirely -- the real provider always wins.
+const OTP_TEST_CODE = Deno.env.get("AADHAAR_OTP_TEST_CODE") ?? "";
+const realOtpConfigured = Boolean(PROVIDER_BASE_URL && PROVIDER_API_KEY);
+const otpMockEnabled = OTP_TEST_CODE.length > 0 && !realOtpConfigured;
+
+type AadhaarMode = "otp" | "ocr" | "unconfigured";
+
+function resolveMode(): AadhaarMode {
+  const explicit = Deno.env.get("AADHAAR_MODE");
+  if (explicit === "otp" || explicit === "ocr") return explicit;
+  if (realOtpConfigured) return "otp";
+  if (otpMockEnabled) return "otp"; // test-only mock OTP flow
+  if (IDFY_ACCOUNT_ID && IDFY_API_KEY) return "ocr";
+  return "unconfigured";
+}
 
 const MAX_ATTEMPTS_PER_WINDOW = 3;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
@@ -125,6 +155,88 @@ async function providerVerifyOtp(referenceId: string, otp: string): Promise<Prov
 // === END PROVIDER ADAPTER ===
 // ============================================================
 
+// ============================================================
+// === IDFY OCR ADAPTER (mode 'ocr') ===
+// IDfy's v3 task API: POST a sync extraction task with the document as
+// base64; the extracted fields come back under result.extraction_output.
+// Field names occasionally differ across IDfy API versions, so reads
+// below try the documented aliases -- if extraction succeeds in the
+// IDfy dashboard but this reports "could not read", log the raw result
+// and adjust the aliases here.
+// ============================================================
+interface OcrExtraction {
+  idNumber: string | null; // may be masked, e.g. XXXXXXXX1234
+  name: string | null;
+  taskId: string;
+}
+
+async function idfyExtractAadhaar(
+  frontUrl: string,
+  backUrl: string | null
+): Promise<{ ok: true; data: OcrExtraction } | { ok: false; error: string }> {
+  const taskId = crypto.randomUUID();
+  // document1 = front image URL (required; carries name + Aadhaar
+  // number), document2 = back URL (optional; address only, unused).
+  // IDfy fetches these URLs, so they must be reachable for the call's
+  // lifetime -- we pass short-lived signed Storage URLs. Verified against
+  // the ind_aadhaar response shape: result.extraction_output.{id_number,
+  // name_on_card,...} returned as a single-element array.
+  const res = await fetch(`${IDFY_BASE_URL}/v3/tasks/sync/extract/ind_aadhaar`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": IDFY_API_KEY,
+      "account-id": IDFY_ACCOUNT_ID,
+    },
+    body: JSON.stringify({
+      task_id: taskId,
+      group_id: crypto.randomUUID(),
+      data: {
+        document1: frontUrl,
+        ...(backUrl ? { document2: backUrl } : {}),
+        // Mandatory per IDfy's ind_aadhaar schema -- omitting it is what
+        // returns "Malformed request". The user gives this consent on the
+        // form before we ever reach here.
+        consent: "yes",
+      },
+    }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = json?.message || json?.error || `IDfy returned ${res.status}`;
+    return { ok: false, error: `Document check failed: ${message}` };
+  }
+
+  const task = Array.isArray(json) ? json[0] : json;
+  const output = task?.result?.extraction_output ?? task?.result ?? {};
+  const idNumber = output.id_number ?? output.aadhaar_number ?? output.uid ?? null;
+  const name = output.name_on_card ?? output.name ?? null;
+
+  if (!idNumber && !name) {
+    return { ok: false, error: "We couldn't read an Aadhaar card in that photo. Use a clear, well-lit photo of the front of the card." };
+  }
+  return { ok: true, data: { idNumber: idNumber ? String(idNumber) : null, name: name ? String(name) : null, taskId } };
+}
+
+// "SAI KRISHNA REDDY" should match a profile named "Sai Krishna Reddy"
+// but not "Ravi Verma". Token-based: every profile-name token must
+// appear on the card (initials expand poorly, so single-letter profile
+// tokens match any card token starting with that letter).
+function namesMatch(profileName: string, cardName: string): boolean {
+  const tokens = (s: string) =>
+    s.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+  const profile = tokens(profileName);
+  const card = tokens(cardName);
+  if (profile.length === 0 || card.length === 0) return false;
+  return profile.every((p) =>
+    card.some((c) => (p.length === 1 ? c.startsWith(p) : c === p))
+  );
+}
+// ============================================================
+// === END IDFY OCR ADAPTER ===
+// ============================================================
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -137,12 +249,7 @@ Deno.serve(async (req) => {
     });
 
   try {
-    if (!PROVIDER_BASE_URL || !PROVIDER_API_KEY) {
-      return json(
-        { error: "Aadhaar verification provider is not configured yet. Set AADHAAR_PROVIDER_BASE_URL and AADHAAR_PROVIDER_API_KEY as Supabase secrets." },
-        501
-      );
-    }
+    const mode = resolveMode();
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Not authenticated" }, 401);
@@ -173,6 +280,133 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body?.action;
 
+    // The page asks which flow to render. Mode is configuration, so the
+    // UI can never pick the weaker path on its own. otpTestMode lets the
+    // OTP screen show a "use the test code" hint -- true only when the
+    // mock is active, which is never the case in production.
+    if (action === "config") {
+      return json({ mode, otpTestMode: otpMockEnabled });
+    }
+
+    if (mode === "unconfigured") {
+      return json(
+        { error: "Aadhaar verification is not configured yet. Set AADHAAR_PROVIDER_* (OTP e-KYC) or IDFY_* (document OCR) as Supabase secrets." },
+        501
+      );
+    }
+
+    if ((action === "send-otp" || action === "verify-otp") && mode !== "otp") {
+      return json({ error: "OTP verification is not enabled on this environment." }, 409);
+    }
+    if (action === "verify-document" && mode !== "ocr") {
+      return json({ error: "Document verification is not enabled on this environment." }, 409);
+    }
+
+    if (action === "verify-document") {
+      // The client uploads the photos to the private aadhaar-temp bucket
+      // (under its own user folder) and passes the object paths. We sign
+      // them, hand IDfy the URLs, and delete the objects before
+      // returning -- the images are never retained.
+      const frontPath = String(body?.frontPath ?? "");
+      const backPath = String(body?.backPath ?? "");
+      const ownsPath = (p: string) => p.startsWith(`${userId}/`);
+      if (!frontPath || !ownsPath(frontPath)) {
+        return json({ error: "Upload the front of your Aadhaar card and try again." }, 400);
+      }
+      if (backPath && !ownsPath(backPath)) {
+        return json({ error: "That back image could not be read. Remove it and try again." }, 400);
+      }
+
+      const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
+      const { count } = await supabase
+        .from("aadhaar_verification_attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("requested_at", windowStart);
+      if ((count ?? 0) >= MAX_ATTEMPTS_PER_WINDOW) {
+        return json({ error: "Too many verification attempts. Please try again in 15 minutes." }, 429);
+      }
+
+      // Delete the uploaded images no matter what happens next.
+      const cleanup = async () => {
+        const paths = [frontPath, ...(backPath ? [backPath] : [])];
+        try {
+          await admin.storage.from("aadhaar-temp").remove(paths);
+        } catch (_) {
+          // A daily job / the bucket's transience covers stragglers.
+        }
+      };
+
+      const signUrl = async (p: string): Promise<string | null> => {
+        const { data } = await admin.storage.from("aadhaar-temp").createSignedUrl(p, 300);
+        return data?.signedUrl ?? null;
+      };
+
+      const frontUrl = await signUrl(frontPath);
+      const backUrl = backPath ? await signUrl(backPath) : null;
+      if (!frontUrl) {
+        await cleanup();
+        return json({ error: "We couldn't process that upload. Please try again." }, 400);
+      }
+
+      const extraction = await idfyExtractAadhaar(frontUrl, backUrl);
+      await cleanup();
+
+      const recordAttempt = async (status: string, last4: string | null, failureReason: string | null, reference: string) => {
+        await supabase.from("aadhaar_verification_attempts").insert({
+          user_id: userId,
+          provider_reference: reference,
+          aadhaar_last4: last4,
+          status,
+          failure_reason: failureReason,
+          ...(status === "verified" ? { verified_at: new Date().toISOString() } : {}),
+        });
+      };
+
+      if (!extraction.ok) {
+        await recordAttempt("failed", null, extraction.error, "ocr-no-task");
+        return json({ error: extraction.error }, 400);
+      }
+
+      const { idNumber, name: cardName, taskId } = extraction.data;
+
+      // The number may come back full or masked. A full number must pass
+      // the Verhoeff checksum (catches OCR misreads and fakes with
+      // invented numbers); a masked one must still end in 4 digits.
+      const digits = (idNumber ?? "").replace(/[^0-9Xx*]/g, "");
+      const tail = digits.replace(/[^0-9]/g, "").slice(-4);
+      const fullNumber = /^[0-9]{12}$/.test(digits) ? digits : null;
+      if (fullNumber && !isValidAadhaar(fullNumber)) {
+        const message = "The Aadhaar number on the card failed validation. Retake the photo so all 12 digits are sharp.";
+        await recordAttempt("failed", null, message, taskId);
+        return json({ error: message }, 400);
+      }
+      if (tail.length !== 4) {
+        const message = "We couldn't read the Aadhaar number clearly. Retake the photo so all digits are visible.";
+        await recordAttempt("failed", null, message, taskId);
+        return json({ error: message }, 400);
+      }
+
+      // The badge asserts "this account belongs to this cardholder" --
+      // the weakest link in OCR mode, so at minimum the profile name
+      // must be the name on the card.
+      const profileName = String(body?.name ?? userData.user.user_metadata?.name ?? "").trim();
+      if (!cardName || !profileName || !namesMatch(profileName, cardName)) {
+        const message = cardName
+          ? `The name on the card (${cardName}) doesn't match your profile name. Update your profile name to match your Aadhaar, then retry.`
+          : "We couldn't read the name on the card. Retake the photo so the name is sharp.";
+        await recordAttempt("failed", tail, message, taskId);
+        return json({ error: message }, 400);
+      }
+
+      await recordAttempt("verified", tail, null, taskId);
+
+      const { error: verifyError } = await admin.rpc("mark_aadhaar_verified", { p_user_id: userId, p_last4: tail });
+      if (verifyError) throw verifyError;
+
+      return json({ success: true, name: cardName, maskedAadhaar: `XXXX XXXX ${tail}` });
+    }
+
     if (action === "send-otp") {
       const aadhaarNumber = String(body?.aadhaarNumber ?? "").replace(/\s/g, "");
       if (!isValidAadhaar(aadhaarNumber)) {
@@ -190,7 +424,11 @@ Deno.serve(async (req) => {
         return json({ error: "Too many verification attempts. Please try again in 15 minutes." }, 429);
       }
 
-      const { referenceId } = await providerSendOtp(aadhaarNumber);
+      // Mock path (test only): no provider call, a synthetic reference.
+      // verify-otp will accept OTP_TEST_CODE against this reference.
+      const { referenceId } = realOtpConfigured
+        ? await providerSendOtp(aadhaarNumber)
+        : { referenceId: `mock-${crypto.randomUUID()}` };
       const last4 = aadhaarNumber.slice(8, 12);
 
       const { error: insertError } = await supabase.from("aadhaar_verification_attempts").insert({
@@ -238,7 +476,16 @@ Deno.serve(async (req) => {
         return json({ error: "This OTP has expired. Please request a new one." }, 400);
       }
 
-      const result = await providerVerifyOtp(referenceId, otp);
+      // Mock path (test only): the configured test code stands in for a
+      // real provider verification. Never reachable in production, where
+      // AADHAAR_OTP_TEST_CODE is unset (otpMockEnabled is false).
+      const result: ProviderVerifyResult = realOtpConfigured
+        ? await providerVerifyOtp(referenceId, otp)
+        : otpMockEnabled
+          ? (otp === OTP_TEST_CODE
+              ? { success: true }
+              : { success: false, message: "Incorrect test OTP." })
+          : { success: false, message: "OTP verification is not configured." };
 
       if (!result.success) {
         await supabase

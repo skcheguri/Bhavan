@@ -6,15 +6,24 @@ interface Step {
 
 interface VerificationStepsProps {
   currentStep: number;
+  mode?: 'otp' | 'ocr';
 }
 
-const steps: Step[] = [
+// OCR verification is a single upload-and-check step, so it collapses
+// the middle "OTP" stage into the first one.
+const otpSteps: Step[] = [
   { number: 1, label: 'Enter Aadhaar', icon: 'ri-id-card-line' },
   { number: 2, label: 'OTP Verification', icon: 'ri-shield-keyhole-line' },
   { number: 3, label: 'Verified!', icon: 'ri-checkbox-circle-line' },
 ];
 
-export default function VerificationSteps({ currentStep }: VerificationStepsProps) {
+const ocrSteps: Step[] = [
+  { number: 1, label: 'Upload Card', icon: 'ri-camera-line' },
+  { number: 3, label: 'Verified!', icon: 'ri-checkbox-circle-line' },
+];
+
+export default function VerificationSteps({ currentStep, mode = 'otp' }: VerificationStepsProps) {
+  const steps = mode === 'ocr' ? ocrSteps : otpSteps;
   return (
     <div className="flex items-center justify-center gap-0 mb-8">
       {steps.map((step, idx) => (

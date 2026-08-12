@@ -156,13 +156,50 @@ Treat "web works" as no evidence about mobile.
 
 ### 4.3 Third-party integrations that are stubs or unverified
 
-**Aadhaar verification — not wired.** `supabase/functions/aadhaar-verify`
-is written against a generic KYC provider shape and returns
-*"Aadhaar verification provider is not configured yet"* until
-`AADHAAR_PROVIDER_BASE_URL` and `AADHAAR_PROVIDER_API_KEY` are set. Needs
-a commercial contract with a KYC provider (SurePass, Signzy, Karza).
-There are legal constraints on who may perform Aadhaar authentication in
-India — get this reviewed before wiring, not after.
+**Aadhaar verification — two modes, one function.**
+`supabase/functions/aadhaar-verify` runs in whichever mode its secrets
+select (or `AADHAAR_MODE=otp|ocr` forces). The page calls
+`{action:'config'}` on load and renders the matching UI, so switching
+modes is a secrets change, not a code change.
+
+- **`otp` — real UIDAI e-KYC (production target).** OTP to the
+  Aadhaar-linked mobile via a licensed provider. Strongest check (proves
+  the person controls the cardholder's phone) but needs a commercial
+  contract (SurePass, Signzy, Karza, Cashfree, IDfy KYC). There are
+  legal constraints on who may perform Aadhaar authentication in India —
+  get this reviewed before signing, not after. Set
+  `AADHAAR_PROVIDER_BASE_URL` + `AADHAAR_PROVIDER_API_KEY`; the adapter
+  in the function is Surepass-shaped, adjust for your vendor.
+
+- **`ocr` — IDfy Aadhaar OCR (works on test credentials today).** The
+  user photographs their Aadhaar card; IDfy extracts the fields; the
+  function validates the number's Verhoeff checksum and cross-checks the
+  card name against the profile name before granting the badge. Set
+  `IDFY_ACCOUNT_ID` + `IDFY_API_KEY` (from
+  https://apicentral.idfy.com/credential), optionally `IDFY_BASE_URL`.
+  IDfy fetches the card from a URL (`document1`/`document2`), so the
+  function uploads the photo to the private `aadhaar-temp` bucket
+  (migration 129), passes IDfy a 5-minute signed URL, and deletes the
+  object immediately after — the image is never retained.
+  **Weaker than OTP by design** — it proves possession of a plausible
+  card image, not identity. Two hardening steps before relying on it in
+  production: switch to IDfy **OCR Plus** (validates the card's
+  UIDAI-signed QR, defeating doctored images) and add a selfie
+  face-match (closes the "someone else's card" hole). Also confirm the
+  IDfy API host/endpoint and field names against your dashboard docs —
+  IDfy has multiple API generations; the function reads documented field
+  aliases and `IDFY_BASE_URL` is overridable for exactly this reason.
+
+- **TEST-ONLY OTP bypass.** Because real OTP needs a provider contract,
+  the OTP *flow* can't be exercised in staging. Setting
+  `AADHAAR_OTP_TEST_CODE` (e.g. `123456`) makes `send-otp` skip the
+  provider and `verify-otp` accept exactly that code — so the full OTP
+  UI (enter Aadhaar → enter OTP → verified) is testable. It activates
+  **only** when that secret is set AND no real provider is configured; a
+  real provider always wins. The OTP screen shows a "test environment"
+  banner while it's on. **NEVER set this secret in production** — unset,
+  it is dead code. To use it in staging:
+  `npx supabase secrets set AADHAAR_OTP_TEST_CODE=123456 AADHAAR_MODE=otp --project-ref <ref>`
 
 **Phone OTP — hook written, account not connected.** `send-sms-hook`
 delivers Supabase-generated OTPs via MSG91 (Supabase natively supports
