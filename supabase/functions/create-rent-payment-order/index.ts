@@ -82,6 +82,13 @@ Deno.serve(async (req) => {
     const tenantName = agreement.tenant_name || userData.user.email || "Tenant";
     const tenantEmail = agreement.tenant_email || userData.user.email || "";
 
+    // rent_payments has no tenant UPDATE policy (only owners, only to
+    // 'reconciled'), so superseding a stale pending row runs service-role.
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
     // Don't create a new order (or a new DB row) every time this is
     // called -- a tenant re-clicking "Pay Rent Now" after cancelling
     // Checkout, or after a transient failure, should resume the same
@@ -90,7 +97,7 @@ Deno.serve(async (req) => {
     // payable.
     const { data: existing, error: existingError } = await supabase
       .from("rent_payments")
-      .select("id, status, razorpay_order_id")
+      .select("id, status, razorpay_order_id, amount")
       .eq("tenant_id", userId)
       .eq("agreement_id", agreementId)
       .eq("month", month)
@@ -106,9 +113,81 @@ Deno.serve(async (req) => {
     }
 
     if (existing?.status === "pending" && existing.razorpay_order_id) {
+      // Finding 6: a pending order carries the rent as it was when the
+      // order was created. If the agreement's rent has since changed,
+      // resuming would charge the STALE amount. Only resume when the
+      // amounts still agree; otherwise supersede the row with a fresh
+      // order below.
+      if (existing.amount === amountPaise) {
+        // Finding 5: pay-then-close recovery, matching both subscription
+        // paths. If the browser died between Razorpay capturing the money
+        // and verify-rent-payment running, the row is still `pending`
+        // while the money HAS been taken -- and handing the same order id
+        // back to Checkout fails (Razorpay refuses an already-paid
+        // order), stranding the tenant. Ask Razorpay what actually
+        // happened before assuming the order is still payable.
+        const payRes = await fetch(
+          `https://api.razorpay.com/v1/orders/${existing.razorpay_order_id}/payments`,
+          { headers: { Authorization: `Basic ${btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)}` } }
+        );
+        const payBody = await payRes.json().catch(() => ({}));
+        const captured = Array.isArray(payBody?.items)
+          ? payBody.items.find((p: { status?: string }) => p.status === "captured")
+          : null;
+
+        if (captured) {
+          return json({
+            alreadyPaid: true,
+            paymentRowId: existing.id,
+            orderId: existing.razorpay_order_id,
+            paymentId: captured.id,
+            month,
+          });
+        }
+
+        return json({
+          paymentRowId: existing.id,
+          orderId: existing.razorpay_order_id,
+          amount: amountPaise,
+          currency: "INR",
+          keyId: RAZORPAY_KEY_ID,
+          tenantName,
+          tenantEmail,
+        });
+      }
+
+      // Rent changed since this pending order was made. Create a fresh
+      // order at the current amount and repoint the same row at it, so
+      // history stays one row per month rather than accumulating stale
+      // pending orders.
+      const supersedeReceipt = `rent_${agreementId.slice(0, 8)}_${Date.now()}`;
+      const supersedeRes = await fetch("https://api.razorpay.com/v1/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)}`,
+        },
+        body: JSON.stringify({
+          amount: amountPaise,
+          currency: "INR",
+          receipt: supersedeReceipt,
+          notes: { agreement_id: agreementId, tenant_id: userId, owner_id: agreement.owner_id, month },
+        }),
+      });
+      const supersedeOrder = await supersedeRes.json().catch(() => ({}));
+      if (!supersedeRes.ok || !supersedeOrder?.id) {
+        return json({ error: supersedeOrder?.error?.description || "Razorpay could not create this order." }, 502);
+      }
+
+      const { error: repointError } = await serviceClient
+        .from("rent_payments")
+        .update({ razorpay_order_id: supersedeOrder.id, amount: amountPaise, updated_at: new Date().toISOString() })
+        .eq("id", existing.id);
+      if (repointError) return json({ error: repointError.message }, 500);
+
       return json({
         paymentRowId: existing.id,
-        orderId: existing.razorpay_order_id,
+        orderId: supersedeOrder.id,
         amount: amountPaise,
         currency: "INR",
         keyId: RAZORPAY_KEY_ID,

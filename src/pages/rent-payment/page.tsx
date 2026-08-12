@@ -131,6 +131,31 @@ export default function RentPayment() {
       return;
     }
 
+    // Pay-then-close recovery: the money was already captured on a prior
+    // attempt whose browser died before verify ran. Finalize it directly
+    // instead of reopening Checkout (Razorpay refuses an already-paid
+    // order, which used to strand the tenant on this month forever).
+    if (orderData.alreadyPaid) {
+      setPayStatus('verifying');
+      const { data: recovered, error: recoverError } = await supabase.functions.invoke('verify-rent-payment', {
+        body: {
+          paymentRowId: orderData.paymentRowId,
+          razorpay_order_id: orderData.orderId,
+          razorpay_payment_id: orderData.paymentId,
+          recoverPaidOrder: true,
+        },
+      });
+      if (recoverError || !recovered?.success) {
+        setPayStatus('failed');
+        setPayError((await functionErrorMessage(recoverError)) || 'You already paid for this month but we could not confirm it. Please contact support.');
+        return;
+      }
+      setPayStatus('idle');
+      addToast('Rent payment confirmed!', 'success');
+      await refresh();
+      return;
+    }
+
     const scriptLoaded = await loadRazorpayScript();
     if (!scriptLoaded || !window.Razorpay) {
       setPayStatus('failed');

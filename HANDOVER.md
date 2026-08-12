@@ -211,6 +211,32 @@ Supabase Auth settings.
 verification is implemented and unit-tested. Confirm whether
 `RAZORPAY_KEY_ID` is test or live, and complete Razorpay KYC.
 
+**Auto-capture must be ON (dashboard setting).** Every order is created
+without a per-order capture flag (the Orders API has none), so capture
+is governed entirely by the account setting: Razorpay Dashboard →
+Settings → Configuration → **Payment Capture → Automatic**. If it is set
+to manual, payments settle as `authorized` and never `captured`, so
+`payment.captured` never fires and nothing is fulfilled even though the
+customer was charged — the code has no manual-capture path. Verify this
+is Automatic before launch; it is easy to miss because test mode often
+defaults differently than a fresh live account.
+
+**Verifying the live-key switch (can't be unit-tested).** Whether live
+keys actually work is not checkable from code — only a real transaction
+proves it. To verify after switching:
+- The mode is legible from the key: `RAZORPAY_KEY_ID` starting `rzp_test_`
+  vs `rzp_live_`, and it is returned as `keyId` in every create-order
+  response, so a quick check is to inspect the Checkout that opens.
+- Confirm the Razorpay Dashboard's **Test/Live toggle** matches the keys
+  set in Supabase secrets — a live `KEY_ID` with a test `KEY_SECRET` (or
+  vice-versa) fails signature verification on every payment.
+- The webhook secret is per-mode: switching to live needs the **live**
+  webhook's secret in `RAZORPAY_WEBHOOK_SECRET`, not the test one.
+- Do one real ₹1-class transaction end to end (pay → row flips to paid →
+  entitlement granted), then refund it from the dashboard and confirm the
+  `refund.processed` webhook flips the row to `refunded`. That single
+  loop exercises keys, capture mode, and both webhook events at once.
+
 The webhook now exists (`razorpay-webhook`, deployed) and covers rent, Pro
 and society payments, but **it does not work until two things are done in
 the Razorpay dashboard**, and until then it fails in the way that looks
@@ -218,9 +244,12 @@ exactly like it was never called:
 
 1. Add the endpoint under Settings → Webhooks:
    `https://edythmogblkmsjfcbatc.supabase.co/functions/v1/razorpay-webhook`
-   subscribed to **`payment.captured`** and **`refund.processed`** (the
-   latter reconciles refunds issued from the Razorpay dashboard — see the
-   refunds note below).
+   subscribed to **`payment.captured`**, **`payment.failed`** and
+   **`refund.processed`**. `payment.failed` is what writes
+   `status='failed'` — without that subscription, a failed payment leaves
+   a pending row forever and the app's retry/failed UX never triggers.
+   `refund.processed` reconciles refunds issued from the Razorpay
+   dashboard (see the refunds note below).
 2. Take the webhook secret Razorpay shows you and set it:
    `npx supabase secrets set RAZORPAY_WEBHOOK_SECRET=<value> --project-ref edythmogblkmsjfcbatc`
 

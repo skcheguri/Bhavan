@@ -22,13 +22,15 @@ import { verifyRazorpayWebhookSignature } from "../../../src/lib/payments/razorp
 
 const WEBHOOK_SECRET = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ?? "";
 
-// Events that mean money has moved. order.paid is deliberately not
-// handled: it fires alongside payment.captured for the same order, and
-// handling both would be two deliveries racing to fulfil one purchase.
-// refund.processed reconciles refunds issued directly from the Razorpay
-// dashboard so our records match even when the in-app refund-payment
-// function was not the one that issued them.
-const HANDLED = new Set(["payment.captured", "refund.processed"]);
+// Events that mean money has moved (or failed to). order.paid is
+// deliberately not handled: it fires alongside payment.captured for the
+// same order, and handling both would be two deliveries racing to fulfil
+// one purchase. refund.processed reconciles dashboard-issued refunds.
+// payment.failed is what finally WRITES status='failed' -- until this,
+// nothing did, so the retry/failed UX in the app was dead code (a failed
+// payment just left a pending row forever). Razorpay allows retrying the
+// same order, so the fulfilment claims below accept a 'failed' row too.
+const HANDLED = new Set(["payment.captured", "payment.failed", "refund.processed"]);
 
 interface Fulfilment {
   target: string;
@@ -174,6 +176,10 @@ Deno.serve(async (req) => {
     return finish({ target: "none", status: "ignored", error: "No order id on this payment." });
   }
 
+  if (eventType === "payment.failed") {
+    return finish(await markPaymentFailed(serviceClient, orderId, payment));
+  }
+
   try {
     // Route by our own records rather than by the order's notes. Notes are
     // set at order creation and are not authoritative; a row in our
@@ -241,7 +247,10 @@ async function claimInvoice(
       paid_at: new Date().toISOString(),
     })
     .eq("id", invoiceId)
-    .eq("status", "pending")
+    // pending OR failed: Razorpay allows retrying a failed order, and a
+    // successful retry's payment.captured must still be able to fulfil a
+    // row a prior payment.failed marked failed.
+    .in("status", ["pending", "failed"])
     .select("id");
   return !!claimed && claimed.length > 0;
 }
@@ -368,6 +377,34 @@ async function fulfilSociety(
   }
 
   return { target: "society", status: "processed" };
+}
+
+// The single writer of status='failed'. Marks the pending row for this
+// order failed so the app's retry/failed UX has something to show. Keyed
+// on order_id and gated on status='pending' -- if the row is already
+// paid (a captured event beat this) or failed (an earlier attempt) we
+// leave it. Razorpay lets the same order be retried, so a later
+// payment.captured for this order still fulfils it (the claims below
+// accept a 'failed' row).
+async function markPaymentFailed(
+  client: ReturnType<typeof createClient>,
+  orderId: string,
+  payment: Record<string, unknown>
+): Promise<Fulfilment> {
+  const reason = String(payment.error_description ?? payment.error_reason ?? "Payment failed at the bank/gateway.");
+  const now = new Date().toISOString();
+
+  const inv = await client.from("billing_history").update({ status: "failed" })
+    .eq("razorpay_order_id", orderId).eq("status", "pending").select("id");
+  if (inv.data && inv.data.length > 0) return { target: "billing", status: "processed", error: reason };
+
+  const rent = await client.from("rent_payments").update({ status: "failed", failure_reason: reason, updated_at: now })
+    .eq("razorpay_order_id", orderId).eq("status", "pending").select("id");
+  if (rent.data && rent.data.length > 0) return { target: "rent", status: "processed", error: reason };
+
+  // Bookings model a failed payment as an abandoned awaiting_payment row
+  // (create-booking-order cleans those up), so nothing to mark here.
+  return { target: "none", status: "ignored", error: `No pending payment for order ${orderId}.` };
 }
 
 // A refund landed -- from the in-app refund-payment function or straight

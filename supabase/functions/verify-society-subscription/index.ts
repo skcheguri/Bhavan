@@ -137,6 +137,11 @@ Deno.serve(async (req) => {
       }
       return json({ error: "This invoice has already been paid." }, 409);
     }
+    // 'failed' is fulfillable: a retried order may have been marked failed
+    // by payment.failed just before this successful attempt.
+    if (invoice.status !== "pending" && invoice.status !== "failed") {
+      return json({ error: "This invoice is not payable." }, 409);
+    }
 
     const periodMonths = PLAN_PERIOD_MONTHS[invoice.plan];
     if (!periodMonths) return json({ error: "Invoice has an unknown plan." }, 400);
@@ -152,7 +157,7 @@ Deno.serve(async (req) => {
         paid_at: new Date().toISOString(),
       })
       .eq("id", invoice.id)
-      .eq("status", "pending")
+      .in("status", ["pending", "failed"])
       .select("id");
     if (updateInvoiceError) return json({ error: updateInvoiceError.message }, 500);
     if (!claimed || claimed.length === 0) {

@@ -24,6 +24,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID") ?? "";
 const RAZORPAY_KEY_SECRET = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "";
 
 interface VerifyRequest {
@@ -31,6 +32,29 @@ interface VerifyRequest {
   razorpay_order_id?: string;
   razorpay_payment_id?: string;
   razorpay_signature?: string;
+  recoverPaidOrder?: boolean;
+}
+
+// Recovery path for a payment that succeeded but was never verified
+// (browser closed mid-checkout), where no signature is available.
+// `recoverPaidOrder` is CLIENT-SUPPLIED and proves nothing on its own,
+// so we ask Razorpay directly whether this payment exists, is captured,
+// and belongs to this order -- strictly stronger than a client signature.
+async function confirmPaymentWithRazorpay(
+  paymentId: string,
+  orderId: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+    return { ok: false, error: "Payments are not configured." };
+  }
+  const res = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+    headers: { Authorization: `Basic ${btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: body?.error?.description || "Could not confirm this payment with Razorpay." };
+  if (body?.status !== "captured") return { ok: false, error: `This payment is not captured (status: ${body?.status}).` };
+  if (body?.order_id !== orderId) return { ok: false, error: "This payment belongs to a different order." };
+  return { ok: true };
 }
 
 Deno.serve(async (req) => {
@@ -62,19 +86,29 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body: VerifyRequest = await req.json().catch(() => ({}));
-    const { paymentRowId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
-    if (!paymentRowId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    const { paymentRowId, razorpay_order_id, razorpay_payment_id, razorpay_signature, recoverPaidOrder } = body;
+    if (!paymentRowId || !razorpay_order_id || !razorpay_payment_id) {
       return json({ error: "Missing payment verification fields." }, 400);
     }
 
-    const signatureOk = await verifyRazorpaySignature(
-      RAZORPAY_KEY_SECRET,
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    );
-    if (!signatureOk) {
-      return json({ error: "Payment verification failed. Please contact support before retrying." }, 400);
+    if (recoverPaidOrder) {
+      const confirmed = await confirmPaymentWithRazorpay(razorpay_payment_id, razorpay_order_id);
+      if (!confirmed.ok) {
+        return json({ error: confirmed.error || "Could not confirm this payment." }, 400);
+      }
+    } else {
+      if (!razorpay_signature) {
+        return json({ error: "Missing payment verification fields." }, 400);
+      }
+      const signatureOk = await verifyRazorpaySignature(
+        RAZORPAY_KEY_SECRET,
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature
+      );
+      if (!signatureOk) {
+        return json({ error: "Payment verification failed. Please contact support before retrying." }, 400);
+      }
     }
 
     const serviceClient = createClient(

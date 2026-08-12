@@ -137,6 +137,12 @@ Deno.serve(async (req) => {
       }
       return json({ error: "This invoice has already been paid." }, 409);
     }
+    // 'failed' is a valid state to fulfil from: Razorpay lets the same
+    // order be retried, so a payment.failed may have marked this invoice
+    // failed just before the retry that is now succeeding.
+    if (invoice.status !== "pending" && invoice.status !== "failed") {
+      return json({ error: "This invoice is not payable." }, 409);
+    }
 
     const periodMonths = PLAN_PERIOD_MONTHS[invoice.plan];
     if (!periodMonths) return json({ error: "Invoice has an unknown plan." }, 400);
@@ -154,7 +160,7 @@ Deno.serve(async (req) => {
         paid_at: new Date().toISOString(),
       })
       .eq("id", invoice.id)
-      .eq("status", "pending")
+      .in("status", ["pending", "failed"])
       .select("id");
     if (updateInvoiceError) return json({ error: updateInvoiceError.message }, 500);
     if (!claimed || claimed.length === 0) {
