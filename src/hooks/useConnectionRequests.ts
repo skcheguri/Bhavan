@@ -197,9 +197,12 @@ export function useCreateConnectionRequest() {
 
       setSubmitting(true);
       try {
-        // If listingId is not a real UUID (mock data), skip DB insert
+        // A non-UUID listingId can only be stale/mock data -- real
+        // listings always have one. This used to return {success:true}
+        // and write nothing, so the tenant saw "Request Sent!" for a
+        // request that never existed. Fail honestly instead.
         if (!isValidUUID(payload.listingId)) {
-          return { success: true };
+          return { success: false, error: 'This listing is no longer available.' };
         }
 
         const { data: inserted, error: dbError } = await supabase

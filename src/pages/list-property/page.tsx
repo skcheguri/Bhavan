@@ -44,15 +44,23 @@ export default function ListProperty() {
 
   // Every step past the gate assumes a signed-in owner (ownership-document
   // upload writes to storage under user.id, and the final submit needs
-  // user.id for the listing). The "Already verified? Continue to listing"
-  // link on the gate screen is the one place that can move past it without
-  // an auth check -- this is a defensive backstop for that and any other
-  // path that might land here signed out.
+  // user.id for the listing).
   useEffect(() => {
     if (!user && step !== 'gate') {
       navigate('/login');
     }
   }, [user, step, navigate]);
+
+  // Advance a genuinely verified owner off the gate automatically -- e.g.
+  // if they verified in another tab and their profile has since
+  // refreshed. This replaces the old "Already verified? Continue" link,
+  // which let ANY signed-in user click past the gate unverified. The
+  // real enforcement is server-side (migration 136); this is only UX.
+  useEffect(() => {
+    if (user?.verified && step === 'gate') {
+      setStep('ownership');
+    }
+  }, [user?.verified, step]);
   const [propertyCategory, setPropertyCategory] = useState<PropertyCategory>('');
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
@@ -465,15 +473,6 @@ export default function ListProperty() {
                 <p className="mt-3 text-xs text-charcoal/40">Free · Instant · Powered by UIDAI</p>
 
                 <div className="mt-6 pt-6 border-t border-black/5">
-                  <p className="text-xs text-charcoal/40 mb-3">
-                    Already verified?{' '}
-                    <span
-                      className="text-brand font-medium cursor-pointer"
-                      onClick={() => (user ? setStep('ownership') : navigate('/login'))}
-                    >
-                      Continue to listing
-                    </span>
-                  </p>
                   <Link to="/how-it-works" className="text-xs text-charcoal/40 hover:text-brand transition-colors">
                     Learn how the listing process works <i className="ri-arrow-right-line text-sm" />
                   </Link>
