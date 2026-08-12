@@ -855,7 +855,16 @@ export default function ListingDetail() {
                   style={{ border: 0 }}
                   loading="lazy"
                   allowFullScreen
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(listing.location)}&output=embed`}
+                  src={
+                    // Prefer the geocoded coordinates the listing already
+                    // has -- a lat/lng pin lands on the actual property,
+                    // whereas the free-text locality often resolves to the
+                    // wrong "Kompally" in another state. Fall back to the
+                    // text only when coordinates were never captured.
+                    listing.latitude != null && listing.longitude != null
+                      ? `https://maps.google.com/maps?q=${listing.latitude},${listing.longitude}&z=15&output=embed`
+                      : `https://maps.google.com/maps?q=${encodeURIComponent(listing.location)}&output=embed`
+                  }
                 />
               </div>
               <p className="text-xs text-charcoal/40 mt-2 flex items-center gap-1">

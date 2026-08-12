@@ -5,6 +5,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/useToast';
 import { INDIA_STATES, CITIES_BY_STATE, OTHER_CITY_OPTION } from '@/content/indiaLocations';
 import { geocodeAddress } from '@/lib/geocode';
+import { uploadListingImages } from '@/hooks/useListingImages';
 
 type Step = 'gate' | 'ownership' | 'landing' | 'property-type' | 'form';
 type PropertyCategory = 'residential' | 'commercial' | 'vacation' | '';
@@ -61,6 +62,39 @@ export default function ListProperty() {
 
   const MAX_NEARBY_PLACES = 6;
   const [nearbyPlaces, setNearbyPlaces] = useState<{ label: string; distance: string }[]>([]);
+
+  // Real listing photos, uploaded on submit (to listing-images, under the
+  // listing's own folder). Held with previews until then. Without this the
+  // create flow only ever shipped /placeholders/photo.svg.
+  const MAX_LISTING_IMAGES = 8;
+  const [listingImages, setListingImages] = useState<{ file: File; preview: string }[]>([]);
+
+  const handleAddImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    const accepted: { file: File; preview: string }[] = [];
+    for (const file of files) {
+      if (listingImages.length + accepted.length >= MAX_LISTING_IMAGES) break;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        addToast(`${file.name}: use a JPG, PNG or WebP image.`, 'error');
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        addToast(`${file.name}: exceeds the 5MB limit.`, 'error');
+        continue;
+      }
+      accepted.push({ file, preview: URL.createObjectURL(file) });
+    }
+    if (accepted.length) setListingImages((prev) => [...prev, ...accepted]);
+  };
+
+  const removeListingImage = (index: number) => {
+    setListingImages((prev) => {
+      const target = prev[index];
+      if (target) URL.revokeObjectURL(target.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
 
   const addNearbyPlace = () => {
     if (nearbyPlaces.length >= MAX_NEARBY_PLACES) return;
@@ -196,8 +230,10 @@ export default function ListProperty() {
       return;
     }
 
-    // 2. Create listing
-    const { error: listingError } = await supabase
+    // 2. Create listing. Start with the placeholder; real photos (if the
+    //    owner added any) upload after insert, since the storage path
+    //    needs the listing id.
+    const { data: listing, error: listingError } = await supabase
       .from('listings')
       .insert({
         property_id: property.id,
@@ -225,9 +261,11 @@ export default function ListProperty() {
         max_guests: propertyCategory === 'vacation' && maxGuests > 0 ? maxGuests : null,
         latitude: coords?.latitude ?? null,
         longitude: coords?.longitude ?? null,
-      });
+      })
+      .select('id')
+      .single();
 
-    if (listingError) {
+    if (listingError || !listing) {
       // The property row went in first because listings.property_id
       // needs it. If the listing then fails, leaving the property behind
       // means the owner sees a flat they never finished creating -- and
@@ -238,8 +276,23 @@ export default function ListProperty() {
       // to try from here, and the listing error is the one worth showing.
       await supabase.from('properties').delete().eq('id', property.id);
       setSubmitting(false);
-      addToast(`Error creating listing: ${listingError.message}`, 'error');
+      addToast(`Error creating listing: ${listingError?.message ?? 'unknown error'}`, 'error');
       return;
+    }
+
+    // 3. Upload the owner's photos and swap the placeholder for them. A
+    //    failed upload is not worth discarding the whole listing over --
+    //    the listing stays with the placeholder and the owner can add
+    //    photos later from the edit screen.
+    if (listingImages.length > 0) {
+      const { urls, errors } = await uploadListingImages(user.id, listing.id, listingImages.map((i) => i.file));
+      if (urls.length > 0) {
+        await supabase.from('listings').update({ images: urls }).eq('id', listing.id);
+      }
+      if (errors.length > 0) {
+        addToast(`Listed, but ${errors.length} photo(s) failed to upload. You can add them from Edit.`, 'error');
+      }
+      listingImages.forEach((i) => URL.revokeObjectURL(i.preview));
     }
 
     setSubmitting(false);
@@ -1168,6 +1221,39 @@ export default function ListProperty() {
                       {charCount}/500
                     </p>
                   </div>
+                </div>
+
+                {/* Photos */}
+                <div className="bg-white rounded-3xl border border-black/5 p-6 md:p-8">
+                  <h3 className="text-base font-bold text-charcoal mb-2 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-brand text-white text-xs flex items-center justify-center font-bold">5</div>
+                    Photos
+                  </h3>
+                  <p className="text-sm text-charcoal/60 mb-5">
+                    Add up to {MAX_LISTING_IMAGES} photos. Listings with real photos get far more enquiries — without any, yours shows a placeholder image.
+                  </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {listingImages.map((img, i) => (
+                      <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-black/10">
+                        <img src={img.preview} alt={`Listing photo ${i + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeListingImage(i)}
+                          className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer hover:bg-black/80"
+                        >
+                          <i className="ri-close-line text-sm" />
+                        </button>
+                      </div>
+                    ))}
+                    {listingImages.length < MAX_LISTING_IMAGES && (
+                      <label className="aspect-square rounded-xl border-2 border-dashed border-black/15 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-brand/40 transition-colors">
+                        <i className="ri-add-line text-xl text-charcoal/40" />
+                        <span className="text-[11px] text-charcoal/50">Add photo</span>
+                        <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleAddImages} className="hidden" />
+                      </label>
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs text-charcoal/40">JPG, PNG or WebP · up to 5MB each.</p>
                 </div>
 
                 {/* Submit */}

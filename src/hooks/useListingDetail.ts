@@ -35,6 +35,8 @@ export interface Listing {
   inquiries_count: number;
   saves_count: number;
   max_guests: number | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 function isValidUUID(str: string | undefined): boolean {
@@ -137,6 +139,8 @@ export function useListingDetail(id: string | undefined): {
         inquiries_count: Number(db.inquiries_count ?? 0),
         saves_count: Number(db.saves_count ?? 0),
         max_guests: db.max_guests != null ? Number(db.max_guests) : null,
+        latitude: db.latitude != null ? Number(db.latitude) : null,
+        longitude: db.longitude != null ? Number(db.longitude) : null,
       };
       setListing(mapped);
       setLoading(false);

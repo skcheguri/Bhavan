@@ -168,7 +168,9 @@ export default function Listings() {
     amenities: l.amenities ?? [],
     owner_id: l.owner_id,
     price_unit: l.category === 'vacation' ? 'night' : undefined,
-    max_guests: undefined as number | undefined,
+    // Read the real column -- hardcoding undefined killed the vacation
+    // guest filter, the same way parking was dropped above.
+    max_guests: l.max_guests ?? undefined,
     created_at: l.created_at,
   }));
 
