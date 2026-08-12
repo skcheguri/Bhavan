@@ -2549,7 +2549,15 @@ export type Database = {
       }
       rental_agreements: {
         Row: {
+          admin_processed_at: string | null
+          admin_processed_by: string | null
           agreement_number: string
+          agreement_status: string
+          landlord_signature_name: string | null
+          landlord_signed_at: string | null
+          stamped_document_path: string | null
+          tenant_signature_name: string | null
+          tenant_signed_at: string | null
           carpet_area: number | null
           clauses: string[] | null
           created_at: string | null
@@ -2592,7 +2600,15 @@ export type Database = {
           witness2_name: string | null
         }
         Insert: {
+          admin_processed_at?: string | null
+          admin_processed_by?: string | null
           agreement_number: string
+          agreement_status?: string
+          landlord_signature_name?: string | null
+          landlord_signed_at?: string | null
+          stamped_document_path?: string | null
+          tenant_signature_name?: string | null
+          tenant_signed_at?: string | null
           carpet_area?: number | null
           clauses?: string[] | null
           created_at?: string | null
@@ -2635,7 +2651,15 @@ export type Database = {
           witness2_name?: string | null
         }
         Update: {
+          admin_processed_at?: string | null
+          admin_processed_by?: string | null
           agreement_number?: string
+          agreement_status?: string
+          landlord_signature_name?: string | null
+          landlord_signed_at?: string | null
+          stamped_document_path?: string | null
+          tenant_signature_name?: string | null
+          tenant_signed_at?: string | null
           carpet_area?: number | null
           clauses?: string[] | null
           created_at?: string | null
@@ -3531,6 +3555,18 @@ export type Database = {
       }
       admin_withhold_payout: {
         Args: { p_booking: string }
+        Returns: undefined
+      }
+      admin_stamp_rental_agreement: {
+        Args: { p_agreement_id: string; p_document_path: string }
+        Returns: undefined
+      }
+      sign_rental_agreement: {
+        Args: { p_agreement_id: string; p_signer_name: string }
+        Returns: undefined
+      }
+      share_rental_agreement: {
+        Args: { p_agreement_id: string }
         Returns: undefined
       }
       admin_get_user: {

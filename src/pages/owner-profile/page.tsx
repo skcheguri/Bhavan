@@ -13,7 +13,8 @@ import PhoneVerifyModal from '@/components/feature/PhoneVerifyModal';
 import DeleteAccountModal from '@/components/feature/DeleteAccountModal';
 import EditListingModal from './components/EditListingModal';
 import RentalAgreementModal from './components/RentalAgreementModal';
-import { useRentalAgreements } from '@/hooks/useRentalAgreements';
+import SignAgreementModal from '@/components/feature/SignAgreementModal';
+import { useRentalAgreements, agreementStatusMeta, getStampedAgreementUrl } from '@/hooks/useRentalAgreements';
 import { useRentPayment } from '@/hooks/useRentPayment';
 import { useOwnerMaintenanceRequests } from '@/hooks/useMaintenanceRequests';
 import { useOwnerConnectionRequests } from '@/hooks/useConnectionRequests';
@@ -55,7 +56,7 @@ function formatINR(num: number): string {
 
 export default function OwnerProfile() {
   const { user, updateProfile, sendPasswordResetEmail } = useAuth();
-  const { isPro, plan, status, nextBillingDate, isInGracePeriod, isInTrial, trialDaysLeft, totalSpent, billingHistory } = useSubscription();
+  const { isPro, plan, nextBillingDate, isInGracePeriod, isInTrial, trialDaysLeft, totalSpent, billingHistory } = useSubscription();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab') as ProfileTab | null;
@@ -93,7 +94,9 @@ export default function OwnerProfile() {
   const [phoneError, setPhoneError] = useState('');
 
   const [viewAgreementId, setViewAgreementId] = useState<string | null>(null);
-  const { agreements: rentalAgreements, markShared } = useRentalAgreements(user?.id);
+  const [signAgreementId, setSignAgreementId] = useState<string | null>(null);
+  const [signing, setSigning] = useState(false);
+  const { agreements: rentalAgreements, markShared, sign: signAgreement } = useRentalAgreements(user?.id);
   const { properties } = useProperties(user?.id);
   const { memberships: societyMemberships } = useSociety(user?.id);
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
@@ -341,6 +344,23 @@ export default function OwnerProfile() {
           <RentalAgreementModal
             agreement={rentalAgreements.find((a) => a.id === viewAgreementId) ?? null}
             onClose={() => setViewAgreementId(null)}
+          />
+        )}
+        {signAgreementId && (
+          <SignAgreementModal
+            agreementNumber={rentalAgreements.find((a) => a.id === signAgreementId)?.agreementNumber ?? ''}
+            defaultName={rentalAgreements.find((a) => a.id === signAgreementId)?.landlordName ?? user?.name}
+            party="landlord"
+            busy={signing}
+            onSign={async (name) => {
+              setSigning(true);
+              const { error } = await signAgreement(signAgreementId, name);
+              setSigning(false);
+              if (error) { addToast(error, 'error'); return; }
+              addToast('You signed the agreement.', 'success');
+              setSignAgreementId(null);
+            }}
+            onClose={() => setSignAgreementId(null)}
           />
         )}
         <EditListingModal
@@ -1062,25 +1082,44 @@ export default function OwnerProfile() {
                             <td className="px-5 py-4 text-sm text-charcoal/60">{ag.leaseStartDate} – {ag.leaseEndDate}</td>
                             <td className="px-5 py-4 text-sm font-bold text-charcoal">{formatINR(ag.monthlyRent)}</td>
                             <td className="px-5 py-4">
-                              {ag.sharedWithTenant ? (
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">Sent to Tenant</span>
-                              ) : (
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Pending</span>
-                              )}
+                              {(() => {
+                                const meta = agreementStatusMeta(ag.agreementStatus);
+                                return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.cls}`}>{meta.label}</span>;
+                              })()}
                             </td>
                             <td className="px-5 py-4">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <button
                                   onClick={() => setViewAgreementId(ag.id)}
                                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap"
                                 >
                                   <i className="ri-eye-line text-sm" /> View
                                 </button>
-                                {!ag.sharedWithTenant && (
+                                {ag.agreementStatus === 'draft' && !ag.signedByLandlord && (
                                   <button
-                                    onClick={() => {
-                                      markShared(ag.id);
-                                      addToast('Agreement shared with tenant', 'success');
+                                    onClick={() => setSignAgreementId(ag.id)}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-brand/30 text-xs font-medium text-brand hover:bg-brand/5 transition-colors cursor-pointer whitespace-nowrap"
+                                  >
+                                    <i className="ri-quill-pen-line text-sm" /> Sign
+                                  </button>
+                                )}
+                                {ag.stampedDocumentPath && (
+                                  <button
+                                    onClick={async () => {
+                                      const url = await getStampedAgreementUrl(ag.stampedDocumentPath!);
+                                      if (url) window.open(url, '_blank');
+                                      else addToast('Could not open the stamped document.', 'error');
+                                    }}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer whitespace-nowrap"
+                                  >
+                                    <i className="ri-file-download-line text-sm" /> Stamped
+                                  </button>
+                                )}
+                                {ag.agreementStatus === 'stamped' && (
+                                  <button
+                                    onClick={async () => {
+                                      const { error } = await markShared(ag.id);
+                                      addToast(error ?? 'Stamped agreement shared with tenant', error ? 'error' : 'success');
                                     }}
                                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap"
                                   >
@@ -1114,16 +1153,14 @@ export default function OwnerProfile() {
                 </div>
                 <div className="flex items-center gap-2">
                   {isPro ? (
-                    <>
-                      <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-600">
-                        <i className="ri-checkbox-circle-fill text-sm" /> Active
-                      </span>
-                      {status === 'cancelled' && (
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600">
-                          Cancels at period end
-                        </span>
-                      )}
-                    </>
+                    // Pro is a one-time purchase that simply ends at the
+                    // paid-through date -- there is no cancel-at-period-end
+                    // path, so the badge that keyed on status==='cancelled'
+                    // (which also makes isPro false) was unreachable. Just
+                    // the Active badge.
+                    <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-600">
+                      <i className="ri-checkbox-circle-fill text-sm" /> Active
+                    </span>
                   ) : (
                     <Link to="/subscription" className="px-4 py-2 rounded-full bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors whitespace-nowrap">
                       Upgrade to Pro

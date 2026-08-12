@@ -8,6 +8,7 @@ import { useAdminPurgedAccounts } from '@/hooks/useAdminPurgedAccounts';
 import { useAdminUserStats } from '@/hooks/useAdminUsers';
 import { useAdminOverviewCounts } from '@/hooks/useAdminOverview';
 import { useAdminDuePayouts } from '@/hooks/useHostPayouts';
+import { useAdminPendingAgreements } from '@/hooks/useRentalAgreements';
 import { useAdminContactInquiries } from '@/hooks/useContactInquiries';
 import { useAdminErrorLogs } from '@/hooks/useAdminErrorLogs';
 import { useErrorRateAlerts } from '@/hooks/useErrorRateAlerts';
@@ -40,6 +41,8 @@ export default function AdminDashboard() {
   const pendingListingReports = listingReports.filter((r) => r.status === 'pending').length;
   const { payouts: duePayoutRows } = useAdminDuePayouts();
   const duePayouts = duePayoutRows.length;
+  const { agreements: pendingAgreementRows } = useAdminPendingAgreements();
+  const pendingAgreements = pendingAgreementRows.length;
   const newInquiries = inquiries.filter((i) => i.status === 'new').length;
   const recentErrors = errorLogs.filter((l) => Date.now() - new Date(l.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000).length;
 
@@ -139,6 +142,14 @@ export default function AdminDashboard() {
       color: 'bg-amber-50 text-amber-600',
       to: '/admin/payouts',
       description: 'Booking earnings retained by the platform and not yet transferred to hosts.',
+    },
+    {
+      title: 'Agreement Stamp Duty',
+      count: pendingAgreements,
+      icon: 'ri-stamp-line',
+      color: 'bg-blue-50 text-blue-600',
+      to: '/admin/agreements',
+      description: 'Signed rental agreements awaiting stamp duty and the stamped upload.',
     },
     {
       title: 'Soft Blocks',

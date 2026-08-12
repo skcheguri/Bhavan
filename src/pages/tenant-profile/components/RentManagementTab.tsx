@@ -3,11 +3,12 @@ import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { useRentPayment } from '@/hooks/useRentPayment';
-import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
+import { useTenantRentalAgreements, agreementStatusMeta, getStampedAgreementUrl } from '@/hooks/useRentalAgreements';
 import { useTenantRentReceipts } from '@/hooks/useRentReceipts';
 import { buildRentalAgreementHtml } from '@/lib/documents/rentalAgreementDocument';
 import { buildRentReceiptHtml } from '@/lib/documents/rentReceiptDocument';
 import { viewDocument } from '@/lib/viewDocument';
+import SignAgreementModal from '@/components/feature/SignAgreementModal';
 import RequestsTab from './RequestsTab';
 
 type SubTab = 'requests' | 'documents' | 'payments';
@@ -22,16 +23,27 @@ export default function RentManagementTab({ initialSubTab }: Props) {
   const [subTab, setSubTab] = useState<SubTab>(initialSubTab ?? 'requests');
 
   const { tenantPayments, mandates: userMandates, getMandateForTenant } = useRentPayment();
-  const { agreements, loading: agreementsLoading, fetchError: agreementsError, refresh: refreshAgreements } = useTenantRentalAgreements(user?.id);
+  const { agreements, loading: agreementsLoading, fetchError: agreementsError, refresh: refreshAgreements, sign: signAgreement } = useTenantRentalAgreements(user?.id);
+  const [signAgreementId, setSignAgreementId] = useState<string | null>(null);
+  const [signing, setSigning] = useState(false);
   const { receipts, loading: receiptsLoading, fetchError: receiptsError, refresh: refreshReceipts } = useTenantRentReceipts(user?.id);
 
   const myPayments = user?.id ? tenantPayments(user.id) : [];
   const myMandate = user?.id ? getMandateForTenant(user.id) : null;
   void userMandates;
 
+  // The Rent Summary used to hardcode "Monthly Rent Rs.22,000" and a 5th-
+  // of-the-month due date for everyone. Read the tenant's real agreement
+  // (most recent) instead, and be honest when there isn't one.
+  const activeAgreement = agreements[0] ?? null;
   const today = new Date();
-  const rentDueDay = 5;
+  const rentDueDay = activeAgreement?.rentDueDay || 5;
   const daysUntilRentDue = rentDueDay - today.getDate() > 0 ? rentDueDay - today.getDate() : 30 + rentDueDay - today.getDate();
+  const ordinal = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+  };
 
   const subTabs: { id: SubTab; label: string; icon: string }[] = [
     { id: 'requests', label: 'Maintenance Requests', icon: 'ri-tools-line' },
@@ -66,7 +78,7 @@ export default function RentManagementTab({ initialSubTab }: Props) {
           {/* Rental Agreements */}
           <div>
             <h2 className="text-base font-bold text-charcoal mb-1">My Rental Agreements</h2>
-            <p className="text-sm text-charcoal/60 mb-3">Agreements shared by your landlord</p>
+            <p className="text-sm text-charcoal/60 mb-3">Sign and access your rental agreements</p>
             {agreementsLoading ? (
               <div className="bg-white rounded-3xl border border-black/5 p-10 text-center text-sm text-charcoal/40">Loading…</div>
             ) : agreementsError ? (
@@ -85,21 +97,45 @@ export default function RentManagementTab({ initialSubTab }: Props) {
               </div>
             ) : (
               <div className="space-y-3">
-                {agreements.map((a) => (
+                {agreements.map((a) => {
+                  const meta = agreementStatusMeta(a.agreementStatus);
+                  return (
                   <div key={a.id} className="bg-white rounded-2xl border border-black/5 p-4 flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-charcoal truncate">{a.agreementNumber}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-charcoal truncate">{a.agreementNumber}</p>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${meta.cls}`}>{meta.label}</span>
+                      </div>
                       <p className="text-xs text-charcoal/60 mt-0.5">{a.propertyAddress}</p>
                       <p className="text-xs text-charcoal/40 mt-0.5">{a.leaseStartDate} to {a.leaseEndDate} · ₹{a.monthlyRent.toLocaleString('en-IN')}/mo</p>
                     </div>
-                    <button
-                      onClick={async () => { const e = await viewDocument(buildRentalAgreementHtml(a), `Rental agreement ${a.agreementNumber}`); if (e) addToast(e, 'error'); }}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-brand/40 hover:text-brand transition-colors cursor-pointer whitespace-nowrap"
-                    >
-                      <i className="ri-eye-line text-xs" /> View
-                    </button>
+                    <div className="flex-shrink-0 flex items-center gap-2 flex-wrap justify-end">
+                      {a.agreementStatus === 'draft' && !a.signedByTenant && (
+                        <button
+                          onClick={() => setSignAgreementId(a.id)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-brand/30 text-xs font-medium text-brand hover:bg-brand/5 transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          <i className="ri-quill-pen-line text-xs" /> Sign
+                        </button>
+                      )}
+                      {a.stampedDocumentPath && a.agreementStatus === 'completed' && (
+                        <button
+                          onClick={async () => { const url = await getStampedAgreementUrl(a.stampedDocumentPath!); if (url) window.open(url, '_blank'); else addToast('Could not open the stamped document.', 'error'); }}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          <i className="ri-file-download-line text-xs" /> Stamped
+                        </button>
+                      )}
+                      <button
+                        onClick={async () => { const e = await viewDocument(buildRentalAgreementHtml(a), `Rental agreement ${a.agreementNumber}`); if (e) addToast(e, 'error'); }}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-brand/40 hover:text-brand transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        <i className="ri-eye-line text-xs" /> View
+                      </button>
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -179,12 +215,16 @@ export default function RentManagementTab({ initialSubTab }: Props) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-offwhite rounded-xl p-4">
                 <p className="text-xs text-charcoal/40 font-medium">Monthly Rent</p>
-                <p className="text-xl font-bold text-charcoal mt-1">₹22,000</p>
-                <p className="text-xs text-charcoal/60 mt-0.5">Due on 5th of every month</p>
+                <p className="text-xl font-bold text-charcoal mt-1">
+                  {activeAgreement ? `₹${activeAgreement.monthlyRent.toLocaleString('en-IN')}` : 'Not set'}
+                </p>
+                <p className="text-xs text-charcoal/60 mt-0.5">
+                  {activeAgreement ? `Due on the ${ordinal(rentDueDay)} of every month` : 'No active rental agreement'}
+                </p>
               </div>
               <div className="bg-offwhite rounded-xl p-4">
                 <p className="text-xs text-charcoal/40 font-medium">Days Until Due</p>
-                <p className="text-xl font-bold text-charcoal mt-1">{daysUntilRentDue} days</p>
+                <p className="text-xl font-bold text-charcoal mt-1">{activeAgreement ? `${daysUntilRentDue} days` : '—'}</p>
               </div>
               <div className="bg-offwhite rounded-xl p-4">
                 <p className="text-xs text-charcoal/40 font-medium">Current Flat</p>
@@ -304,6 +344,24 @@ export default function RentManagementTab({ initialSubTab }: Props) {
             )}
           </div>
         </div>
+      )}
+
+      {signAgreementId && (
+        <SignAgreementModal
+          agreementNumber={agreements.find((a) => a.id === signAgreementId)?.agreementNumber ?? ''}
+          defaultName={agreements.find((a) => a.id === signAgreementId)?.tenantName}
+          party="tenant"
+          busy={signing}
+          onSign={async (name) => {
+            setSigning(true);
+            const { error } = await signAgreement(signAgreementId, name);
+            setSigning(false);
+            if (error) { addToast(error, 'error'); return; }
+            addToast('You signed the agreement.', 'success');
+            setSignAgreementId(null);
+          }}
+          onClose={() => setSignAgreementId(null)}
+        />
       )}
     </div>
   );

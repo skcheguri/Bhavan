@@ -4,6 +4,17 @@ import { getSupabase } from '@/lib/supabase';
 import type { RentalAgreementData } from '@/lib/documents/rentalAgreementDocument';
 import type { Tables } from '@/types/database.types';
 
+export type AgreementStatus = 'draft' | 'pending_admin' | 'stamped' | 'completed';
+
+export function agreementStatusMeta(status: AgreementStatus): { label: string; cls: string } {
+  switch (status) {
+    case 'pending_admin': return { label: 'With Bhavan · stamp duty', cls: 'bg-blue-50 text-blue-600' };
+    case 'stamped': return { label: 'Stamped · ready to share', cls: 'bg-emerald-50 text-emerald-600' };
+    case 'completed': return { label: 'Shared with tenant', cls: 'bg-green-50 text-green-600' };
+    default: return { label: 'Awaiting signatures', cls: 'bg-amber-50 text-amber-600' };
+  }
+}
+
 export interface RentalAgreementRow extends RentalAgreementData {
   id: string;
   ownerId: string;
@@ -13,6 +24,13 @@ export interface RentalAgreementRow extends RentalAgreementData {
   signedByTenant: boolean;
   sharedWithTenant: boolean;
   sharedAt: string | null;
+  agreementStatus: AgreementStatus;
+  landlordSignatureName: string | null;
+  landlordSignedAt: string | null;
+  tenantSignatureName: string | null;
+  tenantSignedAt: string | null;
+  stampedDocumentPath: string | null;
+  adminProcessedAt: string | null;
 }
 
 // Typed against the generated schema row (not Record<string, unknown>)
@@ -61,7 +79,32 @@ function mapRow(r: Tables<'rental_agreements'>): RentalAgreementRow {
     signedByTenant: Boolean(r.signed_by_tenant),
     sharedWithTenant: Boolean(r.shared_with_tenant),
     sharedAt: (r.shared_at as string | null) ?? null,
+    agreementStatus: (r.agreement_status as AgreementStatus) ?? 'draft',
+    landlordSignatureName: (r.landlord_signature_name as string | null) ?? null,
+    landlordSignedAt: (r.landlord_signed_at as string | null) ?? null,
+    tenantSignatureName: (r.tenant_signature_name as string | null) ?? null,
+    tenantSignedAt: (r.tenant_signed_at as string | null) ?? null,
+    stampedDocumentPath: (r.stamped_document_path as string | null) ?? null,
+    adminProcessedAt: (r.admin_processed_at as string | null) ?? null,
   };
+}
+
+// A short-lived signed URL for the admin-uploaded stamped PDF. Readable
+// only by the two parties (and admins) via the storage RLS in migration
+// 137; anyone else gets null.
+export async function getStampedAgreementUrl(path: string): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data } = await supabase.storage.from('stamped-agreements').createSignedUrl(path, 300);
+  return data?.signedUrl ?? null;
+}
+
+// Sign as whichever party the caller is (the RPC decides from auth.uid()).
+export async function signRentalAgreement(agreementId: string, signerName: string): Promise<{ error: string | null }> {
+  const supabase = getSupabase();
+  if (!supabase) return { error: 'Not available right now.' };
+  const { error } = await supabase.rpc('sign_rental_agreement', { p_agreement_id: agreementId, p_signer_name: signerName });
+  return { error: error?.message ?? null };
 }
 
 export function useRentalAgreements(ownerId: string | undefined) {
@@ -157,21 +200,31 @@ export function useRentalAgreements(ownerId: string | undefined) {
     [refresh]
   );
 
+  // Sharing now goes through the workflow RPC, which only allows it once
+  // an admin has returned the stamped copy (agreement_status='stamped').
   const markShared = useCallback(
-    async (agreementId: string) => {
+    async (agreementId: string): Promise<{ error: string | null }> => {
       const supabase = getSupabase();
-      if (!supabase) return;
-      await supabase
-        .from('rental_agreements')
-        .update({ shared_with_tenant: true, shared_at: new Date().toISOString() })
-        .eq('id', agreementId);
-      await supabase.rpc('notify_agreement_shared', { p_agreement_id: agreementId });
-      setAgreements((prev) => prev.map((a) => (a.id === agreementId ? { ...a, sharedWithTenant: true, sharedAt: new Date().toISOString() } : a)));
+      if (!supabase) return { error: 'Not available right now.' };
+      const { error } = await supabase.rpc('share_rental_agreement', { p_agreement_id: agreementId });
+      if (error) return { error: error.message };
+      await refresh();
+      return { error: null };
     },
-    []
+    [refresh]
   );
 
-  return { agreements, loading, fetchError, create, markShared, refresh };
+  // Landlord signature (the owner is the landlord).
+  const sign = useCallback(
+    async (agreementId: string, signerName: string): Promise<{ error: string | null }> => {
+      const { error } = await signRentalAgreement(agreementId, signerName);
+      if (!error) await refresh();
+      return { error };
+    },
+    [refresh]
+  );
+
+  return { agreements, loading, fetchError, create, markShared, sign, refresh };
 }
 
 export function generateAgreementNumber(): string {
@@ -228,5 +281,59 @@ export function useTenantRentalAgreements(tenantId: string | undefined) {
     refresh();
   }, [refresh]);
 
-  return { agreements, loading, fetchError, refresh, cachedAt };
+  const sign = useCallback(
+    async (agreementId: string, signerName: string): Promise<{ error: string | null }> => {
+      const { error } = await signRentalAgreement(agreementId, signerName);
+      if (!error) await refresh();
+      return { error };
+    },
+    [refresh]
+  );
+
+  return { agreements, loading, fetchError, refresh, cachedAt, sign };
+}
+
+// Admin: agreements sitting in the stamp-duty queue, and the action to
+// upload the stamped PDF and return them to the owner.
+export function useAdminPendingAgreements() {
+  const [agreements, setAgreements] = useState<RentalAgreementRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) { setLoading(false); return; }
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('rental_agreements')
+      .select('*')
+      .eq('agreement_status', 'pending_admin')
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.warn('Supabase pending agreements fetch error:', error.message);
+      setAgreements([]);
+    } else {
+      setAgreements((data ?? []).map(mapRow));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const stamp = useCallback(
+    async (agreementId: string, file: File): Promise<{ error: string | null }> => {
+      const supabase = getSupabase();
+      if (!supabase) return { error: 'Not available right now.' };
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const path = `${agreementId}/stamped-${Date.now()}.${ext}`;
+      const up = await supabase.storage.from('stamped-agreements').upload(path, file);
+      if (up.error) return { error: `Upload failed: ${up.error.message}` };
+      const { error } = await supabase.rpc('admin_stamp_rental_agreement', { p_agreement_id: agreementId, p_document_path: path });
+      if (error) return { error: error.message };
+      await refresh();
+      return { error: null };
+    },
+    [refresh]
+  );
+
+  return { agreements, loading, refresh, stamp };
 }
