@@ -22,12 +22,13 @@ import { verifyRazorpayWebhookSignature } from "../../../src/lib/payments/razorp
 
 const WEBHOOK_SECRET = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ?? "";
 
-// Only events that mean "money has actually moved". order.paid is
-// deliberately not handled: it fires alongside payment.captured for the
-// same order, and handling both would be two deliveries racing to fulfil
-// one purchase. The idempotency ledger would catch it, but not needing to
-// be caught is better.
-const HANDLED = new Set(["payment.captured"]);
+// Events that mean money has moved. order.paid is deliberately not
+// handled: it fires alongside payment.captured for the same order, and
+// handling both would be two deliveries racing to fulfil one purchase.
+// refund.processed reconciles refunds issued directly from the Razorpay
+// dashboard so our records match even when the in-app refund-payment
+// function was not the one that issued them.
+const HANDLED = new Set(["payment.captured", "refund.processed"]);
 
 interface Fulfilment {
   target: string;
@@ -164,6 +165,11 @@ Deno.serve(async (req) => {
   if (!HANDLED.has(eventType)) {
     return finish({ target: "none", status: "ignored" });
   }
+
+  if (eventType === "refund.processed") {
+    return finish(await reconcileRefund(serviceClient, event, paymentId));
+  }
+
   if (!orderId) {
     return finish({ target: "none", status: "ignored", error: "No order id on this payment." });
   }
@@ -362,6 +368,57 @@ async function fulfilSociety(
   }
 
   return { target: "society", status: "processed" };
+}
+
+// A refund landed -- from the in-app refund-payment function or straight
+// from the Razorpay dashboard. Find whichever record the payment belongs
+// to and mark it refunded. Idempotent: the compare on razorpay_refund_id
+// / status means a second delivery, or one that races the in-app path,
+// is a no-op. Payments live in three tables; the refund id is on the
+// refund entity, the link back is the payment id.
+async function reconcileRefund(
+  client: ReturnType<typeof createClient>,
+  event: Record<string, unknown>,
+  paymentId: string
+): Promise<Fulfilment> {
+  const refund =
+    ((event.payload as Record<string, Record<string, Record<string, unknown>>>)?.refund?.entity) ?? {};
+  const refundId = String(refund.id ?? "");
+  if (!paymentId) {
+    return { target: "refund", status: "ignored", error: "Refund event carried no payment id." };
+  }
+
+  const now = new Date().toISOString();
+
+  // billing_history (Pro / society) and rent_payments both key on
+  // razorpay_payment_id; vacation_bookings does too. Mark the first that
+  // matches and isn't already refunded.
+  const patch = { status: "refunded", razorpay_refund_id: refundId, refunded_at: now };
+
+  const inv = await client.from("billing_history").update(patch)
+    .eq("razorpay_payment_id", paymentId).neq("status", "refunded").select("id, community_id, owner_id");
+  if (inv.data && inv.data.length > 0) {
+    const row = inv.data[0] as { community_id: string | null; owner_id: string | null };
+    if (row.community_id) {
+      await client.from("community_subscriptions").update({ status: "cancelled", updated_at: now }).eq("community_id", row.community_id);
+    } else if (row.owner_id) {
+      await client.from("owner_subscriptions").update({ status: "cancelled", cancel_at_period_end: true, updated_at: now }).eq("owner_id", row.owner_id);
+    }
+    return { target: "refund:pro", status: "processed" };
+  }
+
+  const rent = await client.from("rent_payments").update(patch)
+    .eq("razorpay_payment_id", paymentId).neq("status", "refunded").select("id");
+  if (rent.data && rent.data.length > 0) return { target: "refund:rent", status: "processed" };
+
+  const booking = await client.from("vacation_bookings")
+    .update({ payment_status: "refunded", razorpay_refund_id: refundId, refunded_at: now })
+    .eq("razorpay_payment_id", paymentId).neq("payment_status", "refunded").select("id");
+  if (booking.data && booking.data.length > 0) return { target: "refund:booking", status: "processed" };
+
+  // Already reconciled (in-app path or an earlier delivery), or a payment
+  // we don't have. Either way nothing more to do.
+  return { target: "refund", status: "ignored", error: `No unrefunded record for payment ${paymentId}.` };
 }
 
 async function fulfilRent(

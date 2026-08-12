@@ -218,7 +218,9 @@ exactly like it was never called:
 
 1. Add the endpoint under Settings → Webhooks:
    `https://edythmogblkmsjfcbatc.supabase.co/functions/v1/razorpay-webhook`
-   subscribed to **`payment.captured`**.
+   subscribed to **`payment.captured`** and **`refund.processed`** (the
+   latter reconciles refunds issued from the Razorpay dashboard — see the
+   refunds note below).
 2. Take the webhook secret Razorpay shows you and set it:
    `npx supabase secrets set RAZORPAY_WEBHOOK_SECRET=<value> --project-ref edythmogblkmsjfcbatc`
 
@@ -238,7 +240,58 @@ hour -- capped that way so nobody can flood the table by POSTing garbage,
 while still answering "did anything reach us at all". So an empty table
 really does mean Razorpay never called.
 
-**Push delivery — actively broken, under investigation.** See §5.
+**Refunds — in-app + dashboard, both wired.** Booking refunds were
+already automatic (respond-booking / cancel-booking). Rent and Pro/
+society refunds now exist too: an admin opens a user in `/admin/users`,
+the **Payments & Refunds** section lists their Razorpay payments, and
+Refund calls the `refund-payment` edge function (Razorpay refund → row
+marked `refunded` → a refunded Pro/society plan is revoked → user
+notified). Refunds issued straight from the Razorpay dashboard reconcile
+via the `refund.processed` webhook, so the two paths can't disagree.
+Cash/offline rent has no Razorpay reference and is intentionally not
+refundable here. This makes the billing screen's "refund within 7 days,
+contact support" promise real. **Nothing to build — just subscribe the
+webhook to `refund.processed` (above) so dashboard refunds reconcile.**
+
+### 4.3d Rent payouts to owners — NOT built (Route stage 2)
+
+Rent paid through Razorpay settles into **Bhavan's** account; there is
+no path that forwards it to the landlord. Today rent is effectively a
+record-keeping + receipt feature with the money pooled centrally — fine
+for a pilot, **not** something to run at scale without telling owners
+where their rent is. Same fix as vacation-booking payouts (§4.3c):
+**Razorpay Route**, with each owner onboarded as a linked account and a
+transfer (or on-hold transfer released after the rent period) attached
+at capture. Until Route is live, if any real rent flows, an admin must
+forward it manually — there is no Stage-1 rent-payout console yet (the
+`/admin/payouts` queue covers vacation bookings only). Decide before
+launch whether rent collection is even switched on, or stays owner-marks-
+paid (the existing offline/cash path) until Route lands.
+
+### 4.3e Pro is sold but enforces nothing — BEFORE monetizing
+
+`/subscription` advertises ~13 Pro features (Advanced Analytics,
+Automated Rent Reminders, Lease Expiry Alerts, Bulk Receipts, Priority
+Listing Placement, Verified Pro Badge, Custom Branded URLs, Auto-filled
+Tax Forms, Data Export, Priority Support, Dedicated Account Manager, …).
+**None are gated.** `FREE_TIER_LIMITS` in `src/lib/subscriptionConfig.ts`
+is `Infinity` on every count, `PRO_FEATURE_KEYS` is defined but never
+consulted, and `isPro` is read only to render the billing tab — no
+feature checks it. So a free user has everything a paid user does, and
+charging for Pro today is selling access that isn't withheld.
+
+Before taking Pro money, either enforce the list or shrink the list to
+what's real:
+- Add a `hasFeature(key)` gate off the subscription state and put it in
+  front of each advertised capability (several — analytics, tax forms,
+  data export, bulk receipts — are real screens that just aren't gated;
+  others — auto reminders, lease alerts, custom URLs, account manager —
+  don't exist yet and are pure marketing).
+- The server-side authority already exists: `has_pro(uuid)` (migration
+  073) — gate the real features in RLS/RPCs with it, not just the UI, so
+  the entitlement can't be flipped from the client.
+- Whatever isn't enforced by launch should come off the pricing page —
+  advertising unenforced features is the actual exposure here.
 
 ### 4.3b Societies: what is not finished
 
@@ -442,19 +495,28 @@ Each of these was a real bug, not a hypothetical:
 1. Stand up a staging Supabase project; repoint CI and E2E (§4.1)
 2. Fix Supabase Site URL / Redirect URLs — this affects real users today (§4.4)
 3. Close out push (§5), then confirm delivery end-to-end on web
-4. Razorpay: confirm live keys, add the webhook (§4.3), and **apply for
-   Route immediately** — its approval clock is the long pole for booking
-   payouts (§4.3c)
-5. Booking payouts Stage 2 once Route is approved (§4.3c)
-6. `cap add android` → device testing → Play Store (§4.2)
-7. iOS after Android — longer review cycle, more account setup
-8. Aadhaar and OTP providers, contracts permitting (§4.3)
-9. Accessibility pass (§4.5), then the §4.6 list
+4. Razorpay: confirm live keys, set the **real** `RAZORPAY_WEBHOOK_SECRET`
+   (the current one is a placeholder) and add the dashboard webhook
+   subscribed to `payment.captured` + `refund.processed` (§4.3), and
+   **apply for Route immediately** — its approval clock is the long pole
+   for both booking and rent payouts (§4.3c, §4.3d)
+5. Decide Pro's launch story: gate the advertised features with
+   `has_pro()` / a `hasFeature()` check, or trim the pricing page to what
+   is actually enforced — do not charge for Pro until one of these is
+   done (§4.3e)
+6. Decide rent's launch story: leave rent collection off / owner-marks-
+   paid until Route, or wire rent payouts in Route stage 2 (§4.3d)
+7. Payouts Stage 2 (bookings + rent) once Route is approved (§4.3c, §4.3d)
+8. `cap add android` → device testing → Play Store (§4.2)
+9. iOS after Android — longer review cycle, more account setup
+10. Aadhaar and OTP providers, contracts permitting (§4.3)
+11. Accessibility pass (§4.5), then the §4.6 list
 
-Items 1–4 are web launch blockers (for item 4, the Route *application*
+Items 1–6 are web launch blockers (for item 4, the Route *application*
 is the blocker — approval and Stage 2 can land after launch as long as
-Stage 1 manual payouts are being honored). Item 6 onward is a separate
-project in practice; scope it as one.
+manual payouts are honored; items 5–6 are "don't take money for what you
+don't deliver" gates). Item 8 onward is a separate project in practice;
+scope it as one.
 
 ---
 

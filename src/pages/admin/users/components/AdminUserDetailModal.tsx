@@ -1,9 +1,78 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
-import { useEffect, useState } from 'react';
-import { getSupabase } from '@/lib/supabase';
+import { useCallback, useEffect, useState } from 'react';
+import { getSupabase, functionErrorMessage } from '@/lib/supabase';
 import { useBrokerReport } from '@/hooks/useBrokerReport';
 import { useSubjectReviews } from '@/hooks/useReviews';
+import { useToast } from '@/hooks/useToast';
+import { ConfirmInline } from '@/components/feature/ConfirmInline';
 import type { AdminUserRow } from '@/hooks/useAdminUsers';
+
+interface RefundablePayment {
+  kind: 'pro' | 'rent';
+  id: string;
+  label: string;
+  sublabel: string;
+  amountPaise: number;
+  status: string;
+  refundable: boolean;
+}
+
+// A user's Razorpay payments the admin can refund: Pro/society invoices
+// (billing_history) and rent paid through Razorpay. Cash/offline rent has
+// no Razorpay reference and so can't be refunded here.
+function useUserPayments(userId: string) {
+  const [payments, setPayments] = useState<RefundablePayment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) { setLoading(false); return; }
+    setLoading(true);
+    const [{ data: invoices }, { data: rents }] = await Promise.all([
+      supabase
+        .from('billing_history')
+        .select('id, plan, total_amount, status, razorpay_payment_id, created_at')
+        .eq('owner_id', userId)
+        .in('status', ['paid', 'refunded'])
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('rent_payments')
+        .select('id, amount, month, status, razorpay_payment_id, payment_mode, created_at')
+        .or(`owner_id.eq.${userId},tenant_id.eq.${userId}`)
+        .in('status', ['paid', 'refunded'])
+        .order('created_at', { ascending: false }),
+    ]);
+
+    const rows: RefundablePayment[] = [];
+    for (const inv of (invoices ?? []) as Record<string, unknown>[]) {
+      rows.push({
+        kind: 'pro',
+        id: String(inv.id),
+        label: inv.plan === 'pro_annual' ? 'Pro Annual' : inv.plan === 'pro_monthly' ? 'Pro Monthly' : String(inv.plan),
+        sublabel: new Date(String(inv.created_at)).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        amountPaise: Number(inv.total_amount ?? 0),
+        status: String(inv.status),
+        refundable: inv.status === 'paid' && Boolean(inv.razorpay_payment_id),
+      });
+    }
+    for (const rp of (rents ?? []) as Record<string, unknown>[]) {
+      rows.push({
+        kind: 'rent',
+        id: String(rp.id),
+        label: `Rent · ${String(rp.month)}`,
+        sublabel: rp.payment_mode === 'razorpay' ? 'Razorpay' : String(rp.payment_mode),
+        amountPaise: Number(rp.amount ?? 0),
+        status: String(rp.status),
+        refundable: rp.status === 'paid' && rp.payment_mode === 'razorpay' && Boolean(rp.razorpay_payment_id),
+      });
+    }
+    setPayments(rows);
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => { load(); }, [load]);
+  return { payments, loading, refresh: load };
+}
 
 interface OwnerListingRow {
   id: string;
@@ -67,11 +136,32 @@ interface AdminUserDetailModalProps {
 
 export default function AdminUserDetailModal({ user, onClose, onSuspend, onReactivate, busy }: AdminUserDetailModalProps) {
   useDismissableLayer(onClose);
+  const { addToast } = useToast();
   const [reasonDraft, setReasonDraft] = useState('');
 
   const brokerStatus = useBrokerReport(user.role === 'tenant' ? user.id : undefined);
   const { listings: ownerListings, loading: listingsLoading } = useOwnerListings(user.role === 'owner' ? user.id : undefined);
   const { reviews, loading: reviewsLoading } = useSubjectReviews(user.id);
+  const { payments, loading: paymentsLoading, refresh: refreshPayments } = useUserPayments(user.id);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [confirmingRefund, setConfirmingRefund] = useState<RefundablePayment | null>(null);
+
+  const doRefund = async (p: RefundablePayment) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setRefundingId(p.id);
+    setConfirmingRefund(null);
+    const { data, error } = await supabase.functions.invoke('refund-payment', {
+      body: { kind: p.kind, id: p.id },
+    });
+    setRefundingId(null);
+    if (error || !data?.success) {
+      addToast((await functionErrorMessage(error)) || data?.error || 'Refund failed.', 'error');
+    } else {
+      addToast('Refund issued. The user has been notified.', 'success');
+      await refreshPayments();
+    }
+  };
 
   const avgRating = reviews.length > 0 ? reviews.reduce((s, r) => s + r.overall_rating, 0) / reviews.length : 0;
   const initials = user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
@@ -183,6 +273,53 @@ export default function AdminUserDetailModal({ user, onClose, onSuspend, onReact
               )}
             </div>
           )}
+
+          {/* Payments & refunds */}
+          <div>
+            <h3 className="text-sm font-bold text-charcoal mb-2">Payments &amp; Refunds</h3>
+            {paymentsLoading ? (
+              <p className="text-xs text-charcoal/40">Loading…</p>
+            ) : payments.length === 0 ? (
+              <p className="text-xs text-charcoal/40">No Razorpay payments on file.</p>
+            ) : (
+              <div className="space-y-2">
+                {payments.map((p) => (
+                  <div key={`${p.kind}-${p.id}`} className="border border-black/5 rounded-xl p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-charcoal truncate">{p.label}</p>
+                        <p className="text-[10px] text-charcoal/40 mt-0.5">{p.sublabel} · ₹{(p.amountPaise / 100).toLocaleString('en-IN')}</p>
+                      </div>
+                      {p.status === 'refunded' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 flex-shrink-0">Refunded</span>
+                      ) : p.refundable ? (
+                        <button
+                          onClick={() => setConfirmingRefund(p)}
+                          disabled={refundingId === p.id}
+                          className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-white border border-black/10 text-charcoal/70 hover:border-red-200 hover:text-red-600 transition-colors cursor-pointer disabled:opacity-40 flex-shrink-0 whitespace-nowrap"
+                        >
+                          {refundingId === p.id ? 'Refunding…' : 'Refund'}
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-charcoal/40 flex-shrink-0">Not refundable</span>
+                      )}
+                    </div>
+                    {confirmingRefund?.id === p.id && (
+                      <div className="mt-3">
+                        <ConfirmInline
+                          message={`Refund ₹${(p.amountPaise / 100).toLocaleString('en-IN')} for "${p.label}" to the user's original payment method? ${p.kind === 'pro' ? 'Their Pro plan will be revoked.' : ''} This cannot be undone.`}
+                          confirmLabel="Refund"
+                          busy={refundingId === p.id}
+                          onConfirm={() => doRefund(p)}
+                          onCancel={() => setConfirmingRefund(null)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Reviews received */}
           <div>
