@@ -23,14 +23,12 @@ vi.mock("@/hooks/useNotificationPreferences", () => ({
 }));
 
 describe("ChannelPreferences", () => {
-  it("renders a preference category with its active-channel count", () => {
+  it("summarises push status and marks SMS/Email as coming soon", () => {
     render(<ChannelPreferences />);
     expect(screen.getByText("Maintenance Updates")).toBeInTheDocument();
-    // The count and the "SMS for critical only" suffix are separate JSX
-    // expressions inside the same <p>, so they land in sibling text
-    // nodes -- an exact getByText string won't match across them, but a
-    // substring/textContent match will.
-    expect(screen.getByText((_, el) => el?.textContent === "2 of 3 channels active · SMS for critical only")).toBeInTheDocument();
+    // Only push actually delivers; the summary reflects that honestly
+    // rather than counting SMS/Email as "active channels".
+    expect(screen.getByText((_, el) => el?.textContent === "Push on · SMS & Email coming soon")).toBeInTheDocument();
   });
 
   it("expands to show per-channel toggles when clicked", async () => {
@@ -44,13 +42,17 @@ describe("ChannelPreferences", () => {
     expect(screen.getByText("Email")).toBeInTheDocument();
   });
 
-  it("calls toggle(category, channel) when a channel switch is clicked", async () => {
+  it("toggles the deliverable Push channel; SMS/Email are not switchable", async () => {
     const user = userEvent.setup();
     render(<ChannelPreferences />);
 
     await user.click(screen.getByText("Maintenance Updates"));
-    await user.click(screen.getByRole("button", { name: /enable sms for maintenance updates/i }));
 
-    expect(toggleMock).toHaveBeenCalledWith("maintenance", "sms_enabled");
+    // Push is on in the mock, so its switch is a Disable control.
+    await user.click(screen.getByRole("button", { name: /disable push for maintenance updates/i }));
+    expect(toggleMock).toHaveBeenCalledWith("maintenance", "push_enabled");
+
+    // SMS has no toggle button at all -- it's coming soon.
+    expect(screen.queryByRole("button", { name: /sms for maintenance updates/i })).toBeNull();
   });
 });

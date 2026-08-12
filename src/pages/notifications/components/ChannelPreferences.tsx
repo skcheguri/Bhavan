@@ -2,13 +2,20 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificationPreferences, type NotificationChannel } from '@/hooks/useNotificationPreferences';
 
-const channelMeta: Record<NotificationChannel, { label: string; icon: string; desc: string; color: string }> = {
-  push_enabled: { label: 'Push', icon: 'ri-smartphone-line', desc: 'Instant device alerts', color: 'text-green-600' },
-  sms_enabled: { label: 'SMS', icon: 'ri-message-2-line', desc: 'Critical fallback via text', color: 'text-amber-600' },
-  email_enabled: { label: 'Email', icon: 'ri-mail-line', desc: 'Detailed summaries', color: 'text-blue-600' },
+// SMS and Email have no delivery pipeline yet -- there is no email
+// function, and send-sms-hook is the Supabase auth OTP hook, not a
+// notification sender. So they are shown as "Coming soon" and can't be
+// toggled on: a switch a user flips expecting texts they never get is
+// worse than an honestly-disabled one. Push is the one real channel.
+const channelMeta: Record<NotificationChannel, { label: string; icon: string; desc: string; color: string; available: boolean }> = {
+  push_enabled: { label: 'Push', icon: 'ri-smartphone-line', desc: 'Instant device alerts', color: 'text-green-600', available: true },
+  sms_enabled: { label: 'SMS', icon: 'ri-message-2-line', desc: 'Critical fallback via text', color: 'text-amber-600', available: false },
+  email_enabled: { label: 'Email', icon: 'ri-mail-line', desc: 'Detailed summaries', color: 'text-blue-600', available: false },
 };
 
 const channelOrder: NotificationChannel[] = ['push_enabled', 'sms_enabled', 'email_enabled'];
+// Only channels that actually deliver count toward the "active" summary.
+const deliverableChannels: NotificationChannel[] = channelOrder.filter((ch) => channelMeta[ch].available);
 
 export default function ChannelPreferences() {
   const { user } = useAuth();
@@ -23,7 +30,7 @@ export default function ChannelPreferences() {
     <div className="space-y-3">
       {preferences.map((pref) => {
         const isOpen = expanded === pref.category;
-        const activeCount = channelOrder.filter((ch) => pref[ch]).length;
+        const activeCount = deliverableChannels.filter((ch) => pref[ch]).length;
 
         return (
           <div
@@ -42,8 +49,7 @@ export default function ChannelPreferences() {
                 <div>
                   <p className="text-sm font-semibold text-charcoal">{pref.label}</p>
                   <p className="text-xs text-charcoal/40 mt-0.5">
-                    {activeCount} of {channelOrder.length} channels active
-                    {pref.criticalOnly && ' · SMS for critical only'}
+                    Push {activeCount > 0 ? 'on' : 'off'} · SMS &amp; Email coming soon
                   </p>
                 </div>
               </div>
@@ -63,33 +69,38 @@ export default function ChannelPreferences() {
                 <div className="h-px bg-lightgray" />
                 {channelOrder.map((ch) => {
                   const meta = channelMeta[ch];
-                  const enabled = pref[ch];
-                  const isCriticalOnly = ch === 'sms_enabled' && pref.criticalOnly && enabled;
+                  const enabled = meta.available && pref[ch];
 
                   return (
-                    <div key={ch} className="flex items-center justify-between gap-4">
+                    <div key={ch} className={`flex items-center justify-between gap-4 ${meta.available ? '' : 'opacity-60'}`}>
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-lightgray">
                           <i className={`${meta.icon} text-sm ${enabled ? meta.color : 'text-charcoal/40'}`} />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-charcoal">{meta.label}</p>
-                          <p className="text-xs text-charcoal/40">{meta.desc}</p>
-                          {isCriticalOnly && (
-                            <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Only critical events</p>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-charcoal">{meta.label}</p>
+                            {!meta.available && (
+                              <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-lightgray text-charcoal/50">Coming soon</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-charcoal/40">{meta.available ? meta.desc : 'Not available yet — you won’t miss anything; push covers it.'}</p>
                         </div>
                       </div>
-                      <button
-                        onClick={() => toggle(pref.category, ch)}
-                        aria-label={`${enabled ? 'Disable' : 'Enable'} ${meta.label} for ${pref.label}`}
-                        aria-pressed={enabled}
-                        className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ${enabled ? 'bg-amber-500' : 'bg-gray-200'}`}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`}
-                        />
-                      </button>
+                      {meta.available ? (
+                        <button
+                          onClick={() => toggle(pref.category, ch)}
+                          aria-label={`${enabled ? 'Disable' : 'Enable'} ${meta.label} for ${pref.label}`}
+                          aria-pressed={enabled}
+                          className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ${enabled ? 'bg-amber-500' : 'bg-gray-200'}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                      ) : (
+                        <div className="relative w-11 h-6 rounded-full bg-gray-100 flex-shrink-0 cursor-not-allowed" aria-disabled title="Coming soon">
+                          <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white/70 rounded-full" />
+                        </div>
+                      )}
                     </div>
                   );
                 })}

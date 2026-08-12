@@ -47,7 +47,7 @@ const typeLabels: Record<NotificationType | 'all' | 'unread', string> = {
 
 type FilterKey = 'all' | 'unread' | NotificationType;
 
-const filterKeys: FilterKey[] = ['all', 'unread', 'inquiry', 'maintenance', 'lease', 'payment', 'platform'];
+const filterKeys: FilterKey[] = ['all', 'unread', 'inquiry', 'message', 'maintenance', 'lease', 'payment', 'platform'];
 
 export default function NotificationsPage() {
   const { user } = useAuth();

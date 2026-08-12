@@ -78,14 +78,10 @@ export default function FeedbackPage() {
     <div className="min-h-screen bg-offwhite">
       {/* Hero */}
       <section className="relative pt-8 pb-16 md:pt-12 md:pb-20 overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/placeholders/photo.svg"
-            alt="Feedback hero"
-            className="w-full h-full object-cover object-top"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/45 to-black/20" />
-        </div>
+        {/* Intentional brand gradient rather than a placeholder stock
+            photo -- nothing here pretends to be a real image. */}
+        <div className="absolute inset-0 bg-gradient-to-br from-charcoal via-charcoal to-brand-dark" />
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_20%_20%,white,transparent_45%)]" />
         <div className="relative z-10 w-full px-4 md:px-8 lg:px-12">
           <div className="max-w-2xl">
             <span className="inline-block px-4 py-1.5 bg-brand/80 text-white text-xs font-semibold rounded-full uppercase tracking-wide mb-4">

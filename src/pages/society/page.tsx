@@ -759,6 +759,34 @@ function SocietyHome({
             />
           )}
 
+          {/* A brand-new society is intentionally quiet -- most write
+              features are gated until a plan is bought and there are no
+              notices or members yet. Without this an admin lands on a page
+              that just looks broken; the guide turns the emptiness into a
+              set of next steps. Shown to admins until the plan is active. */}
+          {isAdmin && !isPaid && (
+            <div className="bg-brand/5 rounded-2xl border border-brand/15 p-6 sm:p-7">
+              <div className="flex items-center gap-2 mb-3">
+                <i className="ri-rocket-2-line text-brand" />
+                <h3 className="text-sm font-bold text-charcoal">Getting your society started</h3>
+              </div>
+              <ol className="space-y-2.5 text-sm text-charcoal/70">
+                <li className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-[11px] font-bold flex items-center justify-center mt-0.5">1</span>
+                  <span>Share the <strong>join code</strong> below with owners in your building — only verified owners can join.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-[11px] font-bold flex items-center justify-center mt-0.5">2</span>
+                  <span>Post your first <strong>notice</strong> — notices are free and reach every owner here.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand/15 text-brand text-[11px] font-bold flex items-center justify-center mt-0.5">3</span>
+                  <span>Start the <strong>society plan</strong> to open shared maintenance tickets and fund collections for everyone (see below).</span>
+                </li>
+              </ol>
+            </div>
+          )}
+
           {isAdmin && (
             <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <p className="text-sm font-semibold text-charcoal mb-1">Join code</p>

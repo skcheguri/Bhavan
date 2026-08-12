@@ -57,7 +57,7 @@ export default function AdminDashboard() {
     },
     {
       title: 'Listings Oversight',
-      count: 0,
+      count: overviewCounts?.activeListings ?? 0,
       icon: 'ri-home-gear-line',
       color: 'bg-teal-50 text-teal-600',
       to: '/admin/listings',
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
     },
     {
       title: 'Aadhaar Verification',
-      count: 0,
+      count: overviewCounts?.verifiedUsers ?? 0,
       icon: 'ri-shield-user-line',
       color: 'bg-amber-50 text-amber-600',
       to: '/admin/verification',
