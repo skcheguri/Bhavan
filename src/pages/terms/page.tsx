@@ -50,7 +50,7 @@ export default function Terms() {
             'You will honor the terms you advertise, including price, once you accept a tenant.',
           ]}
         />
-        <p className="mt-2">Whether you are an Owner or a Tenant, when using Bhavan (including listings, messages, reviews, and the Community Forum) you agree not to:</p>
+        <p className="mt-2">Whether you are an Owner or a Tenant, when using Bhavan (including listings, messages, reviews, and society notices) you agree not to:</p>
         <LegalList
           items={[
             'Post false, misleading, defamatory, or discriminatory content, including discrimination on the basis of religion, caste, gender, or community in violation of applicable law.',

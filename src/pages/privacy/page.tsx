@@ -19,8 +19,8 @@ export default function Privacy() {
         <p><strong>Listing and transaction data:</strong> property details and photos you publish, connection requests, scheduled visits,
           chat messages between an owner and tenant, rent payment records (amount, month, status, and payment method — not your card or bank
           details, which Razorpay handles directly), rental agreements, rent receipts, maintenance requests, and reviews.</p>
-        <p><strong>Community content:</strong> posts, comments, and reports you submit in the Community Forum, and feedback you submit through
-          the Feedback or Contact forms.</p>
+        <p><strong>Society content:</strong> if you join a society (apartment complex or villa community), the notices, polls, maintenance
+          issues, and fund contributions you post within it, and feedback you submit through the Feedback or Contact forms.</p>
         <p><strong>Device and usage data:</strong> to keep the platform safe from spam and fraud, some actions (like submitting a contact
           form, or repeated connection requests) are rate-limited using a device fingerprint derived from browser and device characteristics
           (screen size, timezone, browser/GPU details) and stored only in your browser, not tied to your identity unless you're signed in. See

@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, useCallback } from 'rea
 import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
 import { disableBiometricUnlock, enableBiometricUnlock, unlockWithBiometric } from '@/lib/biometricAuth';
 import { clearCacheForUser } from '@/lib/offlineCache';
+import { isNativePlatform, NATIVE_OAUTH_REDIRECT } from '@/lib/nativeOAuth';
 import { User } from '@supabase/supabase-js';
 
 export type UserRole = 'tenant' | 'owner' | 'admin' | null;
@@ -284,6 +285,23 @@ export function useAuthProvider(): AuthContextValue {
       window.localStorage.setItem(GOOGLE_PENDING_ROLE_KEY, role);
     } catch {
       // localStorage unavailable (e.g. private browsing) -- role intent is best-effort only
+    }
+
+    // Native: Google refuses its consent page inside the WebView, so open
+    // the provider URL in the system browser (Custom Tabs) and let the
+    // com.bhavan.app://auth/callback deep link bring the session back
+    // (handled by useNativeOAuthCallback). skipBrowserRedirect keeps
+    // supabase-js from trying to navigate the WebView itself.
+    if (isNativePlatform()) {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: NATIVE_OAUTH_REDIRECT, skipBrowserRedirect: true },
+      });
+      if (error) return { error: error.message };
+      if (!data?.url) return { error: 'Could not start Google sign-in.' };
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url: data.url });
+      return { error: null };
     }
 
     const { error } = await supabase.auth.signInWithOAuth({

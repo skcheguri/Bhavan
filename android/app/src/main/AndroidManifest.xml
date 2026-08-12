@@ -18,6 +18,20 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Google OAuth redirect. The consent page runs in the system
+                 browser (Google blocks it in the WebView); Supabase then
+                 redirects to com.bhavan.app://auth/callback, and this
+                 filter reopens the app on that URL. singleTask (above)
+                 delivers it to the running instance, where
+                 useNativeOAuthCallback establishes the session. The scheme
+                 must also be in Supabase's Redirect URL allow-list. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.bhavan.app" android:host="auth" />
+            </intent-filter>
         </activity>
 
         <provider

@@ -12,6 +12,7 @@ import { applyRouteSeo } from "./lib/seo";
 
 import { useNativeBackButton } from '@/hooks/useNativeBackButton';
 import { useNativePushRouting } from '@/hooks/useNativePushRouting';
+import { useNativeOAuthCallback } from '@/hooks/useNativeOAuthCallback';
 import OfflineBanner from '@/components/feature/OfflineBanner';
 
 function ScrollToTop() {
@@ -67,6 +68,9 @@ function AppShell() {
   // Foreground pushes and notification taps. App-wide, because a tap
   // that launches the app from cold must find its handler bound.
   useNativePushRouting();
+  // The Google OAuth redirect deep link. Same reason it's app-wide: the
+  // redirect can cold-start the app, and the handler must already be bound.
+  useNativeOAuthCallback();
 
   // /admin/login is a deliberately separate surface (see its own file
   // comment) -- it shouldn't sit under the consumer Navbar/Footer, which

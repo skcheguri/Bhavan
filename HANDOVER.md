@@ -522,9 +522,12 @@ it fails.
 
 ### 4.6 Smaller, real
 
-- **Source maps are published in production** (`vite.config.ts: sourcemap: true`).
-  Good for debugging, but it ships readable source. Decide deliberately;
-  the usual answer is to upload them to an error tracker instead.
+- ~~**Source maps are published in production.**~~ Fixed:
+  `vite.config.ts` now sets `build.sourcemap: false`, so a clean build
+  emits no `.map` files. Note: a stale local Android bundle
+  (`android/app/src/main/assets/public/assets/*.js.map`) may linger from
+  an earlier build — it's gitignored, but run `npm run cap:sync` before
+  packaging locally to purge it.
 - **Unused dependencies**: `@stripe/react-stripe-js` and `recharts` have
   zero source references. Remove them.
 - **`audit_logs` is dormant** — the table exists and nothing writes to it.
