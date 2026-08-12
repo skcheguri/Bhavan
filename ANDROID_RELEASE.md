@@ -34,6 +34,16 @@ the web.
   the browser tab, and hands off to the shared `/auth/callback` screen for
   the pending tenant/owner role reconciliation.
 
+**Verified on an emulator (Pixel_10, API 37):** the app builds, installs,
+and boots with the new `@capacitor/browser` plugin; tapping "Continue with
+Google" fires the native branch (`Browser.open` with the Supabase authorize
+URL + `redirect_to=com.bhavan.app://auth/callback`) and launches Chrome
+Custom Tabs — proving the WebView is no longer the surface Google blocks —
+and the `appUrlOpen` deep-link listener binds on boot. Dismissing the tab
+resets the button instead of leaving it spinning. **Not yet verified:** the
+consent → redirect → session round-trip, which needs a real Google login
+(and Chrome set up on the device).
+
 **What YOU must still do — it will not work until both are done:**
 1. **Supabase → Authentication → URL Configuration → Redirect URLs:** add
    `com.bhavan.app://auth/callback`. (Also fix the still-`localhost` Site

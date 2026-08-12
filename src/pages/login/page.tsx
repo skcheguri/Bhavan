@@ -62,9 +62,19 @@ export default function Login() {
       setGoogleError(error);
       setGoogleLoading(false);
     }
-    // On success the browser navigates away to Google immediately, so there's
-    // nothing further to do here -- /auth/callback picks up the session.
+    // On success: on web the page redirects to Google immediately; on native
+    // the consent opens in a Custom Tab and /auth/callback picks up the
+    // session via a deep link. Either way nothing more to do here.
   };
+
+  // Native only: if the user dismisses the Google Custom Tab without
+  // finishing, no deep link arrives, so reset the button rather than leave
+  // it spinning "Connecting to Google..." forever.
+  useEffect(() => {
+    const reset = () => setGoogleLoading(false);
+    window.addEventListener('bhavan:oauth-browser-closed', reset);
+    return () => window.removeEventListener('bhavan:oauth-browser-closed', reset);
+  }, []);
 
   // Forgot password modal state
   const [showForgot, setShowForgot] = useState(false);

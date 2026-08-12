@@ -27,7 +27,9 @@ export function useNativeOAuthCallback(): void {
 
     (async () => {
       const { App } = await import('@capacitor/app');
-      const handle = await App.addListener('appUrlOpen', async ({ url }) => {
+      const { Browser } = await import('@capacitor/browser');
+
+      const appHandle = await App.addListener('appUrlOpen', async ({ url }) => {
         const supabase = getSupabase();
         if (!supabase) return;
 
@@ -36,7 +38,6 @@ export function useNativeOAuthCallback(): void {
 
         // Close the Custom Tab left open behind the app.
         try {
-          const { Browser } = await import('@capacitor/browser');
           await Browser.close();
         } catch {
           // No open browser to close (or the plugin is unavailable) -- harmless.
@@ -48,11 +49,24 @@ export function useNativeOAuthCallback(): void {
         navigate(error ? `/auth/callback?error_description=${encodeURIComponent(error)}` : '/auth/callback');
       });
 
+      // If the user dismisses the Custom Tab without finishing (system back),
+      // no appUrlOpen ever fires, so the "Connecting to Google..." button
+      // would spin forever. Broadcast the close so the sign-in screens can
+      // reset. On the success path the deep link has already navigated away,
+      // so this is a harmless no-op there.
+      const browserHandle = await Browser.addListener('browserFinished', () => {
+        window.dispatchEvent(new CustomEvent('bhavan:oauth-browser-closed'));
+      });
+
       if (cancelled) {
-        handle.remove();
+        appHandle.remove();
+        browserHandle.remove();
         return;
       }
-      remove = () => handle.remove();
+      remove = () => {
+        appHandle.remove();
+        browserHandle.remove();
+      };
     })();
 
     return () => {
