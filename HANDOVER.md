@@ -201,6 +201,17 @@ modes is a secrets change, not a code change.
   it is dead code. To use it in staging:
   `npx supabase secrets set AADHAAR_OTP_TEST_CODE=123456 AADHAAR_MODE=otp --project-ref <ref>`
 
+- **What verification actually gates.** Server-side, `verified_aadhaar`
+  gates exactly one thing: **listing creation** (migration 136 trigger —
+  the anti-broker gate belongs on the person putting up property).
+  Contacting owners (connection requests), property visits, and signing
+  rental agreements are gated on *other* conditions — an approved
+  connection, party identity and signing order — but deliberately **not**
+  on `verified_aadhaar`. Requiring Aadhaar just to inquire would add heavy
+  friction for no anti-broker benefit. If the product later wants identity
+  at the legal step, the agreement flow (migration 137) is where to add
+  it; today it isn't there by choice, not by omission.
+
 **Phone OTP — hook written, account not connected.** `send-sms-hook`
 delivers Supabase-generated OTPs via MSG91 (Supabase natively supports
 only Twilio/MessageBird/Vonage). Needs an MSG91 account, DLT template
