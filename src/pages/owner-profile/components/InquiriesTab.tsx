@@ -37,12 +37,14 @@ interface RequestCardProps {
   onApprove: (id: string) => void;
   onDecline: (id: string) => void;
   onOpenChat?: (id: string) => void;
+  onToggleTenant: (id: string, confirmed: boolean) => Promise<void>;
 }
 
-function RequestCard({ request, onApprove, onDecline, onOpenChat }: RequestCardProps) {
+function RequestCard({ request, onApprove, onDecline, onOpenChat, onToggleTenant }: RequestCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [confirmingTenant, setConfirmingTenant] = useState(false);
   const { user } = useAuth();
   const { addToast } = useToast();
 
@@ -157,24 +159,58 @@ function RequestCard({ request, onApprove, onDecline, onOpenChat }: RequestCardP
           )}
 
           {request.status === 'approved' && (
-            <div className="flex items-center gap-2 mt-4 flex-wrap">
-              <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
-                <i className="ri-checkbox-circle-fill text-sm" />
-                Approved — Chat unlocked
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+                  <i className="ri-checkbox-circle-fill text-sm" />
+                  Approved — Chat unlocked
+                </div>
+                <button
+                  onClick={() => onOpenChat?.(request.id)}
+                  className="ml-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <i className="ri-message-3-line text-sm" /> Open Chat
+                </button>
+                <button
+                  onClick={() => setReportOpen(true)}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full border border-red-100 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
+                  title="Report as broker"
+                >
+                  <i className="ri-flag-line text-sm" />
+                </button>
               </div>
-              <button
-                onClick={() => onOpenChat?.(request.id)}
-                className="ml-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap"
-              >
-                <i className="ri-message-3-line text-sm" /> Open Chat
-              </button>
-              <button
-                onClick={() => setReportOpen(true)}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-full border border-red-100 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
-                title="Report as broker"
-              >
-                <i className="ri-flag-line text-sm" />
-              </button>
+
+              {/* Confirm this contact as the actual tenant. Feeds the
+                  agreement & rent-receipt tenant pickers -- it does not
+                  create a tenancy on its own (that's the signed agreement). */}
+              <div className="flex items-center gap-2 flex-wrap border-t border-black/5 pt-3">
+                {request.tenantConfirmedAt ? (
+                  <>
+                    <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-brand/10 text-brand">
+                      <i className="ri-user-star-line text-[11px]" /> Confirmed tenant
+                    </span>
+                    <button
+                      onClick={async () => { setConfirmingTenant(true); await onToggleTenant(request.id, false); setConfirmingTenant(false); }}
+                      disabled={confirmingTenant}
+                      className="text-xs font-medium text-charcoal/40 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={async () => { setConfirmingTenant(true); await onToggleTenant(request.id, true); setConfirmingTenant(false); }}
+                      disabled={confirmingTenant}
+                      className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-full border border-brand/30 text-xs font-semibold text-brand hover:bg-brand/5 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                    >
+                      {confirmingTenant ? <i className="ri-loader-4-line animate-spin text-sm" /> : <i className="ri-user-add-line text-sm" />}
+                      Confirm as tenant
+                    </button>
+                    <span className="text-[11px] text-charcoal/40 leading-snug">Adds them to your agreement &amp; rent-receipt tenant list.</span>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
@@ -394,9 +430,18 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
   const [filter, setFilter] = useState<RequestStatus | 'all'>('all');
   const [showConfirm, setShowConfirm] = useState<{ id: string; action: 'approve' | 'decline' } | null>(null);
   const { user } = useAuth();
-  const { requests, loading, updateStatus } = useOwnerConnectionRequests(user?.id);
+  const { requests, loading, updateStatus, confirmTenant } = useOwnerConnectionRequests(user?.id);
   const { inquiry, recordInquiry } = useOwnerRateLimit(user?.id);
   const { addToast } = useToast();
+
+  const handleToggleTenant = async (id: string, confirmed: boolean) => {
+    const { error } = await confirmTenant(id, confirmed);
+    if (error) {
+      addToast(error, 'error');
+      return;
+    }
+    addToast(confirmed ? 'Confirmed as your tenant.' : 'Removed from your tenants.', 'success');
+  };
 
   const filtered = filter === 'all' ? requests : requests.filter((r) => r.status === filter);
   const pendingCount = requests.filter((r) => r.status === 'pending').length;
@@ -544,6 +589,7 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
               onApprove={handleApprove}
               onDecline={handleDecline}
               onOpenChat={onOpenChat}
+              onToggleTenant={handleToggleTenant}
             />
           ))}
         </div>

@@ -29,10 +29,14 @@ export interface ConnectionRequest {
   ownerId: string;
   ownerName: string;
   ownerAvatar: string | null;
+  // Set when the owner has confirmed this approved contact as their tenant.
+  // A label/shortlist marker only -- the signed agreement, not this, is
+  // what marks an active tenancy.
+  tenantConfirmedAt: string | null;
 }
 
 const CONNECTION_REQUEST_SELECT =
-  'id, tenant_id, owner_id, listing_id, listing_title, listing_location, listing_price, message, status, created_at, responded_at, scanned_via_qr, move_in_date, occupation, tenant:users_public!connection_requests_tenant_id_fkey(name, avatar_url), owner:users_public!connection_requests_owner_id_fkey(name, avatar_url)';
+  'id, tenant_id, owner_id, listing_id, listing_title, listing_location, listing_price, message, status, created_at, responded_at, scanned_via_qr, move_in_date, occupation, tenant_confirmed_at, tenant:users_public!connection_requests_tenant_id_fkey(name, avatar_url), owner:users_public!connection_requests_owner_id_fkey(name, avatar_url)';
 
 export function mapFromDb(row: Record<string, unknown>): ConnectionRequest {
   const tenant = (row.tenant ?? {}) as Record<string, unknown>;
@@ -58,6 +62,7 @@ export function mapFromDb(row: Record<string, unknown>): ConnectionRequest {
     ownerId: String(row.owner_id ?? ''),
     ownerName: owner.name ? String(owner.name) : 'Unknown',
     ownerAvatar: owner.avatar_url ? String(owner.avatar_url) : null,
+    tenantConfirmedAt: row.tenant_confirmed_at ? String(row.tenant_confirmed_at) : null,
   };
 }
 
@@ -133,7 +138,29 @@ export function useOwnerConnectionRequests(ownerId: string | undefined) {
     [ownerId],
   );
 
-  return { requests, loading, error, updateStatus, refresh: fetch };
+  // Confirm (or un-confirm) an approved contact as the owner's tenant.
+  // A shortlist/label only -- feeds the agreement & rent-receipt tenant
+  // pickers; does not touch occupancy or any tenancy source of truth.
+  const confirmTenant = useCallback(
+    async (requestId: string, confirmed: boolean): Promise<{ error: string | null }> => {
+      const supabase = getSupabase();
+      if (!supabase) return { error: 'Not available right now.' };
+      const { error: dbError } = await supabase.rpc('set_connection_tenant', {
+        p_request_id: requestId,
+        p_confirmed: confirmed,
+      });
+      if (dbError) return { error: dbError.message };
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestId ? { ...r, tenantConfirmedAt: confirmed ? new Date().toISOString() : null } : r,
+        ),
+      );
+      return { error: null };
+    },
+    [],
+  );
+
+  return { requests, loading, error, updateStatus, confirmTenant, refresh: fetch };
 }
 
 export function useTenantConnectionRequests(tenantId: string | undefined) {

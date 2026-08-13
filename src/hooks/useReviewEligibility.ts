@@ -13,7 +13,10 @@ export function useOwnerEligibleTenants(ownerId: string | undefined) {
   const { requests, loading } = useOwnerConnectionRequests(ownerId);
 
   const contacts = useMemo<EligibleContact[]>(() => {
-    const approved = requests.filter((r) => r.status === 'approved');
+    // Only contacts the owner has explicitly confirmed as their tenant --
+    // not every approved chat. The confirm step lives on the approved
+    // inquiry (owner Inquiries tab). Manual entry covers anyone not here.
+    const approved = requests.filter((r) => r.status === 'approved' && r.tenantConfirmedAt);
     const byId = new Map<string, EligibleContact>();
     for (const r of approved) {
       if (!byId.has(r.prospectId)) {

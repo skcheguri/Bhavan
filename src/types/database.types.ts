@@ -1181,6 +1181,7 @@ export type Database = {
           responded_at: string | null
           scanned_via_qr: boolean | null
           status: string | null
+          tenant_confirmed_at: string | null
           tenant_id: string
         }
         Insert: {
@@ -1197,6 +1198,7 @@ export type Database = {
           responded_at?: string | null
           scanned_via_qr?: boolean | null
           status?: string | null
+          tenant_confirmed_at?: string | null
           tenant_id: string
         }
         Update: {
@@ -1213,6 +1215,7 @@ export type Database = {
           responded_at?: string | null
           scanned_via_qr?: boolean | null
           status?: string | null
+          tenant_confirmed_at?: string | null
           tenant_id?: string
         }
         Relationships: [
@@ -3576,6 +3579,10 @@ export type Database = {
       }
       share_rental_agreement: {
         Args: { p_agreement_id: string }
+        Returns: undefined
+      }
+      set_connection_tenant: {
+        Args: { p_request_id: string; p_confirmed: boolean }
         Returns: undefined
       }
       admin_get_user: {

@@ -177,19 +177,19 @@ export default function RentReceiptsPage() {
                       onChange={(e) => applyTenant(e.target.value)}
                       className="w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer"
                     >
-                      <option value="">Select from your approved tenants</option>
+                      <option value="">Select from your confirmed tenants</option>
                       {eligibleTenants.map((c) => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
-                    {eligibleTenants.length === 0 && <p className="text-xs text-charcoal/40 mt-2">No approved tenant connections yet.</p>}
+                    {eligibleTenants.length === 0 && <p className="text-xs text-charcoal/40 mt-2">No confirmed tenants yet. Confirm an approved contact as your tenant from Profile → Inquiries, or enter details manually.</p>}
                     <button type="button" onClick={() => setManualTenant(true)} className="text-xs text-amber-600 font-medium hover:text-amber-700 mt-2 cursor-pointer">
                       Enter tenant details manually instead
                     </button>
                   </>
                 ) : (
                   <button type="button" onClick={() => { setManualTenant(false); setSelectedTenantId(''); }} className="text-xs text-amber-600 font-medium hover:text-amber-700 mb-3 cursor-pointer">
-                    ← Choose from approved tenants instead
+                    ← Choose from confirmed tenants instead
                   </button>
                 )}
                 <div className="grid grid-cols-2 gap-4 mt-3">
