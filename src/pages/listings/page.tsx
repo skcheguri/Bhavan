@@ -112,6 +112,21 @@ export default function Listings() {
     setSearchOriginLabel(null);
   };
 
+  // Clear everything back to a plain browse: the text query, every filter
+  // dropdown (both the draft inputs and what's currently applied), and any
+  // "near me" origin. The category tab is left alone -- it's a separate
+  // navigation choice, not one of the filters this resets.
+  const resetFilters = () => {
+    setDraft(DEFAULT_FILTERS);
+    setApplied(DEFAULT_FILTERS);
+    clearSearchOrigin();
+  };
+
+  const filtersAreDefault =
+    JSON.stringify(draft) === JSON.stringify(DEFAULT_FILTERS) &&
+    JSON.stringify(applied) === JSON.stringify(DEFAULT_FILTERS) &&
+    !searchOrigin;
+
   useEffect(() => {
     const cat = searchParams.get('category');
     if (cat === 'vacation' || cat === 'residential' || cat === 'commercial') {
@@ -522,8 +537,17 @@ export default function Listings() {
               </select>
 
               <button
+                type="button"
+                onClick={resetFilters}
+                disabled={filtersAreDefault}
+                className="col-span-2 sm:col-span-1 sm:ml-auto flex items-center justify-center gap-2 px-4 py-2 text-xs sm:px-6 sm:py-2.5 sm:text-sm rounded-xl font-semibold border border-black/10 text-charcoal/70 bg-white hover:bg-lightgray transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <i className="ri-refresh-line" /> Reset Filters
+              </button>
+
+              <button
                 type="submit"
-                className={`col-span-2 sm:col-span-1 sm:ml-auto flex items-center justify-center gap-2 px-4 py-2 text-xs sm:px-6 sm:py-2.5 sm:text-sm rounded-xl font-semibold text-white transition-colors cursor-pointer whitespace-nowrap ${
+                className={`col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-4 py-2 text-xs sm:px-6 sm:py-2.5 sm:text-sm rounded-xl font-semibold text-white transition-colors cursor-pointer whitespace-nowrap ${
                   isVacation ? 'bg-sage hover:bg-sage-dark' : 'bg-brand hover:bg-brand-dark'
                 }`}
               >
