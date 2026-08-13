@@ -72,21 +72,26 @@ function AppShell() {
   // redirect can cold-start the app, and the handler must already be bound.
   useNativeOAuthCallback();
 
-  // /admin/login is a deliberately separate surface (see its own file
-  // comment) -- it shouldn't sit under the consumer Navbar/Footer, which
-  // would visually contradict its own dedicated sign-in form.
+  // Surfaces that shouldn't sit under the consumer Navbar/Footer.
+  // /admin/login and the MFA screens are their own dedicated sign-in forms;
+  // /auth/callback is a transient finishing step (and its new-user role
+  // picker must not show the navbar's defaulted "Tenant" badge while it's
+  // still asking the person to choose a role).
   const { pathname } = useLocation();
-  const isStandaloneAdminLogin =
-    pathname === '/admin/login' || pathname === '/admin/mfa-setup' || pathname === '/admin/mfa-challenge';
+  const isStandaloneSurface =
+    pathname === '/admin/login' ||
+    pathname === '/admin/mfa-setup' ||
+    pathname === '/admin/mfa-challenge' ||
+    pathname === '/auth/callback';
 
   return (
     <div className="min-h-screen flex flex-col">
       <OfflineBanner />
-      {!isStandaloneAdminLogin && <Navbar />}
+      {!isStandaloneSurface && <Navbar />}
       <main className="flex-1">
         <RoutesWithErrorBoundary />
       </main>
-      {!isStandaloneAdminLogin && <Footer />}
+      {!isStandaloneSurface && <Footer />}
       <ToastContainer />
     </div>
   );
