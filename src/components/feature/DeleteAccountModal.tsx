@@ -45,8 +45,9 @@ export default function DeleteAccountModal({ onClose }: Props) {
         </div>
         <div className="p-5">
           <p className="text-sm text-charcoal/70 leading-relaxed">
-            This happens immediately and can't be undone. Your profile — name, email, phone, date of birth, occupation, address and
-            Aadhaar details — is permanently erased, your listings are taken down, and you're signed out right away.
+            This happens immediately and can't be undone. Your profile — name, email, phone, date of birth, occupation, address,
+            Aadhaar details and any saved payout bank/UPI details — is permanently erased, your listings are taken down, and you're
+            signed out right away.
           </p>
           <p className="text-sm text-charcoal/70 leading-relaxed mt-3">
             One exception, so you know exactly what remains: signed rental agreements and rent receipts are legal and tax records the
@@ -54,8 +55,9 @@ export default function DeleteAccountModal({ onClose }: Props) {
             documents</strong> — they're what identifies the parties to the agreement. Everywhere else you'll appear as "Deleted User".
           </p>
           <p className="text-sm text-charcoal/70 leading-relaxed mt-3">
-            If you have a lease still running, end or transfer it first — we'll block deletion so your landlord or tenant isn't left
-            without a contactable counterparty.
+            If you have a lease still running, or a vacation booking that's still active or holds money that hasn't been settled yet,
+            end or complete it first — we'll block deletion so no one is left with an uncontactable counterparty and no payment is
+            stranded.
           </p>
           <div className="mt-5">
             <label htmlFor="delete-confirm-input" className="block text-xs font-semibold text-charcoal/60 mb-1.5">
