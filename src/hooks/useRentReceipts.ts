@@ -90,52 +90,64 @@ export function useRentReceipts(ownerId: string | undefined) {
       const supabase = getSupabase();
       if (!supabase) return { error: 'Supabase not connected' };
 
-      const { data, error } = await supabase
-        .from('rent_receipts')
-        .insert({
-          owner_id: payload.ownerId,
-          tenant_id: payload.tenantId ?? null,
-          listing_id: payload.listingId ?? null,
-          receipt_number: payload.receiptNumber,
-          landlord_name: payload.landlordName,
-          landlord_pan: payload.landlordPan,
-          landlord_address: payload.landlordAddress,
-          tenant_name: payload.tenantName,
-          tenant_pan: payload.tenantPan,
-          property_address: payload.propertyAddress,
-          period_from: payload.periodFrom || null,
-          period_to: payload.periodTo || null,
-          rent_amount: Math.round(payload.rentAmount),
-          payment_mode: payload.paymentMode,
-          transaction_ref: payload.transactionRef,
-          payment_date: payload.paymentDate || null,
-          includes_maintenance: payload.includesMaintenance,
-          maintenance_amount: Math.round(payload.maintenanceAmount) || 0,
-          notes: payload.notes,
-          // Issuing a receipt is the landlord signing it.
-          signed_by_landlord: true,
-          landlord_signed_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
+      const baseRow = {
+        owner_id: payload.ownerId,
+        tenant_id: payload.tenantId ?? null,
+        listing_id: payload.listingId ?? null,
+        landlord_name: payload.landlordName,
+        landlord_pan: payload.landlordPan,
+        landlord_address: payload.landlordAddress,
+        tenant_name: payload.tenantName,
+        tenant_pan: payload.tenantPan,
+        property_address: payload.propertyAddress,
+        period_from: payload.periodFrom || null,
+        period_to: payload.periodTo || null,
+        rent_amount: Math.round(payload.rentAmount),
+        payment_mode: payload.paymentMode,
+        transaction_ref: payload.transactionRef,
+        payment_date: payload.paymentDate || null,
+        includes_maintenance: payload.includesMaintenance,
+        maintenance_amount: Math.round(payload.maintenanceAmount) || 0,
+        notes: payload.notes,
+        // Issuing a receipt is the landlord signing it.
+        signed_by_landlord: true,
+        landlord_signed_at: new Date().toISOString(),
+      };
 
-      if (error) return { error: error.message };
+      // The receipt number is 4 random digits; on the rare unique collision
+      // (23505) regenerate and retry rather than dumping a raw Postgres
+      // duplicate-key string on the owner mid-way through a legal document.
+      let receiptNumber = payload.receiptNumber;
+      let result = await supabase.from('rent_receipts').insert({ ...baseRow, receipt_number: receiptNumber }).select('id').single();
+      for (let attempt = 0; attempt < 4 && result.error?.code === '23505'; attempt++) {
+        receiptNumber = generateReceiptNumber();
+        result = await supabase.from('rent_receipts').insert({ ...baseRow, receipt_number: receiptNumber }).select('id').single();
+      }
+
+      if (result.error) return { error: result.error.message };
       await refresh();
-      return { error: null, id: data?.id };
+      return { error: null, id: result.data?.id };
     },
     [refresh]
   );
 
-  const markShared = useCallback(async (receiptId: string) => {
+  const markShared = useCallback(async (receiptId: string): Promise<{ error: string | null }> => {
     const supabase = getSupabase();
-    if (!supabase) return;
-    await supabase
+    if (!supabase) return { error: 'Not connected to the database.' };
+    // Confirm the share actually persisted before flipping the badge or
+    // reporting success: a zero-row update (RLS, or no longer this owner's)
+    // must not show "Shared with Tenant" while the tenant gets nothing.
+    const { data, error } = await supabase
       .from('rent_receipts')
       .update({ sent_to_tenant: true, sent_at: new Date().toISOString() })
-      .eq('id', receiptId);
+      .eq('id', receiptId)
+      .select('id');
+    if (error) return { error: error.message };
+    if (!data || data.length === 0) return { error: 'This receipt could not be shared — it may no longer be yours.' };
     const { error: notifyError } = await supabase.rpc('notify_receipt_shared', { p_receipt_id: receiptId });
     if (notifyError) console.warn('notify_receipt_shared failed:', notifyError.message);
     setReceipts((prev) => prev.map((r) => (r.id === receiptId ? { ...r, sentToTenant: true, sentAt: new Date().toISOString() } : r)));
+    return { error: null };
   }, []);
 
   return { receipts, loading, fetchError, create, markShared, refresh };

@@ -87,6 +87,20 @@ Deno.serve(async (req) => {
       return json({ error: "Pro plans are available to property owners only." }, 403);
     }
 
+    // Already-Pro guard (defense in depth behind the disabled "Current Plan"
+    // button): an owner with a live Pro subscription must not be able to buy
+    // a second one and be charged again.
+    if (plan === "pro_monthly" || plan === "pro_annual") {
+      const { data: sub } = await serviceClient
+        .from("owner_subscriptions")
+        .select("status, current_period_end")
+        .eq("owner_id", userId)
+        .maybeSingle();
+      if (sub && sub.status === "active" && sub.current_period_end && new Date(sub.current_period_end) > new Date()) {
+        return json({ error: "You already have an active Pro plan." }, 409);
+      }
+    }
+
     const baseRupees = pricing.baseRupees;
     const gstRupees = Math.round(baseRupees * 0.18);
     const totalRupees = baseRupees + gstRupees;

@@ -43,7 +43,7 @@ function leaseCountdown(leaseEndDate: string, noticePeriodDays: number) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const daysLeft = Math.max(0, Math.round((end.getTime() - today.getTime()) / 86400000));
-  const monthsLeft = Math.max(0, Math.round(daysLeft / 30));
+  const monthsLeft = Math.max(0, Math.floor(daysLeft / 30));
   const renewBy = new Date(end);
   renewBy.setDate(renewBy.getDate() - (noticePeriodDays || 30));
   return {

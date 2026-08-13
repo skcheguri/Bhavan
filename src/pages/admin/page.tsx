@@ -21,6 +21,9 @@ interface AdminCard {
   to: string;
   description: string;
   alertLabel?: string;
+  // Noun after the count in the badge. Defaults to "pending"; set it where
+  // the count isn't a pending queue (active listings, verified users, etc.).
+  countLabel?: string;
 }
 
 export default function AdminDashboard() {
@@ -54,6 +57,7 @@ export default function AdminDashboard() {
       color: 'bg-charcoal/10 text-charcoal',
       to: '/admin/users',
       description: 'Search accounts, review verification status, suspend or reactivate users.',
+      countLabel: 'suspended',
     },
     {
       title: 'Listings Oversight',
@@ -62,6 +66,7 @@ export default function AdminDashboard() {
       color: 'bg-teal-50 text-teal-600',
       to: '/admin/listings',
       description: 'Search every listing on the platform and take down policy violations.',
+      countLabel: 'active',
     },
     {
       title: 'Support Inquiries',
@@ -102,6 +107,7 @@ export default function AdminDashboard() {
       color: 'bg-amber-50 text-amber-600',
       to: '/admin/verification',
       description: 'Audit log of automated Aadhaar e-KYC attempts (auto-verified via provider, no action needed).',
+      countLabel: 'verified',
     },
     {
       title: 'Property Verification',
@@ -134,6 +140,7 @@ export default function AdminDashboard() {
       color: 'bg-lightgray text-charcoal/60',
       to: '/admin/purged-accounts',
       description: 'Record of unconfirmed signups auto-removed after 30 days by the daily cleanup job.',
+      countLabel: 'purged',
     },
     {
       title: 'Host Payouts',
@@ -158,6 +165,7 @@ export default function AdminDashboard() {
       color: 'bg-purple-50 text-purple-600',
       to: '/admin/broker-reports',
       description: 'View and manage active account restrictions.',
+      countLabel: 'active',
     },
     {
       title: 'Security',
@@ -237,7 +245,7 @@ export default function AdminDashboard() {
                   ) : (
                     card.count > 0 && (
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
-                        {card.count} pending
+                        {card.count} {card.countLabel ?? 'pending'}
                       </span>
                     )
                   )}

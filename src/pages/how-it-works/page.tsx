@@ -89,7 +89,7 @@ const tenantSteps = [
     number: '02',
     icon: 'ri-shield-check-line',
     title: 'Verify Your Aadhaar',
-    desc: 'Complete Aadhaar OTP verification to unlock full access — contact owners, schedule visits, and sign rental agreements in your verified name.',
+    desc: 'Owners verify with Aadhaar to list a property; for tenants it is optional but recommended, and puts your verified name on the agreements you sign.',
     color: 'bg-green-50 text-green-600',
   },
   {
@@ -125,7 +125,7 @@ const tenantSteps = [
 const faqs = [
   {
     q: 'Is Aadhaar verification mandatory?',
-    a: 'Yes. Aadhaar verification is required for both owners (to list) and tenants (to contact owners and schedule visits). This ensures only genuine individuals use the platform.',
+    a: 'Owners must verify with Aadhaar to list a property. For tenants it is optional but recommended — it builds trust with owners and puts your verified name on any agreement you sign.',
   },
   {
     q: 'Can brokers or agents list properties?',

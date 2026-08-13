@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { todayLocalISO } from '@/lib/localDate';
 import { useParams, Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useListingDetail } from '@/hooks/useListingDetail';
@@ -127,7 +128,7 @@ export default function ListingDetail() {
     '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM',
   ];
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocalISO();
 
   const handleVisitSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantRentReceipts } from '@/hooks/useRentReceipts';
@@ -43,6 +43,7 @@ function OwnerTaxView({ userName }: { userName: string }) {
   const [selectedYear, setSelectedYear] = useState('2025-26');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [addError, setAddError] = useState('');
 
   const [newProp, setNewProp] = useState<Partial<PropertyIncome>>({
     coOwned: false,
@@ -54,7 +55,11 @@ function OwnerTaxView({ userName }: { userName: string }) {
   };
 
   const handleAddProperty = () => {
-    if (!newProp.propertyName || !newProp.annualRent) return;
+    if (!newProp.propertyName || !newProp.annualRent) {
+      setAddError('Enter at least a property name and annual rent.');
+      return;
+    }
+    setAddError('');
     const prop: PropertyIncome = {
       id: `prop-${Date.now()}`,
       propertyName: newProp.propertyName || '',
@@ -76,7 +81,30 @@ function OwnerTaxView({ userName }: { userName: string }) {
     setProperties((prev) => prev.filter((p) => p.id !== id));
   };
 
+  // Persist the Schedule-HP draft so "Draft saved successfully" is true and
+  // the entered properties survive a reload (they lived only in useState).
+  const draftLoadedRef = useRef(false);
+  useEffect(() => {
+    if (draftLoadedRef.current || !user?.id) return;
+    draftLoadedRef.current = true;
+    try {
+      const raw = localStorage.getItem(`bhavan_tax_hp_${user.id}`);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed) && parsed.length) setProperties(parsed);
+    } catch {
+      // ignore a corrupt draft
+    }
+  }, [user?.id]);
+
   const handleSaveDraft = () => {
+    if (user?.id) {
+      try {
+        localStorage.setItem(`bhavan_tax_hp_${user.id}`, JSON.stringify(properties));
+      } catch {
+        // storage full / unavailable -- the banner below would over-promise,
+        // but there's nothing actionable to show here beyond not persisting.
+      }
+    }
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
   };
@@ -88,7 +116,9 @@ function OwnerTaxView({ userName }: { userName: string }) {
     const standardDeduction = netAnnualValue * 0.30;
     const interestOnLoan = parseNum(p.interestOnLoan);
     const incomeFromHouse = netAnnualValue - standardDeduction - interestOnLoan;
-    const share = parseNum(p.ownershipShare) / 100;
+    // Clamp to 0-100%: the input's min/max attrs don't constrain typed
+    // values, and a stray 500 would otherwise inflate the share of income 5x.
+    const share = Math.min(1, Math.max(0, parseNum(p.ownershipShare) / 100));
     const shareOfIncome = incomeFromHouse * share;
     return { ...p, grossRent, municipalTaxes, netAnnualValue, standardDeduction, interestOnLoan, incomeFromHouse, shareOfIncome };
   });
@@ -100,27 +130,46 @@ function OwnerTaxView({ userName }: { userName: string }) {
   const totalStandardDeduction = computations.reduce((sum, c) => sum + c.standardDeduction, 0);
   const totalInterestOnLoan = computations.reduce((sum, c) => sum + c.interestOnLoan, 0);
 
+  // New-regime slabs and §87A rebate by financial year. The FY selector now
+  // drives these (it was previously inert), the slabs match the chosen year
+  // instead of being hardcoded to FY 2024-25, and the §87A rebate is applied
+  // — so net HP income within the rebate threshold correctly shows ₹0.
+  const FY_TAX: Record<string, { slabs: { upTo: number; rate: number }[]; rebateLimit: number; rebateMax: number }> = {
+    '2023-24': {
+      slabs: [
+        { upTo: 300000, rate: 0 }, { upTo: 600000, rate: 0.05 }, { upTo: 900000, rate: 0.10 },
+        { upTo: 1200000, rate: 0.15 }, { upTo: 1500000, rate: 0.20 }, { upTo: Infinity, rate: 0.30 },
+      ],
+      rebateLimit: 700000, rebateMax: 25000,
+    },
+    '2024-25': {
+      slabs: [
+        { upTo: 300000, rate: 0 }, { upTo: 700000, rate: 0.05 }, { upTo: 1000000, rate: 0.10 },
+        { upTo: 1200000, rate: 0.15 }, { upTo: 1500000, rate: 0.20 }, { upTo: Infinity, rate: 0.30 },
+      ],
+      rebateLimit: 700000, rebateMax: 25000,
+    },
+    '2025-26': {
+      slabs: [
+        { upTo: 400000, rate: 0 }, { upTo: 800000, rate: 0.05 }, { upTo: 1200000, rate: 0.10 },
+        { upTo: 1600000, rate: 0.15 }, { upTo: 2000000, rate: 0.20 }, { upTo: 2400000, rate: 0.25 },
+        { upTo: Infinity, rate: 0.30 },
+      ],
+      rebateLimit: 1200000, rebateMax: 60000,
+    },
+  };
+
   const taxableIncome = Math.max(0, totalIncome);
-  let taxLiability = 0;
-  if (taxableIncome > 300000) {
-    const slabs = [
-      { limit: 300000, rate: 0 },
-      { limit: 700000, rate: 0.05 },
-      { limit: 1000000, rate: 0.10 },
-      { limit: 1200000, rate: 0.15 },
-      { limit: 1500000, rate: 0.20 },
-      { limit: Infinity, rate: 0.30 },
-    ];
-    let remaining = taxableIncome;
-    let prevLimit = 0;
-    for (const slab of slabs) {
-      const taxableInSlab = Math.min(remaining, slab.limit - prevLimit);
-      if (taxableInSlab <= 0) break;
-      taxLiability += taxableInSlab * slab.rate;
-      remaining -= taxableInSlab;
-      prevLimit = slab.limit;
-    }
+  const fyTax = FY_TAX[selectedYear] ?? FY_TAX['2025-26'];
+  let grossTax = 0;
+  let prevLimit = 0;
+  for (const slab of fyTax.slabs) {
+    if (taxableIncome <= prevLimit) break;
+    grossTax += (Math.min(taxableIncome, slab.upTo) - prevLimit) * slab.rate;
+    prevLimit = slab.upTo;
   }
+  const rebate = taxableIncome <= fyTax.rebateLimit ? Math.min(grossTax, fyTax.rebateMax) : 0;
+  const taxLiability = Math.max(0, grossTax - rebate);
   const cess = taxLiability * 0.04;
   const totalTax = taxLiability + cess;
 
@@ -532,7 +581,8 @@ function OwnerTaxView({ userName }: { userName: string }) {
               )}
             </div>
             <div className="p-5 border-t border-black/5 flex items-center justify-end gap-3">
-              <button onClick={() => setShowAddModal(false)} className="px-5 py-2.5 rounded-full border border-black/10 text-sm font-medium text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
+              {addError && <p className="text-xs text-red-500 font-medium mr-auto">{addError}</p>}
+              <button onClick={() => { setShowAddModal(false); setAddError(''); }} className="px-5 py-2.5 rounded-full border border-black/10 text-sm font-medium text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
               <button onClick={handleAddProperty} className="px-5 py-2.5 rounded-full bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap">Add Property</button>
             </div>
           </div>
@@ -554,7 +604,22 @@ function TenantTaxView({ userName }: { userName: string }) {
   const { agreements: tenantAgreements } = useTenantRentalAgreements(user?.id);
   const { receipts: tenantReceipts } = useTenantRentReceipts(user?.id);
   const agreement = tenantAgreements[0];
-  const yearlyRent = tenantReceipts.reduce((sum, r) => sum + r.rentAmount, 0);
+
+  // The summary is for the most recently completed Indian FY (Apr 1 - Mar 31)
+  // -- the one you file for. Receipts from other years must not be summed in,
+  // or a second-year tenant sees roughly double what they can claim.
+  const now = new Date();
+  const curFyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const fyStartYear = curFyStartYear - 1;
+  const fyFrom = new Date(fyStartYear, 3, 1);
+  const fyTo = new Date(fyStartYear + 1, 2, 31, 23, 59, 59);
+  const fyLabel = `${fyStartYear}-${String((fyStartYear + 1) % 100).padStart(2, '0')}`;
+  const fyReceipts = tenantReceipts.filter((r) => {
+    if (!r.periodFrom) return false;
+    const d = new Date(`${r.periodFrom}T00:00:00`);
+    return d >= fyFrom && d <= fyTo;
+  });
+  const yearlyRent = fyReceipts.reduce((sum, r) => sum + r.rentAmount, 0);
 
   const calculateHRA = () => {
     const basic = parseNum(hraInputs.basicSalary);
@@ -749,7 +814,7 @@ function TenantTaxView({ userName }: { userName: string }) {
               <div className="w-6 h-6 flex items-center justify-center">
                 <i className="ri-file-list-3-line text-brand" />
               </div>
-              Rent Payment Summary (FY 2025-26)
+              Rent Payment Summary (FY {fyLabel})
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px]">
@@ -764,14 +829,14 @@ function TenantTaxView({ userName }: { userName: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {tenantReceipts.length === 0 && (
+                  {fyReceipts.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-sm text-charcoal/40">
-                        No rent receipts on file yet.
+                        No rent receipts on file for FY {fyLabel}.
                       </td>
                     </tr>
                   )}
-                  {tenantReceipts.map((rcpt) => (
+                  {fyReceipts.map((rcpt) => (
                     <tr key={rcpt.id} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
                       <td className="px-4 py-3.5 text-sm font-medium text-charcoal">
                         {rcpt.periodFrom ? new Date(rcpt.periodFrom).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '—'}

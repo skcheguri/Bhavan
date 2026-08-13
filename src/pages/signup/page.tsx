@@ -561,7 +561,7 @@ export default function Signup() {
               <div>
                 <p className="text-sm font-semibold text-green-800">Verify with Aadhaar after signing up</p>
                 <p className="text-xs text-green-700 mt-0.5 leading-relaxed">
-                  Aadhaar verification is required to contact owners and sign rental agreements. It takes under 60 seconds.
+                  Owners need Aadhaar verification to list a property. For tenants it's optional but recommended — it builds trust and puts your verified name on any agreement you sign. It takes under 60 seconds.
                 </p>
                 <Link
                   to="/aadhaar-verify"

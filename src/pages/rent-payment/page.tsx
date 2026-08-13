@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
+import { todayLocalISO } from '@/lib/localDate';
+import { humanizeDbError } from '@/lib/humanizeError';
 import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useRentPayment, type RentPayment } from '@/hooks/useRentPayment';
@@ -42,14 +45,19 @@ export default function RentPayment() {
   const profileLink = isTenant ? '/tenant-profile' : isOwner ? '/owner-profile' : '/';
   const profileLabel = isTenant ? 'Tenant Profile' : isOwner ? 'Owner Profile' : 'Home';
 
-  const [activeTab, setActiveTab] = useState<PaymentTab>('pay');
+  const [searchParams] = useSearchParams();
+  const initialTab: PaymentTab = (() => {
+    const t = searchParams.get('tab');
+    return t === 'autopay' || t === 'offline' || t === 'history' || t === 'reconcile' ? t : 'pay';
+  })();
+  const [activeTab, setActiveTab] = useState<PaymentTab>(initialTab);
   const [payStatus, setPayStatus] = useState<'idle' | 'opening' | 'verifying' | 'failed'>('idle');
   const [payError, setPayError] = useState<string | null>(null);
   const [showReconcilePanel, setShowReconcilePanel] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [monthFilter, setMonthFilter] = useState<string>('all');
   const [offlineReceipt, setOfflineReceipt] = useState('');
-  const [offlineDate, setOfflineDate] = useState(new Date().toISOString().split('T')[0]);
+  const [offlineDate, setOfflineDate] = useState(todayLocalISO());
 
   const { agreements: rentalAgreements } = useTenantRentalAgreements(user?.id);
   const [selectedAgreementId, setSelectedAgreementId] = useState<string | null>(null);
@@ -60,7 +68,15 @@ export default function RentPayment() {
   const landlordName = activeAgreement?.landlordName || 'Your landlord';
   const dueDay = activeAgreement?.rentDueDay || 5;
   const today = new Date();
-  const daysUntilDue = dueDay - today.getDate() > 0 ? dueDay - today.getDate() : 30 + dueDay - today.getDate();
+  // Days until the next occurrence of the due day: 0 on the due day itself,
+  // and correct across 28/29/30/31-day months (the old `30 + diff` printed
+  // 30 on the due day and was off by one in 31-day months).
+  const daysUntilDue = (() => {
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let next = new Date(today.getFullYear(), today.getMonth(), dueDay);
+    if (next.getTime() < start.getTime()) next = new Date(today.getFullYear(), today.getMonth() + 1, dueDay);
+    return Math.round((next.getTime() - start.getTime()) / 86400000);
+  })();
 
   const myPayments = isTenant && user ? tenantPayments(user.id) : payments;
   const myMandate = isTenant && user ? getMandateForTenant(user.id) : null;
@@ -99,7 +115,7 @@ export default function RentPayment() {
       transaction_ref: offlineReceipt,
     });
     if (error) {
-      addToast(error, 'error');
+      addToast(humanizeDbError(error), 'error');
       return;
     }
     addToast('Offline payment logged successfully', 'success');
@@ -214,7 +230,7 @@ export default function RentPayment() {
   const tabs: { id: PaymentTab; label: string; icon: string; show: boolean }[] = [
     { id: 'pay', label: 'Pay Rent', icon: 'ri-bank-card-line', show: true },
     { id: 'autopay', label: 'UPI AutoPay', icon: 'ri-repeat-line', show: true },
-    { id: 'offline', label: 'Cash Payment', icon: 'ri-money-rupee-circle-line', show: true },
+    { id: 'offline', label: 'Cash Payment', icon: 'ri-money-rupee-circle-line', show: isTenant },
     { id: 'history', label: 'History', icon: 'ri-history-line', show: true },
     { id: 'reconcile', label: 'Reconcile', icon: 'ri-bank-line', show: isOwner },
   ];

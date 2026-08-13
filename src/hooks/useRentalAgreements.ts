@@ -152,50 +152,54 @@ export function useRentalAgreements(ownerId: string | undefined) {
       const supabase = getSupabase();
       if (!supabase) return { error: 'Supabase not connected' };
 
-      const { data, error } = await supabase
-        .from('rental_agreements')
-        .insert({
-          owner_id: payload.ownerId,
-          tenant_id: payload.tenantId ?? null,
-          listing_id: payload.listingId ?? null,
-          agreement_number: payload.agreementNumber,
-          tenant_name: payload.tenantName,
-          tenant_address: payload.tenantAddress,
-          tenant_phone: payload.tenantPhone,
-          tenant_email: payload.tenantEmail,
-          tenant_pan: payload.tenantPan,
-          tenant_aadhaar_masked: payload.tenantAadhaarMasked,
-          landlord_name: payload.landlordName,
-          landlord_address: payload.landlordAddress,
-          landlord_phone: payload.landlordPhone,
-          landlord_email: payload.landlordEmail,
-          landlord_pan: payload.landlordPan,
-          property_address: payload.propertyAddress,
-          property_description: payload.propertyDescription,
-          flat_number: payload.flatNumber,
-          carpet_area: payload.carpetArea || null,
-          lease_start_date: payload.leaseStartDate || null,
-          lease_end_date: payload.leaseEndDate || null,
-          monthly_rent: payload.monthlyRent,
-          security_deposit: payload.securityDeposit,
-          rent_due_day: payload.rentDueDay,
-          payment_mode: payload.paymentMode,
-          maintenance_amount: payload.maintenanceAmount,
-          notice_period_days: payload.noticePeriodDays,
-          lock_in_months: payload.lockInMonths,
-          renewal_clause: payload.renewalClause,
-          witness1_name: payload.witness1Name,
-          witness1_address: payload.witness1Address,
-          witness2_name: payload.witness2Name,
-          witness2_address: payload.witness2Address,
-          clauses: payload.clauses,
-        })
-        .select('id')
-        .single();
+      const baseRow = {
+        owner_id: payload.ownerId,
+        tenant_id: payload.tenantId ?? null,
+        listing_id: payload.listingId ?? null,
+        tenant_name: payload.tenantName,
+        tenant_address: payload.tenantAddress,
+        tenant_phone: payload.tenantPhone,
+        tenant_email: payload.tenantEmail,
+        tenant_pan: payload.tenantPan,
+        tenant_aadhaar_masked: payload.tenantAadhaarMasked,
+        landlord_name: payload.landlordName,
+        landlord_address: payload.landlordAddress,
+        landlord_phone: payload.landlordPhone,
+        landlord_email: payload.landlordEmail,
+        landlord_pan: payload.landlordPan,
+        property_address: payload.propertyAddress,
+        property_description: payload.propertyDescription,
+        flat_number: payload.flatNumber,
+        carpet_area: payload.carpetArea || null,
+        lease_start_date: payload.leaseStartDate || null,
+        lease_end_date: payload.leaseEndDate || null,
+        monthly_rent: payload.monthlyRent,
+        security_deposit: payload.securityDeposit,
+        rent_due_day: payload.rentDueDay,
+        payment_mode: payload.paymentMode,
+        maintenance_amount: payload.maintenanceAmount,
+        notice_period_days: payload.noticePeriodDays,
+        lock_in_months: payload.lockInMonths,
+        renewal_clause: payload.renewalClause,
+        witness1_name: payload.witness1Name,
+        witness1_address: payload.witness1Address,
+        witness2_name: payload.witness2Name,
+        witness2_address: payload.witness2Address,
+        clauses: payload.clauses,
+      };
 
-      if (error) return { error: error.message };
+      // Retry on the rare unique-number collision (23505) with a fresh
+      // number instead of surfacing a raw duplicate-key error.
+      let agreementNumber = payload.agreementNumber;
+      let result = await supabase.from('rental_agreements').insert({ ...baseRow, agreement_number: agreementNumber }).select('id').single();
+      for (let attempt = 0; attempt < 4 && result.error?.code === '23505'; attempt++) {
+        agreementNumber = generateAgreementNumber();
+        result = await supabase.from('rental_agreements').insert({ ...baseRow, agreement_number: agreementNumber }).select('id').single();
+      }
+
+      if (result.error) return { error: result.error.message };
       await refresh();
-      return { error: null, id: data?.id };
+      return { error: null, id: result.data?.id };
     },
     [refresh]
   );

@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNotifications, NotificationFromDB } from '@/hooks/useNotifications';
 import PushSetupBanner from './components/PushSetupBanner';
 
-type NotificationType = 'maintenance' | 'inquiry' | 'message' | 'lease' | 'payment' | 'platform';
+type NotificationType = 'maintenance' | 'inquiry' | 'message' | 'lease' | 'payment' | 'platform' | 'booking';
 
 function timeAgo(isoDate: string) {
   const diff = Date.now() - new Date(isoDate).getTime();
@@ -23,6 +23,7 @@ const typeIcons: Record<NotificationType, string> = {
   maintenance: 'ri-tools-line',
   payment: 'ri-money-rupee-circle-line',
   platform: 'ri-megaphone-line',
+  booking: 'ri-calendar-check-line',
 };
 
 const typeColors: Record<NotificationType, string> = {
@@ -32,6 +33,7 @@ const typeColors: Record<NotificationType, string> = {
   maintenance: 'bg-orange-50 text-orange-600',
   payment: 'bg-teal-50 text-teal-600',
   platform: 'bg-purple-50 text-purple-600',
+  booking: 'bg-indigo-50 text-indigo-600',
 };
 
 const typeLabels: Record<NotificationType | 'all' | 'unread', string> = {
@@ -43,11 +45,12 @@ const typeLabels: Record<NotificationType | 'all' | 'unread', string> = {
   maintenance: 'Maintenance',
   payment: 'Payments',
   platform: 'Platform',
+  booking: 'Bookings',
 };
 
 type FilterKey = 'all' | 'unread' | NotificationType;
 
-const filterKeys: FilterKey[] = ['all', 'unread', 'inquiry', 'message', 'maintenance', 'lease', 'payment', 'platform'];
+const filterKeys: FilterKey[] = ['all', 'unread', 'inquiry', 'message', 'maintenance', 'lease', 'payment', 'booking', 'platform'];
 
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -76,6 +79,7 @@ export default function NotificationsPage() {
     lease: notifications.filter((n) => n.type === 'lease').length,
     maintenance: notifications.filter((n) => n.type === 'maintenance').length,
     payment: notifications.filter((n) => n.type === 'payment').length,
+    booking: notifications.filter((n) => n.type === 'booking').length,
     platform: notifications.filter((n) => n.type === 'platform').length,
   };
 
@@ -159,8 +163,8 @@ export default function NotificationsPage() {
                   }`}
                 >
                   {/* Icon */}
-                  <div className={`w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-xl flex-shrink-0 ${typeColors[type]}`}>
-                    <i className={`${typeIcons[type]} text-base sm:text-lg`} />
+                  <div className={`w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-xl flex-shrink-0 ${typeColors[type] ?? 'bg-lightgray text-charcoal/60'}`}>
+                    <i className={`${typeIcons[type] ?? 'ri-notification-3-line'} text-base sm:text-lg`} />
                   </div>
 
                   {/* Content */}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { humanizeDbError } from '@/lib/humanizeError';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { getSupabase } from '@/lib/supabase';
@@ -233,7 +234,7 @@ export default function ListProperty() {
       .single();
 
     if (propError) {
-      addToast(`Error creating property: ${propError.message}`, 'error');
+      addToast(`Couldn't create the property — ${humanizeDbError(propError.message)}`, 'error');
       setSubmitting(false);
       return;
     }
@@ -284,7 +285,7 @@ export default function ListProperty() {
       // to try from here, and the listing error is the one worth showing.
       await supabase.from('properties').delete().eq('id', property.id);
       setSubmitting(false);
-      addToast(`Error creating listing: ${listingError?.message ?? 'unknown error'}`, 'error');
+      addToast(`Couldn't create the listing — ${humanizeDbError(listingError?.message)}`, 'error');
       return;
     }
 

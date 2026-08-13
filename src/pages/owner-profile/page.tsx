@@ -1,4 +1,5 @@
 import BiometricSetting from '@/components/feature/BiometricSetting';
+import { humanizeDbError } from '@/lib/humanizeError';
 import BlockedList from '@/components/feature/BlockedList';
 import { partyName } from '@/hooks/useReviews';
 import UserProfileModal from '@/components/feature/UserProfileModal';
@@ -212,20 +213,26 @@ export default function OwnerProfile() {
   // Recurring rent from currently active tenancies, not just what's been
   // recorded as paid this month -- a listing sitting on a signed
   // agreement is real income even before this month's payment lands.
+  // Real income needs a SIGNED agreement, and the tenancy runs through the
+  // whole of the last day in local time -- parsing the YYYY-MM-DD bare gave
+  // UTC midnight, so in IST a lease flipped to expired at 05:30 on its final
+  // day and its rent dropped out of Monthly Income.
   const activeAgreements = rentalAgreements.filter(
-    (a) => !a.leaseEndDate || new Date(a.leaseEndDate).getTime() >= Date.now()
+    (a) => a.agreementStatus !== 'draft' && (!a.leaseEndDate || new Date(`${a.leaseEndDate}T23:59:59`).getTime() >= Date.now())
   );
   const monthlyIncomeAmount = activeAgreements.reduce((sum, a) => sum + a.monthlyRent, 0);
   const totalIncome = formatINR(monthlyIncomeAmount);
   const urgentRequests = maintenanceRequests.filter((r) => r.priority === 'high' && r.status !== 'resolved').length;
   const pendingRequests = maintenanceRequests.filter((r) => r.status === 'pending').length;
 
-  const tenantRows = rentalAgreements.map((a) => {
+  // Only signed agreements are real tenancies; an unsigned draft is not an
+  // "Active Tenant" and must not inflate the count/badge or show as Active.
+  const tenantRows = rentalAgreements.filter((a) => a.agreementStatus !== 'draft').map((a) => {
     const agreementPayments = allPayments
       .filter((p) => p.agreement_id === a.id)
       .sort((x, y) => new Date(y.created_at).getTime() - new Date(x.created_at).getTime());
     const latestPayment = agreementPayments[0] ?? null;
-    const leaseEnded = a.leaseEndDate ? new Date(a.leaseEndDate).getTime() < Date.now() : false;
+    const leaseEnded = a.leaseEndDate ? new Date(`${a.leaseEndDate}T23:59:59`).getTime() < Date.now() : false;
     return {
       id: a.tenantId ?? a.id,
       agreementId: a.id,
@@ -292,7 +299,7 @@ export default function OwnerProfile() {
     const { error } = await supabase.from('listings').update({ status: nextStatus }).eq('id', listing.id);
     setTogglingListingId(null);
     if (error) {
-      addToast(`Failed to update listing: ${error.message}`, 'error');
+      addToast(`Failed to update listing: ${humanizeDbError(error.message)}`, 'error');
       return;
     }
     addToast(nextStatus === 'active' ? 'Listing activated' : 'Listing deactivated', 'success');
@@ -307,7 +314,7 @@ export default function OwnerProfile() {
     const { error } = await supabase.from('listings').delete().eq('id', deleteListing.id);
     setDeletingListingId(null);
     if (error) {
-      addToast(`Failed to delete listing: ${error.message}`, 'error');
+      addToast(`Failed to delete listing: ${humanizeDbError(error.message)}`, 'error');
       return;
     }
     addToast('Listing deleted successfully', 'success');
@@ -1232,7 +1239,7 @@ export default function OwnerProfile() {
                         <tr key={inv.id} className="border-b border-gray-50 last:border-0 hover:bg-offwhite transition-colors">
                           <td className="px-4 py-3.5 text-sm font-medium text-charcoal">{inv.invoice_number}</td>
                           <td className="px-4 py-3.5 text-sm text-charcoal/60">
-                            {inv.plan === 'pro_monthly' ? 'Pro Monthly' : inv.plan === 'pro_annual' ? 'Pro Annual' : 'Free'}
+                            {({ pro_monthly: 'Pro Monthly', pro_annual: 'Pro Annual', society_annual: 'Society Annual' } as Record<string, string>)[inv.plan] ?? inv.plan}
                           </td>
                           <td className="px-4 py-3.5 text-sm text-charcoal/60">
                             {new Date(inv.billing_period_start).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}

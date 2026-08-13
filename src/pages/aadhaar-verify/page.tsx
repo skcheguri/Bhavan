@@ -326,7 +326,7 @@ export default function AadhaarVerify() {
               Aadhaar Verification
             </h1>
             <p className="mt-4 text-white/70 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-              Verify your identity with Aadhaar to unlock full access — contact owners, list properties, and sign rental agreements in your verified name.
+              Verify your identity with Aadhaar to list properties and build trust — your verified name appears on the rental agreements and receipts you generate.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-6 text-sm text-white/60">
               <span className="flex items-center gap-1.5">

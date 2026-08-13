@@ -638,33 +638,40 @@ perf issue. (The redundant 2–3 `get_my_profile` calls per login from #20 are
 also left as-is — the login-flow dedup wasn't worth the risk for a Low perf
 item; the `setState`-after-unmount guard was applied.)
 
-**UI — derived numbers not audited against their source.**
+**UI — RESOLVED (2026-08-13).** The 24-finding UI correctness audit was
+worked High → Low; 23 fixed, 1 deferred (#22). Frontend, plus one migration
+(145, receipt/agreement numbers) and one edge-function guard. What changed:
 
-- **Receipt and agreement numbers are 4 random digits against a global
-  UNIQUE constraint** — ~50% chance of a collision by ~112 documents, and
-  the failure surfaces as a raw Postgres duplicate-key string with no
-  retry.
-- **"Current Plan" on the Pro card starts a second purchase.** It is
-  styled as disabled but has no `disabled` and an unconditional
-  `onClick`, and `create-subscription-order` has no already-Pro guard.
-- **Owner tax figures are wrong.** `tax-forms` uses the FY 2024-25 slabs
-  against a default FY 2025-26 selection, applies no §87A rebate, and the
-  year selector is inert — ₹6L of net HP income renders ₹15,600 of tax
-  where the real answer is ₹0. Its "Save draft" persists nothing.
-- **"Receipt shared with tenant" is shown even when the share failed**,
-  and the badge flips optimistically with no rollback.
-- Rent "due in N days" prints 30 on the due date itself and is off by one
-  in 31-day months; `/rent-payment?tab=` is ignored so three links land on
-  the wrong tab; booking notifications render as a blank tile with no
-  icon and no filter; the admin dashboard labels every count "pending";
-  a society invoice shows plan "Free"; "Active Tenants" counts unsigned
-  drafts and expired leases, and a lease expires at 05:30 IST on its last
-  day; several date defaults are UTC-derived, so before 05:30 IST they
-  are yesterday — a cash payment logged at 01:00 on 1 Sep files under
-  August.
-- **Three screens claim Aadhaar gates contacting owners, visits and
-  signing.** Per 136 it gates listing creation only. Tenants are pushed
-  into a KYC flow they do not need.
+- **Receipt/agreement numbers** scoped per owner (migration 145) with a
+  retry-on-collision, so a legal document no longer fails with a raw
+  duplicate-key string.
+- **Pro "Current Plan"** is disabled when already Pro, and
+  `create-subscription-order` refuses a second purchase while a
+  subscription is active — no double charge.
+- **Owner tax figures** use per-FY slab tables driven by the (now live) year
+  selector, with the §87A rebate — ₹6L net HP income shows ₹0; and the
+  Schedule-HP draft persists to localStorage.
+- **"Receipt shared"** only shows on a confirmed write; the toast reflects
+  the real outcome.
+- Rent "due in N days" is 0 on the due day and month-length-correct;
+  `?tab=` is honoured; booking notifications have an icon, colour and filter
+  chip; the admin dashboard labels non-pending counts (active/verified/
+  purged…); a society invoice shows "Society Annual"; "Active Tenants"
+  excludes unsigned drafts and a lease stays active through the whole last
+  day in local time; UTC date defaults replaced with a local-date helper;
+  the tenant FY rent summary is filtered to the filing FY; unread badge
+  from an exact count; months use `floor`; pricing shows "+ 18% GST";
+  signed-out visitors see "Sign in to see ratings" not "0.0"; the tax
+  Add-Property share is clamped 0–100% and shows a validation message; and
+  raw DB errors are run through `humanizeDbError` before reaching a toast.
+- **Aadhaar copy** on signup / aadhaar-verify / how-it-works corrected: it
+  gates listing creation, and is optional-but-recommended for tenants.
+
+Deferred: **#22** — the listing-detail "Verified Owner" / "Aadhaar Verified"
+badges and the green "Active" liveness dot render unconditionally
+(`useListingDetail` fetches `owner.verified_aadhaar` but never maps it). Left
+as-is: it's accurate in practice today (migration 136 means every listing
+owner is verified) and there's no real presence signal to back the dot.
 
 Counts across the three audits: 1 Critical, 14 High, 33 Medium, 16 Low.
 Roughly 60% are a known-good pattern in this repo not having been applied

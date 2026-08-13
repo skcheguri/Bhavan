@@ -160,6 +160,12 @@ export default function FeedbackPage() {
                 <h3 className="font-semibold text-charcoal text-sm mb-4">
                   {activeTab === 'owner_on_renter' ? 'Tenant Ratings' : 'Owner Ratings'}
                 </h3>
+                {!user ? (
+                  <p className="text-xs text-charcoal/60 text-center py-4">
+                    Sign in to see ratings and reviews.
+                  </p>
+                ) : (
+                <>
                 <div className="text-center mb-4">
                   <div className="text-5xl font-bold text-charcoal">{avgRating.toFixed(1)}</div>
                   <div className="flex justify-center mt-2">
@@ -195,6 +201,8 @@ export default function FeedbackPage() {
                   >
                     Clear filter
                   </button>
+                )}
+                </>
                 )}
               </div>
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { humanizeDbError } from '@/lib/humanizeError';
 import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useOwnerListings } from '@/hooks/useListings';
@@ -112,7 +113,7 @@ export default function RentalAgreementsPage() {
     });
     setSubmitting(false);
     if (error) {
-      addToast(`Failed to generate agreement: ${error}`, 'error');
+      addToast(`Couldn't generate the agreement — ${humanizeDbError(String(error))}`, 'error');
       return;
     }
     addToast('Rental agreement generated successfully', 'success');

@@ -121,12 +121,12 @@ export default function SubscriptionPage() {
               {billingCycle === 'monthly' ? (
                 <>
                   <span className="text-4xl font-bold text-charcoal">₹{monthlyPrice.toLocaleString('en-IN')}</span>
-                  <span className="text-sm text-charcoal/40 ml-1">/month</span>
+                  <span className="text-sm text-charcoal/40 ml-1">/month + 18% GST</span>
                 </>
               ) : (
                 <>
                   <span className="text-4xl font-bold text-charcoal">₹{annualPrice.toLocaleString('en-IN')}</span>
-                  <span className="text-sm text-charcoal/40 ml-1">/year</span>
+                  <span className="text-sm text-charcoal/40 ml-1">/year + 18% GST</span>
                   <p className="text-xs text-green-600 font-semibold mt-1">
                     ₹{annualMonthlyEquivalent}/mo equivalent — Save ₹{annualSavings.toLocaleString('en-IN')}/year
                   </p>
@@ -157,11 +157,12 @@ export default function SubscriptionPage() {
               ))}
             </ul>
             <button
-              onClick={() => openUpgrade(billingCycle === 'monthly' ? 'pro_monthly' : 'pro_annual')}
-              className={`w-full py-3 rounded-full text-sm font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              onClick={() => { if (!isPro) openUpgrade(billingCycle === 'monthly' ? 'pro_monthly' : 'pro_annual'); }}
+              disabled={isPro}
+              className={`w-full py-3 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${
                 isPro
-                  ? 'border border-black/10 text-charcoal/60 bg-lightgray hover:bg-lightgray'
-                  : 'bg-amber-500 text-white hover:bg-amber-600'
+                  ? 'border border-black/10 text-charcoal/60 bg-lightgray cursor-default'
+                  : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
               }`}
             >
               {isPro ? 'Current Plan' : 'Upgrade to Pro'}

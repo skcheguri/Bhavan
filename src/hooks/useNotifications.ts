@@ -30,6 +30,9 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
   const [notifications, setNotifications] = useState<NotificationFromDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Exact unread total, independent of the 50-row display window below --
+  // deriving it from that window undercounts once a user passes 50.
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchNotifications = useCallback(async () => {
     if (!isSupabaseConnected() || !userId) {
@@ -55,6 +58,12 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
       setNotifications([]);
     } else {
       setNotifications((data as NotificationFromDB[]) ?? []);
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('read', false);
+      setUnreadCount(count ?? 0);
     }
     setLoading(false);
   }, [userId]);
@@ -63,7 +72,6 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
     fetchNotifications();
   }, [fetchNotifications]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const markAsRead = async (id: string) => {
     const supabase = getSupabase();
@@ -82,6 +90,7 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true } : n))
       );
+      setUnreadCount((c) => Math.max(0, c - 1));
     }
   };
 
@@ -99,6 +108,7 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
       console.warn('markAllAsRead failed:', error.message);
     } else {
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
     }
   };
 

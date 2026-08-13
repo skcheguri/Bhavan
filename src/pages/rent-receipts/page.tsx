@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { todayLocalISO } from '@/lib/localDate';
+import { humanizeDbError } from '@/lib/humanizeError';
 import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useOwnerListings } from '@/hooks/useListings';
@@ -47,7 +49,7 @@ export default function RentReceiptsPage() {
     tenantName: '', tenantPan: '',
     landlordPan: '',
     periodFrom: firstOfMonth(), periodTo: lastOfMonth(),
-    paymentMode: 'upi', transactionRef: '', paymentDate: new Date().toISOString().split('T')[0],
+    paymentMode: 'upi', transactionRef: '', paymentDate: todayLocalISO(),
     includesMaintenance: true, notes: '',
   });
 
@@ -98,7 +100,7 @@ export default function RentReceiptsPage() {
     });
     setSubmitting(false);
     if (error) {
-      addToast(`Failed to generate receipt: ${error}`, 'error');
+      addToast(`Couldn't generate the receipt — ${humanizeDbError(String(error))}`, 'error');
       return;
     }
     addToast('Rent receipt generated successfully', 'success');
@@ -313,7 +315,7 @@ export default function RentReceiptsPage() {
                       <i className="ri-eye-line text-sm" /> View
                     </button>
                     {!r.sentToTenant && (
-                      <button onClick={() => { markShared(r.id); addToast('Receipt shared with tenant', 'success'); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap">
+                      <button onClick={async () => { const { error } = await markShared(r.id); addToast(error ?? 'Receipt shared with tenant', error ? 'error' : 'success'); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap">
                         <i className="ri-share-forward-line text-sm" /> Share
                       </button>
                     )}
