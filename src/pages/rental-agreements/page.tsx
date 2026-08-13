@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useOwnerListings } from '@/hooks/useListings';
 import { useOwnerEligibleTenants } from '@/hooks/useReviewEligibility';
-import { useRentalAgreements, generateAgreementNumber } from '@/hooks/useRentalAgreements';
+import { useRentalAgreements, generateAgreementNumber, agreementStatusMeta } from '@/hooks/useRentalAgreements';
 import { buildRentalAgreementHtml, type RentalAgreementData } from '@/lib/documents/rentalAgreementDocument';
 import { RENTAL_AGREEMENT_CLAUSES } from '@/lib/content/rentalAgreementClauses';
 import { useToast } from '@/hooks/useToast';
@@ -27,6 +27,11 @@ export default function RentalAgreementsPage() {
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [manualTenant, setManualTenant] = useState(false);
   const [selectedClauses, setSelectedClauses] = useState<Set<number>>(new Set(RENTAL_AGREEMENT_CLAUSES.map((_, i) => i)));
+  // Owner's own extra terms, appended after the standard clauses.
+  const [customClauses, setCustomClauses] = useState<string[]>([]);
+  // Whether Bhavan does stamp duty (admin route) or the owner shares the
+  // digitally-signed copy directly. Default on -- the legally safer path.
+  const [stampDutyRequested, setStampDutyRequested] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [viewingAgreementId, setViewingAgreementId] = useState<string | null>(null);
   const [tenantPhoneError, setTenantPhoneError] = useState('');
@@ -59,6 +64,12 @@ export default function RentalAgreementsPage() {
     });
   };
 
+  const addCustomClause = () => setCustomClauses((prev) => [...prev, '']);
+  const updateCustomClause = (idx: number, value: string) =>
+    setCustomClauses((prev) => prev.map((c, i) => (i === idx ? value : c)));
+  const removeCustomClause = (idx: number) =>
+    setCustomClauses((prev) => prev.filter((_, i) => i !== idx));
+
   const previewData: RentalAgreementData = useMemo(() => ({
     agreementNumber: 'DRAFT',
     tenantName: form.tenantName || 'Tenant Name',
@@ -90,9 +101,12 @@ export default function RentalAgreementsPage() {
     witness1Address: form.witness1Address,
     witness2Name: form.witness2Name,
     witness2Address: form.witness2Address,
-    clauses: RENTAL_AGREEMENT_CLAUSES.filter((_, i) => selectedClauses.has(i)),
+    clauses: [
+      ...RENTAL_AGREEMENT_CLAUSES.filter((_, i) => selectedClauses.has(i)),
+      ...customClauses.map((c) => c.trim()).filter(Boolean),
+    ],
     createdAt: new Date().toISOString(),
-  }), [form, selectedListing, selectedClauses, user]);
+  }), [form, selectedListing, selectedClauses, customClauses, user]);
 
   const previewHtml = useMemo(() => buildRentalAgreementHtml(previewData), [previewData]);
 
@@ -108,6 +122,7 @@ export default function RentalAgreementsPage() {
       ownerId: user.id,
       tenantId: manualTenant ? null : selectedTenantId || null,
       listingId: selectedListingId,
+      stampDutyRequested,
       ...previewData,
       agreementNumber: generateAgreementNumber(),
     });
@@ -317,6 +332,47 @@ export default function RentalAgreementsPage() {
                     </label>
                   ))}
                 </div>
+
+                {/* Owner's own additional terms, appended after the standard
+                    clauses in the generated document. */}
+                <div className="mt-5 pt-4 border-t border-black/5">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-xs font-bold text-charcoal">Your own terms</h3>
+                    <span className="text-[11px] text-charcoal/40">Optional</span>
+                  </div>
+                  <p className="text-xs text-charcoal/60 mb-3">Add any extra conditions specific to this tenancy.</p>
+                  {customClauses.length > 0 && (
+                    <div className="space-y-2.5 mb-3">
+                      {customClauses.map((clause, idx) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <span className="mt-3 text-xs font-semibold text-charcoal/40 flex-shrink-0">{idx + 1}.</span>
+                          <textarea
+                            value={clause}
+                            onChange={(e) => updateCustomClause(idx, e.target.value)}
+                            rows={2}
+                            placeholder="e.g. Pets are permitted with prior written consent."
+                            className="flex-1 px-3 py-2.5 bg-offwhite rounded-xl text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-300 resize-y"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeCustomClause(idx)}
+                            aria-label="Remove term"
+                            className="mt-1.5 w-7 h-7 flex items-center justify-center rounded-lg text-charcoal/40 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer flex-shrink-0"
+                          >
+                            <i className="ri-close-line" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={addCustomClause}
+                    className="flex items-center gap-1.5 text-xs font-medium text-amber-600 hover:text-amber-700 cursor-pointer"
+                  >
+                    <i className="ri-add-line" /> Add {customClauses.length > 0 ? 'another term' : 'your own term'}
+                  </button>
+                </div>
               </div>
 
               <div className="bg-white rounded-3xl border border-black/5 p-5">
@@ -327,6 +383,31 @@ export default function RentalAgreementsPage() {
                   <input type="text" placeholder="Witness 2 name" value={form.witness2Name} onChange={(e) => setField('witness2Name', e.target.value)} className="px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
                   <input type="text" placeholder="Witness 2 address" value={form.witness2Address} onChange={(e) => setField('witness2Address', e.target.value)} className="px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
                 </div>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-black/5 p-5">
+                <h2 className="text-sm font-bold text-charcoal mb-1">Stamp Duty</h2>
+                <p className="text-xs text-charcoal/60 mb-4">
+                  After both parties sign, choose how this agreement is finalised.
+                </p>
+                <label className="flex items-start gap-3 p-3 bg-offwhite rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={stampDutyRequested}
+                    onChange={(e) => setStampDutyRequested(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-amber-500 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-xs text-charcoal/70 leading-relaxed">
+                    <span className="font-semibold text-charcoal">Get stamp duty done by Bhavan.</span> Once both sign, our team
+                    processes stamp duty and returns the stamped copy for you to share.
+                  </span>
+                </label>
+                <p className="text-xs text-charcoal/50 leading-relaxed mt-3 flex items-start gap-1.5">
+                  <i className="ri-information-line mt-0.5 flex-shrink-0" />
+                  {stampDutyRequested
+                    ? 'The agreement goes to the Bhavan team for stamp duty before you can share it.'
+                    : 'Stamp duty is skipped — once both parties sign, you can share the digitally-signed agreement with your tenant right away.'}
+                </p>
               </div>
 
               <button
@@ -383,11 +464,10 @@ export default function RentalAgreementsPage() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-bold text-charcoal">{a.agreementNumber}</p>
-                      {a.sharedWithTenant ? (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">Shared with Tenant</span>
-                      ) : (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Not Shared</span>
-                      )}
+                      {(() => {
+                        const meta = agreementStatusMeta(a.agreementStatus);
+                        return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.cls}`}>{meta.label}</span>;
+                      })()}
                     </div>
                     <p className="text-xs text-charcoal/60 mt-1">{a.tenantName} · {a.propertyAddress}</p>
                     <p className="text-xs text-charcoal/40 mt-0.5">{a.leaseStartDate} to {a.leaseEndDate} · ₹{a.monthlyRent.toLocaleString('en-IN')}/mo</p>
@@ -396,8 +476,8 @@ export default function RentalAgreementsPage() {
                     <button onClick={() => setViewingAgreementId(a.id)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-black/10 text-xs font-medium text-charcoal hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer whitespace-nowrap">
                       <i className="ri-eye-line text-sm" /> View
                     </button>
-                    {!a.sharedWithTenant && (
-                      <button onClick={() => { markShared(a.id); addToast('Agreement shared with tenant', 'success'); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap">
+                    {(a.agreementStatus === 'signed' || a.agreementStatus === 'stamped') && (
+                      <button onClick={async () => { const { error } = await markShared(a.id); addToast(error ?? 'Agreement shared with tenant', error ? 'error' : 'success'); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap">
                         <i className="ri-share-forward-line text-sm" /> Share
                       </button>
                     )}

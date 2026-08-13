@@ -4,11 +4,12 @@ import { getSupabase } from '@/lib/supabase';
 import type { RentalAgreementData } from '@/lib/documents/rentalAgreementDocument';
 import type { Tables } from '@/types/database.types';
 
-export type AgreementStatus = 'draft' | 'pending_admin' | 'stamped' | 'completed';
+export type AgreementStatus = 'draft' | 'pending_admin' | 'signed' | 'stamped' | 'completed';
 
 export function agreementStatusMeta(status: AgreementStatus): { label: string; cls: string } {
   switch (status) {
     case 'pending_admin': return { label: 'With Bhavan · stamp duty', cls: 'bg-blue-50 text-blue-600' };
+    case 'signed': return { label: 'Signed · ready to share', cls: 'bg-emerald-50 text-emerald-600' };
     case 'stamped': return { label: 'Stamped · ready to share', cls: 'bg-emerald-50 text-emerald-600' };
     case 'completed': return { label: 'Shared with tenant', cls: 'bg-green-50 text-green-600' };
     default: return { label: 'Awaiting signatures', cls: 'bg-amber-50 text-amber-600' };
@@ -31,6 +32,7 @@ export interface RentalAgreementRow extends RentalAgreementData {
   tenantSignedAt: string | null;
   stampedDocumentPath: string | null;
   adminProcessedAt: string | null;
+  stampDutyRequested: boolean;
 }
 
 // Typed against the generated schema row (not Record<string, unknown>)
@@ -86,6 +88,7 @@ function mapRow(r: Tables<'rental_agreements'>): RentalAgreementRow {
     tenantSignedAt: (r.tenant_signed_at as string | null) ?? null,
     stampedDocumentPath: (r.stamped_document_path as string | null) ?? null,
     adminProcessedAt: (r.admin_processed_at as string | null) ?? null,
+    stampDutyRequested: r.stamp_duty_requested !== false,
   };
 }
 
@@ -148,6 +151,7 @@ export function useRentalAgreements(ownerId: string | undefined) {
       ownerId: string;
       tenantId?: string | null;
       listingId?: string | null;
+      stampDutyRequested?: boolean;
     } & Omit<RentalAgreementData, 'createdAt'>): Promise<{ error: string | null; id?: string }> => {
       const supabase = getSupabase();
       if (!supabase) return { error: 'Supabase not connected' };
@@ -186,6 +190,9 @@ export function useRentalAgreements(ownerId: string | undefined) {
         witness2_name: payload.witness2Name,
         witness2_address: payload.witness2Address,
         clauses: payload.clauses,
+        // Default true keeps the admin stamp-duty route unless the owner
+        // explicitly opted to skip it at creation.
+        stamp_duty_requested: payload.stampDutyRequested ?? true,
       };
 
       // Retry on the rare unique-number collision (23505) with a fresh

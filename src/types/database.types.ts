@@ -2559,6 +2559,7 @@ export type Database = {
           admin_processed_by: string | null
           agreement_number: string
           agreement_status: string
+          stamp_duty_requested: boolean
           landlord_signature_name: string | null
           landlord_signed_at: string | null
           stamped_document_path: string | null
@@ -2610,6 +2611,7 @@ export type Database = {
           admin_processed_by?: string | null
           agreement_number: string
           agreement_status?: string
+          stamp_duty_requested?: boolean
           landlord_signature_name?: string | null
           landlord_signed_at?: string | null
           stamped_document_path?: string | null
@@ -2661,6 +2663,7 @@ export type Database = {
           admin_processed_by?: string | null
           agreement_number?: string
           agreement_status?: string
+          stamp_duty_requested?: boolean
           landlord_signature_name?: string | null
           landlord_signed_at?: string | null
           stamped_document_path?: string | null

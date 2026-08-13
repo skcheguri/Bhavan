@@ -1122,11 +1122,11 @@ export default function OwnerProfile() {
                                     <i className="ri-file-download-line text-sm" /> Stamped
                                   </button>
                                 )}
-                                {ag.agreementStatus === 'stamped' && (
+                                {(ag.agreementStatus === 'stamped' || ag.agreementStatus === 'signed') && (
                                   <button
                                     onClick={async () => {
                                       const { error } = await markShared(ag.id);
-                                      addToast(error ?? 'Stamped agreement shared with tenant', error ? 'error' : 'success');
+                                      addToast(error ?? 'Agreement shared with tenant', error ? 'error' : 'success');
                                     }}
                                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap"
                                   >
