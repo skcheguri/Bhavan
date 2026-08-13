@@ -36,9 +36,9 @@ export interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string, role: 'tenant' | 'owner') => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, name: string, role: 'tenant' | 'owner') => Promise<{ error: string | null }>;
-  signInWithGoogle: (role: 'tenant' | 'owner') => Promise<{ error: string | null }>;
+  signInWithGoogle: (role?: 'tenant' | 'owner') => Promise<{ error: string | null }>;
   sendPhoneOtp: (phone: string, name?: string, role?: 'tenant' | 'owner') => Promise<{ error: string | null }>;
   verifyPhoneOtp: (phone: string, token: string) => Promise<{ error: string | null }>;
   sendPhoneVerificationOtp: (phone: string) => Promise<{ error: string | null }>;
@@ -227,7 +227,10 @@ export function useAuthProvider(): AuthContextValue {
     };
   }, [refreshUser]);
 
-  const signIn = async (email: string, password: string, _role: 'tenant' | 'owner'): Promise<{ error: string | null }> => {
+  // Sign-in is by email/password alone; the account's role comes back from
+  // get_my_profile in buildAuthUser, so there is no role to pass. (One email
+  // maps to exactly one role, so asking again at sign-in only added a step.)
+  const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
     const supabase = getSupabase();
     if (!supabase) return { error: 'Supabase not connected' };
     if (!password) return { error: 'Password is required for email sign in' };
@@ -293,12 +296,16 @@ export function useAuthProvider(): AuthContextValue {
     return { error: null };
   };
 
-  const signInWithGoogle = async (role: 'tenant' | 'owner'): Promise<{ error: string | null }> => {
+  const signInWithGoogle = async (role?: 'tenant' | 'owner'): Promise<{ error: string | null }> => {
     const supabase = getSupabase();
     if (!supabase) return { error: 'Supabase not connected' };
 
     try {
-      window.localStorage.setItem(GOOGLE_PENDING_ROLE_KEY, role);
+      // A role is only meaningful for a brand-new account (signup). On the
+      // universal sign-in there is none, so clear any stale pending role
+      // rather than let a previous signup attempt's choice leak in.
+      if (role) window.localStorage.setItem(GOOGLE_PENDING_ROLE_KEY, role);
+      else window.localStorage.removeItem(GOOGLE_PENDING_ROLE_KEY);
     } catch {
       // localStorage unavailable (e.g. private browsing) -- role intent is best-effort only
     }

@@ -8,7 +8,6 @@ type AuthTab = 'email' | 'mobile';
 type ForgotStep = 'email' | 'sent';
 
 export default function Login() {
-  const [selectedRole, setSelectedRole] = useState<'tenant' | 'owner' | null>(null);
   const [tab, setTab] = useState<AuthTab>('email');
   const { signIn, signInWithGoogle, sendPhoneOtp, verifyPhoneOtp, sendPasswordResetEmail, signInWithBiometrics, user } = useAuth();
 
@@ -54,10 +53,9 @@ export default function Login() {
   const [googleError, setGoogleError] = useState('');
 
   const handleGoogleSignIn = async () => {
-    if (!selectedRole) return;
     setGoogleError('');
     setGoogleLoading(true);
-    const { error } = await signInWithGoogle(selectedRole);
+    const { error } = await signInWithGoogle();
     if (error) {
       setGoogleError(error);
       setGoogleLoading(false);
@@ -93,10 +91,9 @@ export default function Login() {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRole) return;
     setLoginError('');
     setLoginLoading(true);
-    const { error } = await signIn(email, password, 'tenant');
+    const { error } = await signIn(email, password);
     setLoginLoading(false);
     if (error) setLoginError(error);
   };
@@ -239,94 +236,18 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
 
-          {/* Step 1 — Role selector */}
-          {!selectedRole ? (
-            <div className="bg-white rounded-3xl p-6 border border-black/5">
+          {/* Universal sign-in -- one email maps to one role, so the account
+              already knows whether it's a tenant or an owner. New users pick
+              a role in signup, not here. */}
+          <div className="bg-white rounded-3xl p-8 border border-black/5">
               <div className="text-center mb-6">
                 <img
                   src="/favicon.svg"
                   alt="Bhavan"
                   className="h-11 w-11 object-contain mx-auto"
                 />
-                <h1 className="mt-3 text-2xl font-bold text-charcoal">Welcome Back</h1>
-                <p className="mt-1 text-sm text-charcoal/60">How are you signing in today?</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Tenant card */}
-                <button
-                  onClick={() => setSelectedRole('tenant')}
-                  className="group flex flex-col items-center gap-3 p-4 rounded-3xl border-2 border-black/5 hover:border-brand hover:bg-brand/5 transition cursor-pointer"
-                >
-                  <div className="w-14 h-14 flex items-center justify-center rounded-2xl bg-brand/10 group-hover:bg-brand/20 transition-colors">
-                    <i className="ri-home-heart-line text-2xl text-brand" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-charcoal">I'm a Tenant</p>
-                    <p className="text-xs text-charcoal/40 mt-0.5 leading-relaxed">Looking for a place to rent</p>
-                  </div>
-                  <div className="w-full flex items-center justify-center gap-1 py-2 rounded-xl bg-brand text-white text-xs font-semibold group-hover:bg-brand-dark transition-colors whitespace-nowrap">
-                    Sign in as Tenant
-                    <i className="ri-arrow-right-line text-sm" />
-                  </div>
-                </button>
-
-                {/* Owner card */}
-                <button
-                  onClick={() => setSelectedRole('owner')}
-                  className="group flex flex-col items-center gap-3 p-4 rounded-3xl border-2 border-black/5 hover:border-amber-400 hover:bg-amber-50/50 transition cursor-pointer"
-                >
-                  <div className="w-14 h-14 flex items-center justify-center rounded-2xl bg-amber-50 group-hover:bg-amber-100 transition-colors">
-                    <i className="ri-building-4-line text-2xl text-amber-600" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-charcoal">I'm an Owner</p>
-                    <p className="text-xs text-charcoal/40 mt-0.5 leading-relaxed">Managing my properties</p>
-                  </div>
-                  <div className="w-full flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-500 text-white text-xs font-semibold group-hover:bg-amber-600 transition-colors whitespace-nowrap">
-                    Sign in as Owner
-                    <i className="ri-arrow-right-line text-sm" />
-                  </div>
-                </button>
-              </div>
-
-              <p className="mt-5 text-center text-sm text-charcoal/60">
-                New to Bhavan?{' '}
-                <Link to="/signup" className="text-brand hover:text-brand-dark font-semibold">
-                  Create an account
-                </Link>
-              </p>
-            </div>
-          ) : (
-            /* Step 2 — Login form */
-            <div className="bg-white rounded-3xl p-8 border border-black/5">
-              {/* Role badge + back */}
-              <div className="flex items-center justify-between mb-6">
-                <button
-                  onClick={() => { setSelectedRole(null); setLoginError(''); }}
-                  className="flex items-center gap-1.5 text-sm text-charcoal/40 hover:text-charcoal transition-colors cursor-pointer"
-                >
-                  <i className="ri-arrow-left-line" /> Back
-                </button>
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
-                  selectedRole === 'owner'
-                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                    : 'bg-brand/10 text-brand border border-brand/20'
-                }`}>
-                  <i className={selectedRole === 'owner' ? 'ri-building-4-line' : 'ri-home-heart-line'} />
-                  Signing in as {selectedRole === 'owner' ? 'Property Owner' : 'Tenant'}
-                </div>
-              </div>
-
-              <div className="text-center mb-6">
-                <h2 className="text-xl font-bold text-charcoal">
-                  {selectedRole === 'owner' ? 'Owner Sign In' : 'Tenant Sign In'}
-                </h2>
-                <p className="mt-1 text-sm text-charcoal/60">
-                  {selectedRole === 'owner'
-                    ? 'Access your properties, tenants and listings'
-                    : 'Access your rent tools, maintenance and documents'}
-                </p>
+                <h2 className="mt-3 text-2xl font-bold text-charcoal">Welcome Back</h2>
+                <p className="mt-1 text-sm text-charcoal/60">Sign in to your account</p>
               </div>
 
               {/* Google */}
@@ -464,11 +385,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={loginLoading}
-                    className={`w-full text-white font-medium py-3.5 rounded-full transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 flex items-center justify-center gap-2 ${
-                      selectedRole === 'owner'
-                        ? 'bg-amber-500 hover:bg-amber-600'
-                        : 'bg-brand hover:bg-brand-dark'
-                    }`}
+                    className="w-full text-white font-medium py-3.5 rounded-full transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark"
                   >
                     {loginLoading && <i className="ri-loader-4-line animate-spin" />}
                     Sign In
@@ -503,7 +420,7 @@ export default function Login() {
                       onClick={handleSendOtp}
                       disabled={mobile.length < 10 || sendingOtp}
                       className={`w-full text-white font-medium py-3.5 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 ${
-                        selectedRole === 'owner' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-brand hover:bg-brand-dark'
+                        'bg-brand hover:bg-brand-dark'
                       }`}
                     >
                       {sendingOtp ? <><i className="ri-loader-4-line animate-spin" /> Sending OTP...</> : <><i className="ri-send-plane-line" /> Send OTP</>}
@@ -544,7 +461,7 @@ export default function Login() {
                         type="submit"
                         disabled={!otpFilled || loginLoading}
                         className={`w-full text-white font-medium py-3.5 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap ${
-                          selectedRole === 'owner' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-brand hover:bg-brand-dark'
+                          'bg-brand hover:bg-brand-dark'
                         }`}
                       >
                         Verify &amp; Sign In
@@ -561,7 +478,6 @@ export default function Login() {
                 </Link>
               </p>
             </div>
-          )}
         </div>
       </div>
 

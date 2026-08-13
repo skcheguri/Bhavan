@@ -34,7 +34,7 @@ export default function AdminLogin() {
     e.preventDefault();
     setError('');
     setSubmitting(true);
-    const { error: signInError } = await signIn(email, password, 'tenant');
+    const { error: signInError } = await signIn(email, password);
     setSubmitting(false);
     if (signInError) setError(signInError);
   };
