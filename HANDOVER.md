@@ -121,6 +121,11 @@ Until that exists, CI runs only the tests that need no backend (7 of 32).
 
 ### 4.2 Mobile: scaffolded, never built or run
 
+> **Superseded for Android — see §4.8.** Android now builds clean
+> (`assembleDebug` exits 0, debug APK produced). The release APK builds
+> but comes out unsigned. iOS is still unbuilt and this section stands
+> for it.
+
 The native projects **do exist** and are tracked in git — `android/` and
 `ios/` were generated on 31 Jul. iOS uses Swift Package Manager, not
 CocoaPods, so there is no Podfile to install.
@@ -541,6 +546,134 @@ it fails.
 - **The `geocode` edge function is an open proxy** — no auth, no rate
   limit. Fine at current volume, a bill risk at scale.
 - ~18KB of unused Font Awesome; dead i18n scaffolding.
+
+### 4.7 Defects in code that already ships
+
+Everything above this point is *unfinished work*. This section is
+different: it is code that is wired up, looks finished, and does the
+wrong thing. Found by a correctness audit (data layer, database, UI)
+after migration 139. None of it overlaps §4.1–4.6.
+
+Triage order is roughly the order below — the first four can corrupt or
+double-charge, the rest mislead.
+
+**Database — a 2026 workflow undone by a 2024 policy.** Three of the
+highest-value tables carry a permissive `FOR ALL` policy inherited from
+the baseline that quietly makes the newer, careful logic optional:
+
+- **`rent_payments` is the only money table with no immutable-fields
+  trigger.** `001_baseline.sql:1941` pins only `status` in its
+  `WITH CHECK`, so an owner can `PATCH` `amount`, `tenant_id`, `month` or
+  `razorpay_payment_id` on any of their payment rows. Give it the same
+  guard `connection_requests`, `maintenance_requests` and `rent_receipts`
+  already have.
+- **The 137 signing/stamping workflow has no server-side enforcement.**
+  `"Owners can manage own agreements"` is `FOR ALL`, and there is no
+  trigger on `rental_agreements` guarding `agreement_status`,
+  `stamped_document_path` or the signature columns. One PATCH marks an
+  unsigned agreement `completed` and shared.
+- **114's block is bypassable on `connection_requests`.**
+  `"Owners can read and update their requests"` is `FOR ALL` with no
+  `WITH CHECK`, so it also grants INSERT. Permissive policies OR, so an
+  owner can create a request naming a tenant who blocked them.
+
+Also: `property_has_active_tenancy()` (101) ignores `agreement_status`
+and treats a null `lease_end_date` as active forever, so an abandoned
+draft pins a flat to `rented_out` with no way out; 067 and 101 disagree
+about whether an open-ended lease counts as active, which lets an owner
+delete an account 067 was written to block; the chat-notification
+coalescing window (070) refreshes `created_at`, so a conversation under
+5-minute spacing produces exactly one push ever; escalation (104)
+increments the stage even when the dedupe suppressed the notification, so
+a ticket exhausts its chases having notified nobody; `inquiries_count`
+(119) has no DELETE trigger and only ever rises; and
+`maintenance-escalation` is the one cron job the 134 watchdog does not
+watch. Four migrations (065, 069, 098, 128) are not re-runnable, which
+matters for the §4.1 staging replay.
+
+**Fixed while auditing:** migration 105 used `CREATE OR REPLACE FUNCTION`
+and restated only `LANGUAGE plpgsql`, which silently dropped the
+`SECURITY DEFINER` and `SET search_path` that 094 gave
+`notify_request_assignment`. The insert then failed RLS and was swallowed
+by that function's own exception handler, so assigning a contractor told
+the tenant nothing. Restored in **140**. A sweep confirmed this was the
+only function affected and that no `SECURITY DEFINER` function is
+missing `search_path`.
+
+**Data layer — one known-good pattern not propagated.**
+
+- **Chat messages sent during page load are dropped.** The fetch and the
+  realtime subscribe are uncoordinated, and the fetch result replaces
+  state rather than merging, so anything arriving in the gap is lost
+  until remount.
+- **Maintenance photos fail silently.** Per-file upload errors are
+  `continue`d and the request still returns success — a burst-pipe report
+  arrives with no pictures.
+- **Admin notes are destroyed by a status change.** `useContactInquiries`
+  turns an omitted `adminNotes` into an explicit `null`.
+- **Broker soft-block never fires for owners.** It is computed client-side
+  over an RLS-filtered subset, so it can only activate when the reported
+  person loads a page — the control is armed by its target. Belongs in a
+  trigger.
+- **Zero-row writes report success.** `updateReview` checks this and
+  documents why; eleven other mutations do not, including
+  `decideContribution`, which confirms money in the society ledger.
+- Notification RPCs discard their errors; `useRentPayment` is mounted five
+  times and the copies disagree; its `error` is never cleared so a
+  transient failure is permanent; offset pagination drifts against
+  concurrent writes; a transient profile-RPC failure silently demotes an
+  owner to a tenant view.
+
+**UI — derived numbers not audited against their source.**
+
+- **Receipt and agreement numbers are 4 random digits against a global
+  UNIQUE constraint** — ~50% chance of a collision by ~112 documents, and
+  the failure surfaces as a raw Postgres duplicate-key string with no
+  retry.
+- **"Current Plan" on the Pro card starts a second purchase.** It is
+  styled as disabled but has no `disabled` and an unconditional
+  `onClick`, and `create-subscription-order` has no already-Pro guard.
+- **Owner tax figures are wrong.** `tax-forms` uses the FY 2024-25 slabs
+  against a default FY 2025-26 selection, applies no §87A rebate, and the
+  year selector is inert — ₹6L of net HP income renders ₹15,600 of tax
+  where the real answer is ₹0. Its "Save draft" persists nothing.
+- **"Receipt shared with tenant" is shown even when the share failed**,
+  and the badge flips optimistically with no rollback.
+- Rent "due in N days" prints 30 on the due date itself and is off by one
+  in 31-day months; `/rent-payment?tab=` is ignored so three links land on
+  the wrong tab; booking notifications render as a blank tile with no
+  icon and no filter; the admin dashboard labels every count "pending";
+  a society invoice shows plan "Free"; "Active Tenants" counts unsigned
+  drafts and expired leases, and a lease expires at 05:30 IST on its last
+  day; several date defaults are UTC-derived, so before 05:30 IST they
+  are yesterday — a cash payment logged at 01:00 on 1 Sep files under
+  August.
+- **Three screens claim Aadhaar gates contacting owners, visits and
+  signing.** Per 136 it gates listing creation only. Tenants are pushed
+  into a KYC flow they do not need.
+
+Counts across the three audits: 1 Critical, 14 High, 33 Medium, 16 Low.
+Roughly 60% are a known-good pattern in this repo not having been applied
+consistently, which is cheap to fix mechanically; the rest need a
+decision.
+
+### 4.8 Android build — verified
+
+Builds clean. `assembleDebug` exits 0 (JDK from Android Studio's bundled
+JBR, SDK at the default location; neither `JAVA_HOME` nor `ANDROID_HOME`
+is set globally, so set them for the session). Gradle output is redirected
+to `C:\bhavan-build`, not `android/app/build` — look there for artifacts.
+
+- Debug APK: `C:\bhavan-build\app\outputs\apk\debug\app-debug.apk`,
+  ~11.3 MB, current with the synced web assets.
+- Release APK: `app-release-unsigned.apk`, ~3.1 MB — minify and
+  shrinkResources are clearly working (3.6× smaller), but it is
+  **unsigned**: `android/keystore.properties` does not exist on this
+  machine, so `signingConfigs.release` finds nothing. Generate the upload
+  keystore before the first Play upload.
+
+This supersedes §4.2's "never built" for Android. iOS is unchanged and
+still unbuilt.
 
 ---
 
