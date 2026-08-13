@@ -65,10 +65,14 @@ test.describe("public pages", () => {
     await expect(page.getByText(/about this property/i)).toBeVisible();
   });
 
-  test("login page shows both role options", async ({ page }) => {
+  test("login page shows the universal sign-in form", async ({ page }) => {
     await page.goto("/login");
 
-    await expect(page.getByText(/i'm a tenant/i)).toBeVisible();
-    await expect(page.getByText(/i'm an owner/i)).toBeVisible();
+    // Sign-in is universal now -- the form shows directly, with no
+    // tenant/owner choice (the account already knows its role).
+    await expect(page.getByPlaceholder("your@email.com").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /continue with google/i })).toBeVisible();
+    await expect(page.getByText(/i'm a tenant/i)).toHaveCount(0);
+    await expect(page.getByText(/i'm an owner/i)).toHaveCount(0);
   });
 });

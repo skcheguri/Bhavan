@@ -52,7 +52,6 @@ test.describe.serial("connection request -> approval", () => {
 
   test("tenant can submit a connection request on a listing", async ({ page }) => {
     await page.goto("/login");
-    await page.getByText(/i'm a tenant/i).click();
     await page.getByPlaceholder("your@email.com").fill(TENANT_EMAIL!);
     await page.getByPlaceholder("Enter your password").fill(TENANT_PASSWORD!);
     await page.getByRole("button", { name: /^sign in$/i }).click();
@@ -73,7 +72,6 @@ test.describe.serial("connection request -> approval", () => {
 
   test("owner can approve the tenant's pending request", async ({ page }) => {
     await page.goto("/login");
-    await page.getByText(/i'm an owner/i).click();
     await page.getByPlaceholder("your@email.com").fill(OWNER_EMAIL!);
     await page.getByPlaceholder("Enter your password").fill(OWNER_PASSWORD!);
     await page.getByRole("button", { name: /^sign in$/i }).click();

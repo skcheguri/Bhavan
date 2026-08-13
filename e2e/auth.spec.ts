@@ -44,7 +44,6 @@ test.describe("forgot password", () => {
     // side), so E2E shouldn't hammer it on every run. Use a throwaway
     // address that's syntactically valid but not a real test account.
     await page.goto("/login");
-    await page.getByText(/i'm a tenant/i).click();
     await page.getByRole("button", { name: /forgot password/i }).click();
     // The sign-in form's own email field shares the same placeholder,
     // so it's not unique on the page once the modal is open -- the
@@ -68,7 +67,6 @@ test.describe("tenant login", () => {
 
   test("a seeded tenant account can log in and reach their dashboard", async ({ page }) => {
     await page.goto("/login");
-    await page.getByText(/i'm a tenant/i).click();
     await page.getByPlaceholder("your@email.com").fill(TENANT_EMAIL!);
     await page.getByPlaceholder("Enter your password").fill(TENANT_PASSWORD!);
     await page.getByRole("button", { name: /^sign in$/i }).click();

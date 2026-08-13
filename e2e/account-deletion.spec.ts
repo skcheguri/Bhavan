@@ -24,7 +24,6 @@ test.describe("delete account confirmation gate", () => {
 
   test("requires typing DELETE, and cancelling destroys nothing", async ({ page }) => {
     await page.goto("/login");
-    await page.getByText(/i'm a tenant/i).click();
     await page.getByPlaceholder("your@email.com").fill(TENANT_EMAIL!);
     await page.getByPlaceholder("Enter your password").fill(TENANT_PASSWORD!);
     await page.getByRole("button", { name: /^sign in$/i }).click();
@@ -52,7 +51,6 @@ test.describe("delete account confirmation gate", () => {
 
   test("states plainly what is retained on shared legal documents", async ({ page }) => {
     await page.goto("/login");
-    await page.getByText(/i'm a tenant/i).click();
     await page.getByPlaceholder("your@email.com").fill(TENANT_EMAIL!);
     await page.getByPlaceholder("Enter your password").fill(TENANT_PASSWORD!);
     await page.getByRole("button", { name: /^sign in$/i }).click();
