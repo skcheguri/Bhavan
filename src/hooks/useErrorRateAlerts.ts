@@ -137,11 +137,13 @@ export function useErrorRateAlerts() {
   const acknowledge = useCallback(async (id: string): Promise<boolean> => {
     const supabase = getSupabase();
     if (!supabase) return false;
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('error_rate_alerts')
       .update({ acknowledged_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
     if (error) return false;
+    if (!data || data.length === 0) return false;
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, acknowledgedAt: new Date().toISOString() } : a)));
     return true;
   }, []);

@@ -244,7 +244,7 @@ export default function OwnerProfile() {
       flat: a.flatNumber || '\u2014',
       property: a.propertyAddress || '\u2014',
       rent: formatINR(a.monthlyRent),
-      leaseEnd: a.leaseEndDate ? new Date(a.leaseEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014',
+      leaseEnd: a.leaseEndDate ? new Date(`${a.leaseEndDate}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014',
       status: leaseEnded ? 'Expired' : 'Active',
       paymentStatus: latestPayment
         ? latestPayment.status === 'paid'

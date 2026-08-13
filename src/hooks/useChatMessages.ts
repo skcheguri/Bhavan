@@ -10,10 +10,22 @@ export interface ChatMessageFromDB {
   created_at: string;
 }
 
+// Union by id, kept in created_at order. Merging (rather than replacing)
+// is what lets the initial snapshot and the realtime stream coexist: a
+// message the channel already delivered survives the fetch, and vice versa.
+function mergeById(prev: ChatMessageFromDB[], incoming: ChatMessageFromDB[]): ChatMessageFromDB[] {
+  if (incoming.length === 0) return prev;
+  const byId = new Map(prev.map((m) => [m.id, m]));
+  for (const m of incoming) byId.set(m.id, m);
+  return Array.from(byId.values()).sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
 export function useChatMessages(requestId: string | undefined) {
   const [messages, setMessages] = useState<ChatMessageFromDB[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // A manual refetch that merges rather than replaces, so it can't wipe a
+  // message the realtime channel delivered since the last snapshot.
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
     if (!supabase || !requestId) {
@@ -21,7 +33,6 @@ export function useChatMessages(requestId: string | undefined) {
       setLoading(false);
       return;
     }
-    setLoading(true);
     const { data, error } = await supabase
       .from('chat_messages')
       .select('*')
@@ -30,20 +41,28 @@ export function useChatMessages(requestId: string | undefined) {
 
     if (error) {
       console.warn('Supabase chat_messages fetch error:', error.message);
-      setMessages([]);
     } else {
-      setMessages((data ?? []) as ChatMessageFromDB[]);
+      setMessages((prev) => mergeById(prev, (data ?? []) as ChatMessageFromDB[]));
     }
     setLoading(false);
   }, [requestId]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
+  // Subscribe first, then take the snapshot once the channel is live, then
+  // merge it in. Two uncoordinated effects (fetch here, subscribe there)
+  // used to lose any message committed between the SELECT snapshot and the
+  // subscription going live, and the fetch's setMessages([...]) could wipe a
+  // row the channel had already appended. One coordinated effect closes both.
   useEffect(() => {
     const supabase = getSupabase();
-    if (!supabase || !requestId) return;
+    if (!supabase || !requestId) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setMessages([]);
 
     const channel = supabase
       .channel(`chat_messages:${requestId}`)
@@ -52,16 +71,34 @@ export function useChatMessages(requestId: string | undefined) {
         { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `request_id=eq.${requestId}` },
         (payload) => {
           // The sender's own insert already appends this row locally (see
-          // sendMessage below) -- without this guard, the realtime INSERT
-          // event echoes right back to the same client and the sender
-          // sees their own message twice.
+          // sendMessage below); mergeById makes the echoed realtime event a
+          // no-op instead of a duplicate.
           const incoming = payload.new as ChatMessageFromDB;
-          setMessages((prev) => (prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]));
+          setMessages((prev) => mergeById(prev, [incoming]));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') return;
+        // The channel is live now, so any insert from this point is
+        // delivered; the snapshot backfills everything before it.
+        (async () => {
+          const { data, error } = await supabase
+            .from('chat_messages')
+            .select('*')
+            .eq('request_id', requestId)
+            .order('created_at', { ascending: true });
+          if (cancelled) return;
+          if (error) {
+            console.warn('Supabase chat_messages fetch error:', error.message);
+          } else {
+            setMessages((prev) => mergeById(prev, (data ?? []) as ChatMessageFromDB[]));
+          }
+          setLoading(false);
+        })();
+      });
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, [requestId]);

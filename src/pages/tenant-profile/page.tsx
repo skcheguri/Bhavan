@@ -600,9 +600,9 @@ export default function TenantProfile() {
                     <div className="bg-offwhite rounded-xl p-4">
                       <p className="text-xs text-charcoal/40 font-medium">Lease Period</p>
                       <p className="text-sm font-bold text-charcoal mt-1">
-                        {activeAgreement.leaseStartDate ? new Date(activeAgreement.leaseStartDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
+                        {activeAgreement.leaseStartDate ? new Date(`${activeAgreement.leaseStartDate}T00:00:00`).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
                         {' — '}
-                        {activeAgreement.leaseEndDate ? new Date(activeAgreement.leaseEndDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
+                        {activeAgreement.leaseEndDate ? new Date(`${activeAgreement.leaseEndDate}T00:00:00`).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
                       </p>
                       {activeAgreement.leaseEndDate && (
                         <p className="text-xs text-charcoal/60 mt-0.5">

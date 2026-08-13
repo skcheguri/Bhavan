@@ -104,18 +104,26 @@ export function useOwnerConnectionRequests(ownerId: string | undefined) {
       const supabase = getSupabase();
       if (!supabase) return false;
 
-      const { error: dbError } = await supabase
+      const { data, error: dbError } = await supabase
         .from('connection_requests')
         .update({ status: newStatus, responded_at: new Date().toISOString() })
         .eq('id', requestId)
-        .eq('owner_id', ownerId ?? '');
+        .eq('owner_id', ownerId ?? '')
+        .select('id');
 
       if (dbError) {
         setError(dbError.message);
         return false;
       }
+      if (!data || data.length === 0) {
+        // RLS filtered it out (not this owner's request, or it's gone) --
+        // don't report success or optimistically flip the local status.
+        setError('This request could not be updated — it may no longer be yours to change.');
+        return false;
+      }
       if (newStatus === 'approved') {
-        await supabase.rpc('notify_connection_request_approved', { p_request_id: requestId });
+        const { error: notifyError } = await supabase.rpc('notify_connection_request_approved', { p_request_id: requestId });
+        if (notifyError) console.warn('notify_connection_request_approved failed:', notifyError.message);
       }
       setRequests((prev) =>
         prev.map((r) => (r.id === requestId ? { ...r, status: newStatus, respondedAt: new Date().toISOString() } : r)),
@@ -224,7 +232,8 @@ export function useCreateConnectionRequest() {
           .single();
 
         if (!dbError && inserted) {
-          await supabase.rpc('notify_connection_request_created', { p_request_id: inserted.id });
+          const { error: notifyError } = await supabase.rpc('notify_connection_request_created', { p_request_id: inserted.id });
+          if (notifyError) console.warn('notify_connection_request_created failed:', notifyError.message);
         }
 
         if (dbError) {

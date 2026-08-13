@@ -174,46 +174,53 @@ function computeClientStatus(userId: string | undefined): RateLimitStatus {
 export function useContactRateLimit(userId: string | undefined) {
   const [serverStatus, setServerStatus] = useState<ServerRateLimit | null>(null);
   const [serverLoading, setServerLoading] = useState(false);
-  const checkedRef = useRef(false);
+  const [recordVersion, setRecordVersion] = useState(0);
+  const checkedForRef = useRef<string | null>(null);
 
-  // Compute client-side status
-  const clientStatus = useMemo(() => computeClientStatus(userId), [userId]);
+  // Recomputes after each recorded contact (recordVersion) so the client
+  // counts don't freeze at their mount-time values for the whole visit.
+  // recordVersion is a deliberate invalidation key, not read in the body.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const clientStatus = useMemo(() => computeClientStatus(userId), [userId, recordVersion]);
 
-  // Layer 3: Server check (only when Supabase is connected)
-  useEffect(() => {
+  const refreshServerStatus = useCallback(async () => {
     if (!isSupabaseConnected()) return;
-    if (checkedRef.current) return;
-    checkedRef.current = true;
-
-    const checkServer = async () => {
-      setServerLoading(true);
-      try {
-        const fingerprint = getDeviceFingerprint();
-        const token = await getAuthToken();
-        const response = await fetch(getEdgeFunctionUrl('check-contact-limit'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            apikey: SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
-            deviceFingerprint: fingerprint,
-          }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setServerStatus(data);
-        }
-      } catch {
-        // Network or CORS error — silently fall back to client-side limits
-      } finally {
-        setServerLoading(false);
+    setServerLoading(true);
+    try {
+      const fingerprint = getDeviceFingerprint();
+      const token = await getAuthToken();
+      const response = await fetch(getEdgeFunctionUrl('check-contact-limit'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          deviceFingerprint: fingerprint,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServerStatus(data);
       }
-    };
+    } catch {
+      // Network or CORS error — silently fall back to client-side limits
+    } finally {
+      setServerLoading(false);
+    }
+  }, []);
 
-    checkServer();
-  }, [userId]);
+  // Layer 3: server check. Re-runs whenever the identity changes — a
+  // logged-out visitor who signs in must be re-checked with their token,
+  // not left on the anonymous device limit. (The old boolean ref guard ran
+  // exactly once and defeated the [userId] dependency.)
+  useEffect(() => {
+    const key = userId ?? null;
+    if (checkedForRef.current === key) return;
+    checkedForRef.current = key;
+    void refreshServerStatus();
+  }, [userId, refreshServerStatus]);
 
   // Merge: server takes precedence when available
   const status: RateLimitStatus = useMemo(() => {
@@ -269,8 +276,12 @@ export function useContactRateLimit(userId: string | undefined) {
       }
     }
 
+    // Recompute the client counts and re-pull the server count so the
+    // displayed usage moves immediately instead of after a reload.
+    setRecordVersion((v) => v + 1);
+    await refreshServerStatus();
     return true;
-  }, [status.canSend, userId]);
+  }, [status.canSend, userId, refreshServerStatus]);
 
   return { ...status, record };
 }

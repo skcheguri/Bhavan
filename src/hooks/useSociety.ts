@@ -85,6 +85,10 @@ export interface SocietyMembership {
 }
 
 const NOT_CONNECTED = 'Not connected to the database.';
+// PostgREST returns 204/no error for an UPDATE that RLS filtered to zero
+// rows, so a write that changed nothing looks like success. Every mutation
+// that .select()s its rows and finds none reports this instead (finding #6).
+const NO_ROWS_MSG = "That change didn't apply — the item may no longer exist, or you may not have permission.";
 
 function client() {
   if (!isSupabaseConnected()) return null;
@@ -380,12 +384,15 @@ export async function updateMyUnits(
   const supabase = client();
   if (!supabase) return { error: NOT_CONNECTED };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('community_members')
     .update({ unit_numbers: unitNumbers })
-    .eq('id', memberId);
+    .eq('id', memberId)
+    .select('id');
 
-  return { error: error ? error.message : null };
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: NO_ROWS_MSG };
+  return { error: null };
 }
 
 /**
@@ -415,7 +422,7 @@ export async function decideMembership(
   const supabase = client();
   if (!supabase) return { error: NOT_CONNECTED };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('community_members')
     .update({
       status: decision,
@@ -423,9 +430,12 @@ export async function decideMembership(
       approved_at: new Date().toISOString(),
       rejection_reason: decision === 'rejected' ? (reason ?? null) : null,
     })
-    .eq('id', memberId);
+    .eq('id', memberId)
+    .select('id');
 
-  return { error: error ? error.message : null };
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: NO_ROWS_MSG };
+  return { error: null };
 }
 
 /**
@@ -442,12 +452,15 @@ export async function setMemberRole(
   const supabase = client();
   if (!supabase) return { error: NOT_CONNECTED };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('community_members')
     .update({ role })
-    .eq('id', memberId);
+    .eq('id', memberId)
+    .select('id');
 
-  return { error: error ? error.message : null };
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: NO_ROWS_MSG };
+  return { error: null };
 }
 
 /* ------------------------------------------------------------------ */
@@ -506,10 +519,22 @@ export const TICKET_CATEGORIES = [
   { value: 'other', label: 'Other', icon: 'ri-more-line' },
 ] as const;
 
+// Offset pagination drifts when other users insert/resolve rows between
+// pages: the same row can re-appear at the next offset (duplicate React key)
+// or one can be skipped. Deduping the appended page by id kills the visible
+// duplicate, and deriving hasMore from whether a full page came back (rather
+// than list.length < total) means an empty or short tail page correctly ends
+// the list instead of leaving "show more" spinning forever (findings #11, #12).
+function appendUniqueById<T extends { id: string }>(prev: T[], rows: T[]): T[] {
+  const seen = new Set(prev.map((r) => r.id));
+  return [...prev, ...rows.filter((r) => !seen.has(r.id))];
+}
+
 /** Announcements for one society. Reading is free; only admins can post. */
 export function useAnnouncements(communityId: string | undefined) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -540,7 +565,8 @@ export function useAnnouncements(communityId: string | undefined) {
         setError(null);
         const rows = (data ?? []) as (Announcement & { total_count: number })[];
         setTotal(rows[0]?.total_count ?? (append ? total : 0));
-        setAnnouncements((prev) => (append ? [...prev, ...rows] : rows));
+        setHasMore(rows.length === PAGE);
+        setAnnouncements((prev) => (append ? appendUniqueById(prev, rows) : rows));
       }
       setLoading(false);
       setLoadingMore(false);
@@ -564,7 +590,7 @@ export function useAnnouncements(communityId: string | undefined) {
   return {
     announcements,
     total,
-    hasMore: announcements.length < total,
+    hasMore,
     loading,
     loadingMore,
     error,
@@ -674,6 +700,7 @@ export interface Poll {
 export function usePolls(communityId: string | undefined) {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -704,8 +731,9 @@ export function usePolls(communityId: string | undefined) {
           total_count: number;
         })[];
         setTotal(rows[0]?.total_count ?? (append ? total : 0));
+        setHasMore(rows.length === PAGE);
         const mapped = rows.map((r) => ({ ...r, options: r.options ?? [] })) as Poll[];
-        setPolls((prev) => (append ? [...prev, ...mapped] : mapped));
+        setPolls((prev) => (append ? appendUniqueById(prev, mapped) : mapped));
       }
       setLoading(false);
       setLoadingMore(false);
@@ -726,7 +754,7 @@ export function usePolls(communityId: string | undefined) {
   return {
     polls,
     total,
-    hasMore: polls.length < total,
+    hasMore,
     loading,
     loadingMore,
     error,
@@ -807,6 +835,7 @@ export async function deletePoll(pollId: string): Promise<{ error: string | null
 export function useTickets(communityId: string | undefined) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -834,7 +863,8 @@ export function useTickets(communityId: string | undefined) {
         setError(null);
         const rows = (data ?? []) as (Ticket & { total_count: number })[];
         setTotal(rows[0]?.total_count ?? (append ? total : 0));
-        setTickets((prev) => (append ? [...prev, ...rows] : rows));
+        setHasMore(rows.length === PAGE);
+        setTickets((prev) => (append ? appendUniqueById(prev, rows) : rows));
       }
       setLoading(false);
       setLoadingMore(false);
@@ -853,7 +883,7 @@ export function useTickets(communityId: string | undefined) {
   return {
     tickets,
     total,
-    hasMore: tickets.length < total,
+    hasMore,
     loading,
     loadingMore,
     error,
@@ -905,8 +935,10 @@ export async function setTicketStatus(
   const patch: Record<string, unknown> = { status };
   if (adminNotes !== undefined) patch.admin_notes = adminNotes;
 
-  const { error } = await supabase.from('community_tickets').update(patch).eq('id', ticketId);
-  return { error: error ? error.message : null };
+  const { data, error } = await supabase.from('community_tickets').update(patch).eq('id', ticketId).select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: NO_ROWS_MSG };
+  return { error: null };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1161,7 +1193,9 @@ export function useCollections(communityId: string | undefined) {
       .from('community_collections')
       .select('*')
       .eq('community_id', communityId)
-      .order('status', { ascending: true })
+      // 'open' before 'closed': descending puts 'o' ahead of 'c', so the
+      // live collection people are meant to pay into sits above finished ones.
+      .order('status', { ascending: false })
       .order('created_at', { ascending: false });
 
     if (dbError) {
@@ -1265,8 +1299,10 @@ export async function closeCollection(
 ): Promise<{ error: string | null }> {
   const supabase = client();
   if (!supabase) return { error: NOT_CONNECTED };
-  const { error } = await supabase.from('community_collections').update({ status }).eq('id', id);
-  return { error: error ? error.message : null };
+  const { data, error } = await supabase.from('community_collections').update({ status }).eq('id', id).select('id');
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: NO_ROWS_MSG };
+  return { error: null };
 }
 
 /**
@@ -1309,12 +1345,15 @@ export async function decideContribution(
   const supabase = client();
   if (!supabase) return { error: NOT_CONNECTED };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('community_contributions')
     .update({ status, confirmed_by: adminId })
-    .eq('id', contributionId);
+    .eq('id', contributionId)
+    .select('id');
 
-  return { error: error ? error.message : null };
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: NO_ROWS_MSG };
+  return { error: null };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1524,13 +1563,16 @@ export async function setSocietyClosed(
   const supabase = client();
   if (!supabase) return { error: NOT_CONNECTED };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('communities')
     .update({ status: closed ? 'closed' : 'active' })
-    .eq('id', communityId);
+    .eq('id', communityId)
+    .select('id');
 
   // The status guard phrases its refusals for a reader already.
-  return { error: error ? error.message : null };
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: NO_ROWS_MSG };
+  return { error: null };
 }
 
 /**

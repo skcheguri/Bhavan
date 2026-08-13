@@ -69,13 +69,16 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
     const supabase = getSupabase();
     if (!supabase || !userId) return;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('notifications')
       .update({ read: true, read_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('id');
 
-    if (!error) {
+    if (error) {
+      console.warn('markAsRead failed:', error.message);
+    } else if (data && data.length > 0) {
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true } : n))
       );
@@ -92,7 +95,9 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
       .eq('user_id', userId)
       .eq('read', false);
 
-    if (!error) {
+    if (error) {
+      console.warn('markAllAsRead failed:', error.message);
+    } else {
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     }
   };

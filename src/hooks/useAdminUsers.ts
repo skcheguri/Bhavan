@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
 export interface AdminUserRow {
@@ -91,6 +91,7 @@ export function useAdminUsers() {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async (searchQuery: string) => {
     const supabase = getSupabase();
@@ -98,11 +99,17 @@ export function useAdminUsers() {
       setLoading(false);
       return;
     }
+    // Sequence tag: two rapid searches ("ra" then "raj") race, and without
+    // this the slower response can land last and show results for the wrong
+    // query. Only the newest request is allowed to write state.
+    const reqId = ++requestIdRef.current;
     setLoading(true);
     const { data, error } = await supabase.rpc('admin_list_users', {
       search_query: searchQuery || null,
       result_limit: 100,
     });
+
+    if (reqId !== requestIdRef.current) return;
 
     if (error) {
       console.warn('Supabase admin_list_users error:', error.message);

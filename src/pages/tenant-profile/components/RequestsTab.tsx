@@ -120,6 +120,7 @@ export default function RequestsTab({ tenantId }: Props) {
   const [requestForm, setRequestForm] = useState<{ issue: string; description: string; urgency: 'low' | 'medium' | 'high'; preferredTime: string }>({ issue: '', description: '', urgency: 'medium', preferredTime: '' });
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitWarning, setSubmitWarning] = useState<string | null>(null);
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const MAX_PHOTOS = 5;
 
@@ -145,8 +146,9 @@ export default function RequestsTab({ tenantId }: Props) {
   const handleSubmitRequest = async () => {
     if (!selectedCategory || !requestForm.issue.trim() || !selectedAgreement) return;
     setSubmitError(null);
+    setSubmitWarning(null);
 
-    const { error } = await createMaint({
+    const { error, uploadWarning } = await createMaint({
       tenant_id: tenantId,
       agreement_id: selectedAgreement.id,
       category: selectedCategory,
@@ -165,6 +167,7 @@ export default function RequestsTab({ tenantId }: Props) {
 
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setPhotos([]);
+    setSubmitWarning(uploadWarning ?? null);
     setSubmitted(true);
     refreshMaint();
     setTimeout(() => {
@@ -423,6 +426,12 @@ export default function RequestsTab({ tenantId }: Props) {
                   </div>
                   <h3 className="text-lg font-bold text-charcoal">Request Submitted!</h3>
                   <p className="text-sm text-charcoal/60 text-center">Your maintenance request has been raised.</p>
+                  {submitWarning && (
+                    <p className="text-xs text-amber-600 text-center max-w-xs flex items-start gap-1.5">
+                      <i className="ri-error-warning-line mt-0.5 flex-shrink-0" />
+                      <span>{submitWarning}</span>
+                    </p>
+                  )}
                 </div>
               ) : agreements.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">

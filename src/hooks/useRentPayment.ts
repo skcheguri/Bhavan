@@ -95,9 +95,31 @@ export interface UseRentPaymentReturn extends RentPaymentState {
   refresh: () => Promise<void>;
 }
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 function formatMonthKey(date: Date): string {
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  return `${months[date.getMonth()]} ${date.getFullYear()}`;
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+// The rent due date for a "Month YYYY" period: the 5th of that month, not
+// the month the payment row happened to be created in. Timeliness must be
+// judged against the rent period, otherwise January's rent paid in March
+// scores "on time" and a payment made on the 5th at 9am scores "late".
+function dueDateForMonthKey(monthKey: string): Date | null {
+  const parts = monthKey.trim().split(/\s+/);
+  const monthIdx = MONTH_NAMES.indexOf(parts[0]);
+  const year = Number(parts[1]);
+  if (monthIdx < 0 || !Number.isFinite(year)) return null;
+  return new Date(year, monthIdx, 5, 23, 59, 59, 999);
+}
+
+// Every mounted useRentPayment shares this refresh fan-out so a reconcile
+// (or any mutation) in one place refreshes the copies on other screens,
+// instead of leaving two views of the same payment disagreeing until a
+// reload (finding #7).
+const rentRefreshers = new Set<() => void>();
+function broadcastRentRefresh(): void {
+  rentRefreshers.forEach((r) => r());
 }
 
 function isValidUUID(str: string): boolean {
@@ -116,6 +138,7 @@ export function useRentPayment(): UseRentPaymentReturn {
   const fetchFromSupabase = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
+    setError(null);
     try {
       const { data: pData, error: pErr } = await supabase
         .from('rent_payments')
@@ -151,6 +174,14 @@ export function useRentPayment(): UseRentPaymentReturn {
     refresh();
   }, [refresh]);
 
+  // Fan-out registration: a reconcile on another screen refreshes this copy.
+  useEffect(() => {
+    rentRefreshers.add(fetchFromSupabase);
+    return () => {
+      rentRefreshers.delete(fetchFromSupabase);
+    };
+  }, [fetchFromSupabase]);
+
   const filteredPayments = useCallback(
     (filters: PaymentFilters) => {
       return payments.filter((p) => {
@@ -183,9 +214,9 @@ export function useRentPayment(): UseRentPaymentReturn {
   const failedPayments = payments.filter((p) => p.status === 'failed');
   const overduePayments = payments.filter((p) => {
     if (p.status !== 'pending') return false;
-    const due = new Date(p.created_at);
-    const now = new Date();
-    return now.getTime() - due.getTime() > 3 * 24 * 60 * 60 * 1000;
+    const due = dueDateForMonthKey(p.month);
+    if (!due) return false;
+    return Date.now() > due.getTime();
   });
   const reconciledPayments = payments.filter((p) => p.status === 'reconciled');
 
@@ -209,9 +240,9 @@ export function useRentPayment(): UseRentPaymentReturn {
     const tenantPays = payments.filter((p) => p.tenant_id === tenantId && (p.status === 'paid' || p.status === 'reconciled'));
     if (tenantPays.length === 0) return 0;
     const onTime = tenantPays.filter((p) => {
-      const paidDate = new Date(p.created_at);
-      const dueDate = new Date(paidDate.getFullYear(), paidDate.getMonth(), 5);
-      return paidDate.getTime() <= dueDate.getTime();
+      const dueDate = dueDateForMonthKey(p.month);
+      if (!dueDate) return true; // unparseable month: don't penalise
+      return new Date(p.created_at).getTime() <= dueDate.getTime();
     }).length;
     return Math.round((onTime / tenantPays.length) * 100);
   }, [payments]);
@@ -244,7 +275,7 @@ export function useRentPayment(): UseRentPaymentReturn {
           .select()
           .single();
         if (supaErr) return { data: null, error: supaErr.message };
-        await refresh();
+        broadcastRentRefresh();
         return { data: data as RentPayment, error: null };
       }
 
@@ -270,7 +301,7 @@ export function useRentPayment(): UseRentPaymentReturn {
       setPayments((prev) => [newPayment, ...prev]);
       return { data: newPayment, error: null };
     },
-    [supabase, refresh]
+    [supabase]
   );
 
   const reconcilePayment = useCallback(
@@ -279,7 +310,7 @@ export function useRentPayment(): UseRentPaymentReturn {
       if (idx === -1) return { error: 'Payment not found' };
 
       if (supabase && isValidUUID(paymentId)) {
-        const { error: supaErr } = await supabase
+        const { data: updated, error: supaErr } = await supabase
           .from('rent_payments')
           .update({
             status: 'reconciled',
@@ -287,9 +318,13 @@ export function useRentPayment(): UseRentPaymentReturn {
             reconciliation_note: note,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', paymentId);
+          .eq('id', paymentId)
+          .select('id');
         if (supaErr) return { error: supaErr.message };
-        await refresh();
+        if (!updated || updated.length === 0) {
+          return { error: 'This payment could not be reconciled — it may no longer be yours to update.' };
+        }
+        broadcastRentRefresh();
         return { error: null };
       }
 
@@ -308,7 +343,7 @@ export function useRentPayment(): UseRentPaymentReturn {
       );
       return { error: null };
     },
-    [payments, supabase, refresh]
+    [payments, supabase]
   );
 
   const createMandate = useCallback(
@@ -326,14 +361,14 @@ export function useRentPayment(): UseRentPaymentReturn {
       if (supabase && isValidUUID(input.tenant_id) && isValidUUID(input.owner_id) && isValidUUID(input.property_id)) {
         const { data, error: supaErr } = await supabase.from('upi_mandates').insert(newMandate).select().single();
         if (supaErr) return { data: null, error: supaErr.message };
-        await refresh();
+        broadcastRentRefresh();
         return { data: data as UPIMandate, error: null };
       }
 
       setMandates((prev) => [...prev, newMandate]);
       return { data: newMandate, error: null };
     },
-    [supabase, refresh]
+    [supabase]
   );
 
   const pauseMandate = useCallback(
@@ -347,14 +382,14 @@ export function useRentPayment(): UseRentPaymentReturn {
           .update({ status: 'paused', updated_at: new Date().toISOString() })
           .eq('id', mandateId);
         if (supaErr) return { error: supaErr.message };
-        await refresh();
+        broadcastRentRefresh();
         return { error: null };
       }
 
       setMandates((prev) => prev.map((m, i) => (i === idx ? { ...m, status: 'paused', updated_at: new Date().toISOString() } : m)));
       return { error: null };
     },
-    [mandates, supabase, refresh]
+    [mandates, supabase]
   );
 
   const cancelMandate = useCallback(
@@ -368,14 +403,14 @@ export function useRentPayment(): UseRentPaymentReturn {
           .update({ status: 'cancelled', updated_at: new Date().toISOString() })
           .eq('id', mandateId);
         if (supaErr) return { error: supaErr.message };
-        await refresh();
+        broadcastRentRefresh();
         return { error: null };
       }
 
       setMandates((prev) => prev.map((m, i) => (i === idx ? { ...m, status: 'cancelled', updated_at: new Date().toISOString() } : m)));
       return { error: null };
     },
-    [mandates, supabase, refresh]
+    [mandates, supabase]
   );
 
   return {

@@ -522,10 +522,10 @@ export default function ListingDetail() {
             <div className="mb-4 p-3 bg-brand/5 rounded-xl border border-brand/10">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-charcoal">
-                  {contactRate.dailyRemaining}/{contactRate.dailyCount} daily contacts used
+                  {contactRate.dailyCount}/{contactRate.dailyCount + contactRate.dailyRemaining} daily contacts used
                 </span>
                 <span className="text-xs font-semibold text-charcoal">
-                  {contactRate.weeklyRemaining}/{contactRate.weeklyCount} weekly contacts used
+                  {contactRate.weeklyCount}/{contactRate.weeklyCount + contactRate.weeklyRemaining} weekly contacts used
                 </span>
               </div>
               {contactRate.isServerEnforced && (

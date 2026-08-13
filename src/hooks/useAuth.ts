@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback, useRef } from 'react';
 import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
 import { disableBiometricUnlock, enableBiometricUnlock, unlockWithBiometric } from '@/lib/biometricAuth';
 import { clearCacheForUser } from '@/lib/offlineCache';
@@ -86,11 +86,21 @@ async function buildAuthUser(supabaseUser: User): Promise<AuthUser | null> {
   // columns (name, avatar_url, role, verified_aadhaar) -- get_my_profile()
   // is a SECURITY DEFINER RPC that returns the full row, scoped to the
   // caller's own auth.uid() by construction. See migration 015.
-  const { data: rows, error } = await supabase.rpc('get_my_profile');
+  // Retry a couple of times on a genuine RPC error before falling back: a
+  // transient network/RLS blip must not drop us into the tenant default
+  // below, which silently demotes an owner (Google accounts carry no
+  // user_metadata.role) into a tenant view of their own account.
+  let res = await supabase.rpc('get_my_profile');
+  for (let attempt = 0; attempt < 2 && res.error; attempt++) {
+    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+    res = await supabase.rpc('get_my_profile');
+  }
+  const { data: rows, error } = res;
   const profile = rows?.[0];
 
   if (error || !profile) {
-    // Fallback when profile hasn't synced yet
+    // Fallback when the profile genuinely hasn't synced yet (fresh signup),
+    // or after retries still failed.
     return {
       id: supabaseUser.id,
       name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
@@ -168,6 +178,11 @@ export function useAuth() {
 export function useAuthProvider(): AuthContextValue {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  // buildAuthUser awaits an RPC; re-check we're still mounted afterwards
+  // before committing state, so a sign-out (or navigation) mid-fetch doesn't
+  // setState on an unmounted provider.
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const refreshUser = useCallback(async (sessionUser: User | null) => {
     if (!sessionUser) {
@@ -176,6 +191,7 @@ export function useAuthProvider(): AuthContextValue {
       return;
     }
     const authUser = await buildAuthUser(sessionUser);
+    if (!mountedRef.current) return;
     setUser(authUser);
     setLoading(false);
   }, []);

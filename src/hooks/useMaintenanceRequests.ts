@@ -44,23 +44,42 @@ export interface CreateMaintenanceRequestInput {
   photos?: File[];
 }
 
+interface UploadResult {
+  urls: string[];
+  // Files rejected before upload for type/size (HEIC, > 5MB).
+  skipped: number;
+  // Files that reached the upload and errored (RLS, quota, network).
+  failed: number;
+}
+
 // Uploads maintenance photos to the maintenance-images bucket under the
-// tenant's own folder (migration 139) and returns their public URLs.
-async function uploadMaintenanceImages(tenantId: string, requestId: string, files: File[]): Promise<string[]> {
+// tenant's own folder (migration 139). Returns the URLs AND how many files
+// were dropped, so the caller can tell the tenant instead of silently
+// filing a photo-less report.
+async function uploadMaintenanceImages(tenantId: string, requestId: string, files: File[]): Promise<UploadResult> {
   const supabase = getSupabase();
-  if (!supabase) return [];
+  if (!supabase) return { urls: [], skipped: 0, failed: files.length };
   const urls: string[] = [];
+  let skipped = 0;
+  let failed = 0;
   for (const file of files) {
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) continue;
-    if (file.size > 5 * 1024 * 1024) continue;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      skipped++;
+      continue;
+    }
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const path = `${tenantId}/${requestId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const { error } = await supabase.storage.from('maintenance-images').upload(path, file);
-    if (error) continue;
+    if (error) {
+      console.warn('maintenance photo upload failed:', error.message);
+      failed++;
+      continue;
+    }
     const { data } = supabase.storage.from('maintenance-images').getPublicUrl(path);
     if (data?.publicUrl) urls.push(data.publicUrl);
+    else failed++;
   }
-  return urls;
+  return { urls, skipped, failed };
 }
 
 export function useMaintenanceRequests(tenantId: string | undefined) {
@@ -110,7 +129,7 @@ export function useCreateMaintenanceRequest() {
 
   const create = useCallback(async (
     input: CreateMaintenanceRequestInput
-  ): Promise<{ data: MaintenanceRequest | null; error: string | null }> => {
+  ): Promise<{ data: MaintenanceRequest | null; error: string | null; uploadWarning?: string | null }> => {
     if (!isSupabaseConnected()) {
       return { data: null, error: 'Supabase not connected' };
     }
@@ -145,10 +164,13 @@ export function useCreateMaintenanceRequest() {
       return { data: null, error: dbError.message };
     }
 
-    // Upload any attached photos and fold their URLs back into the row.
+    // Upload any attached photos and fold their URLs back into the row. If
+    // some or all failed, tell the caller so the tenant isn't shown "submitted"
+    // over a report that lost its photographic evidence.
     let row = data;
+    let uploadWarning: string | null = null;
     if (input.photos && input.photos.length > 0) {
-      const urls = await uploadMaintenanceImages(input.tenant_id, data.id, input.photos);
+      const { urls, skipped, failed } = await uploadMaintenanceImages(input.tenant_id, data.id, input.photos);
       if (urls.length > 0) {
         const { data: updated } = await supabase
           .from('maintenance_requests')
@@ -158,12 +180,20 @@ export function useCreateMaintenanceRequest() {
           .single();
         if (updated) row = updated;
       }
+      const dropped = skipped + failed;
+      if (dropped > 0) {
+        const reason = skipped > 0 ? ' (unsupported format or over 5MB)' : '';
+        uploadWarning = urls.length === 0
+          ? `Your request was submitted, but none of the ${input.photos.length} photo(s) could be attached${reason}.`
+          : `${dropped} of ${input.photos.length} photo(s) couldn't be attached${reason}.`;
+      }
     }
 
-    await supabase.rpc('notify_maintenance_request_created', { p_request_id: data.id });
+    const { error: notifyError } = await supabase.rpc('notify_maintenance_request_created', { p_request_id: data.id });
+    if (notifyError) console.warn('notify_maintenance_request_created failed:', notifyError.message);
 
     setCreating(false);
-    return { data: row as MaintenanceRequest, error: null };
+    return { data: row as MaintenanceRequest, error: null, uploadWarning };
   }, []);
 
   return { create, creating, error };

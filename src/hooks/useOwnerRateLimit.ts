@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -111,14 +111,19 @@ export interface OwnerRateLimits {
 }
 
 export function useOwnerRateLimit(userId: string | undefined): OwnerRateLimits {
-  const inquiry = useMemo(
-    () => getInquiryLimitStatus(userId || ''),
-    [userId],
-  );
+  // Bumped after each recorded response so the memo re-reads localStorage;
+  // without it the count and canSend were frozen at mount-time values and
+  // only moved after a full reload.
+  const [version, setVersion] = useState(0);
+  // version is a deliberate invalidation key so the memo re-reads localStorage.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const inquiry = useMemo(() => getInquiryLimitStatus(userId || ''), [userId, version]);
 
   const recordInquiry = useCallback((): boolean => {
     if (!userId) return false;
-    return recordInquiryResponse(userId);
+    const ok = recordInquiryResponse(userId);
+    if (ok) setVersion((v) => v + 1);
+    return ok;
   }, [userId]);
 
   return { inquiry, recordInquiry };

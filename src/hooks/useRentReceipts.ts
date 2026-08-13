@@ -133,7 +133,8 @@ export function useRentReceipts(ownerId: string | undefined) {
       .from('rent_receipts')
       .update({ sent_to_tenant: true, sent_at: new Date().toISOString() })
       .eq('id', receiptId);
-    await supabase.rpc('notify_receipt_shared', { p_receipt_id: receiptId });
+    const { error: notifyError } = await supabase.rpc('notify_receipt_shared', { p_receipt_id: receiptId });
+    if (notifyError) console.warn('notify_receipt_shared failed:', notifyError.message);
     setReceipts((prev) => prev.map((r) => (r.id === receiptId ? { ...r, sentToTenant: true, sentAt: new Date().toISOString() } : r)));
   }, []);
 

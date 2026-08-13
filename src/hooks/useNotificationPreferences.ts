@@ -98,11 +98,15 @@ export function useNotificationPreferences(userId: string | undefined) {
         { onConflict: 'user_id,category' }
       );
 
-      if (!error) {
-        setPreferences((prev) =>
-          prev.map((p) => (p.category === category ? { ...p, [channel]: nextValue } : p))
-        );
+      if (error) {
+        // Don't leave the toggle silently reverted with no trace; at least
+        // record why it didn't take so a failing save is diagnosable.
+        console.warn('notification preference update failed:', error.message);
+        return;
       }
+      setPreferences((prev) =>
+        prev.map((p) => (p.category === category ? { ...p, [channel]: nextValue } : p))
+      );
     },
     [userId, preferences]
   );

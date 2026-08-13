@@ -96,7 +96,8 @@ export function useCreatePropertyVisit() {
       return { error: error.message };
     }
 
-    await supabase.rpc('notify_visit_requested', { p_visit_id: data.id });
+    const { error: notifyError } = await supabase.rpc('notify_visit_requested', { p_visit_id: data.id });
+    if (notifyError) console.warn('notify_visit_requested failed:', notifyError.message);
     setCreating(false);
     return { error: null };
   }, []);

@@ -95,16 +95,33 @@ export function useAdminContactInquiries() {
     async (id: string, status: ContactInquiryStatus, adminNotes?: string): Promise<boolean> => {
       const supabase = getSupabase();
       if (!supabase) return false;
-      const { error } = await supabase
+      // adminNotes === undefined means "leave the note untouched". Only an
+      // explicit value is written -- previously `?? null` turned an omitted
+      // note into an overwrite, so flipping status to resolved without
+      // retyping wiped the triage notes.
+      const patch: {
+        status: ContactInquiryStatus;
+        resolved_at: string | null;
+        admin_notes?: string;
+      } = {
+        status,
+        resolved_at: status === 'resolved' ? new Date().toISOString() : null,
+      };
+      if (adminNotes !== undefined) patch.admin_notes = adminNotes;
+
+      const { data, error } = await supabase
         .from('contact_inquiries')
-        .update({
-          status,
-          admin_notes: adminNotes ?? null,
-          resolved_at: status === 'resolved' ? new Date().toISOString() : null,
-        })
-        .eq('id', id);
+        .update(patch)
+        .eq('id', id)
+        .select('id');
       if (error) {
         console.warn('Supabase contact_inquiries update error:', error.message);
+        return false;
+      }
+      if (!data || data.length === 0) {
+        // RLS filtered the row out, or it's gone -- report failure rather
+        // than a false success (PostgREST returns 204 for a zero-row update).
+        console.warn('Supabase contact_inquiries update affected no rows');
         return false;
       }
       await load();

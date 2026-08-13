@@ -36,7 +36,6 @@ export interface AdminBrokerReport extends BrokerReport {
 
 const HOUR_MS = 60 * 60 * 1000;
 const WINDOW_MS = 48 * HOUR_MS;
-const REPORT_THRESHOLD = 2;
 
 export type ReportReason =
   | 'broker_agent'
@@ -48,14 +47,6 @@ export type ReportReason =
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
-}
-
-function computeSoftBlock(reports: BrokerReport[]): boolean {
-  const now = Date.now();
-  const recentReports = reports.filter(
-    (r) => now - new Date(r.created_at).getTime() < WINDOW_MS
-  );
-  return recentReports.length >= REPORT_THRESHOLD;
 }
 
 export interface BrokerReportStatus {
@@ -175,18 +166,21 @@ async function upsertSoftBlockSupabase(state: SoftBlockState): Promise<boolean> 
 
 /* ---- Status builder ---- */
 
-async function buildBrokerReportStatus(
+// Read-only: the active/inactive decision is computed and persisted by the
+// database (migration 144, trg_broker_report_recompute_block +
+// soft_block_recompute_active). The client only reflects that server state --
+// it no longer counts an RLS-truncated report set or writes from a read.
+function buildBrokerReportStatus(
   tenantId: string,
   reports: BrokerReport[],
   softBlock: SoftBlockState | null
-): Promise<BrokerReportStatus> {
-  const isSoftBlocked = computeSoftBlock(reports);
+): BrokerReportStatus {
   const now = Date.now();
   const recentReportCount = reports.filter(
     (r) => now - new Date(r.created_at).getTime() < WINDOW_MS
   ).length;
 
-  let state: SoftBlockState = softBlock ?? {
+  const state: SoftBlockState = softBlock ?? {
     tenant_id: tenantId,
     active: false,
     triggered_at: null,
@@ -194,21 +188,6 @@ async function buildBrokerReportStatus(
     additional_details_provided: false,
     details: null,
   };
-
-  if (isSoftBlocked && !state.active) {
-    state = { ...state, active: true, triggered_at: new Date().toISOString() };
-    await upsertSoftBlockSupabase(state);
-  }
-
-  if (
-    !isSoftBlocked &&
-    state.active &&
-    state.aadhaar_re_verified &&
-    state.additional_details_provided
-  ) {
-    state = { ...state, active: false };
-    await upsertSoftBlockSupabase(state);
-  }
 
   const canBeReportedBy = (reporterId: string) => {
     return !reports.some((r) => r.owner_id === reporterId);
@@ -259,7 +238,7 @@ export function useBrokerReport(tenantId: string | undefined) {
       fetchSoftBlockSupabase(id),
     ]);
 
-    const next = await buildBrokerReportStatus(id, reports, softBlock);
+    const next = buildBrokerReportStatus(id, reports, softBlock);
     setStatus(next);
   }, [id]);
 

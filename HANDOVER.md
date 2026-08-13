@@ -604,29 +604,39 @@ the tenant nothing. Restored in **140**. A sweep confirmed this was the
 only function affected and that no `SECURITY DEFINER` function is
 missing `search_path`.
 
-**Data layer — one known-good pattern not propagated.**
+**Data layer — RESOLVED (2026-08-13).** The 21-finding data-layer
+correctness audit was worked High → Low; every finding is fixed except #19,
+which is deferred. Frontend-only, except the broker soft-block, which moved
+server-side (migration 144). What changed:
 
-- **Chat messages sent during page load are dropped.** The fetch and the
-  realtime subscribe are uncoordinated, and the fetch result replaces
-  state rather than merging, so anything arriving in the gap is lost
-  until remount.
-- **Maintenance photos fail silently.** Per-file upload errors are
-  `continue`d and the request still returns success — a burst-pipe report
-  arrives with no pictures.
-- **Admin notes are destroyed by a status change.** `useContactInquiries`
-  turns an omitted `adminNotes` into an explicit `null`.
-- **Broker soft-block never fires for owners.** It is computed client-side
-  over an RLS-filtered subset, so it can only activate when the reported
-  person loads a page — the control is armed by its target. Belongs in a
-  trigger.
-- **Zero-row writes report success.** `updateReview` checks this and
-  documents why; eleven other mutations do not, including
-  `decideContribution`, which confirms money in the society ledger.
-- Notification RPCs discard their errors; `useRentPayment` is mounted five
-  times and the copies disagree; its `error` is never cleared so a
-  transient failure is permanent; offset pagination drifts against
-  concurrent writes; a transient profile-RPC failure silently demotes an
-  owner to a tenant view.
+- **Chat** subscribes before taking the snapshot and merges by id, so a
+  message arriving mid-load is neither lost nor wiped (`useChatMessages`).
+- **Maintenance photo** failures are surfaced — the tenant is told when
+  photos couldn't attach instead of getting a silent photo-less report.
+- **Admin notes** are opt-in on update, so a status change no longer nulls
+  them; the update also reports a zero-row (RLS-filtered) result.
+- **Broker soft-block** is computed and persisted by a trigger over *all*
+  reports (migration 144); the client is read-only. It now activates for the
+  owner-side callers it structurally never used to.
+- **Zero-row writes** are caught at 11 mutation sites (incl.
+  `decideContribution`) — each `.select()`s and reports failure instead of a
+  false success.
+- Notification RPC errors are logged; `useRentPayment` shares one refresh
+  fan-out (copies no longer disagree) and clears its error on refetch;
+  on-time/overdue are judged against the rent month, not `created_at`; fund
+  collections list open-first; society pagination dedupes and ends
+  correctly; a transient profile-RPC failure retries instead of demoting an
+  owner to a tenant view; contact/owner rate-limit counters recompute after
+  each use and re-check on sign-in; admin search is request-sequenced;
+  date-only values parse at local midnight; the auth provider guards
+  `setState` after unmount.
+
+Deferred: **#19** — chat previews still fetch full thread histories to render
+one line each (`getLastMessagesByRequest`); the clean fix is a `DISTINCT ON`
+RPC, held back to avoid a migration + `database.types.ts` cycle for a Low
+perf issue. (The redundant 2–3 `get_my_profile` calls per login from #20 are
+also left as-is — the login-flow dedup wasn't worth the risk for a Low perf
+item; the `setState`-after-unmount guard was applied.)
 
 **UI — derived numbers not audited against their source.**
 
