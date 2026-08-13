@@ -162,6 +162,7 @@ CREATE TRIGGER trg_guard_community_status
 -- Deletion: requested by a society admin, carried out by Bhavan
 -- ---------------------------------------------------------------------
 
+DROP POLICY IF EXISTS "Bhavan deletes societies" ON communities;
 CREATE POLICY "Bhavan deletes societies" ON communities
   FOR DELETE TO authenticated
   USING (is_admin());

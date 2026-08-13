@@ -31,7 +31,7 @@
 -- ============================================================
 
 -- ---- 1. Where the host's money goes ----
-CREATE TABLE host_payout_accounts (
+CREATE TABLE IF NOT EXISTS host_payout_accounts (
     user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     method text NOT NULL CHECK (method IN ('upi', 'bank')),
     upi_id text CHECK (upi_id IS NULL OR (upi_id ~ '^[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,}$')),
@@ -51,15 +51,18 @@ ALTER TABLE host_payout_accounts ENABLE ROW LEVEL SECURITY;
 
 -- Bank details are between the host and the people who pay them:
 -- the host manages their own row, admins can read it to execute payouts.
+DROP POLICY IF EXISTS "Hosts manage own payout account" ON host_payout_accounts;
 CREATE POLICY "Hosts manage own payout account" ON host_payout_accounts
   FOR ALL TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Admins can read payout accounts" ON host_payout_accounts;
 CREATE POLICY "Admins can read payout accounts" ON host_payout_accounts
   FOR SELECT TO authenticated
   USING (is_admin());
 
+DROP TRIGGER IF EXISTS update_host_payout_accounts_updated_at ON host_payout_accounts;
 CREATE TRIGGER update_host_payout_accounts_updated_at
   BEFORE UPDATE ON host_payout_accounts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

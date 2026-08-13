@@ -11,6 +11,7 @@ DELETE FROM user_push_tokens a
 USING user_push_tokens b
 WHERE a.fcm_token = b.fcm_token AND a.ctid < b.ctid;
 
+ALTER TABLE user_push_tokens DROP CONSTRAINT IF EXISTS user_push_tokens_fcm_token_key;
 ALTER TABLE user_push_tokens
   ADD CONSTRAINT user_push_tokens_fcm_token_key UNIQUE (fcm_token);
 
@@ -20,7 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_user_push_tokens_user ON user_push_tokens (user_i
 -- this migration: the shared secret must never live in a committed file,
 -- so it's set out-of-band (and the trigger no-ops until it is, exactly
 -- like error_alert_settings.webhook_url).
-CREATE TABLE push_config (
+CREATE TABLE IF NOT EXISTS push_config (
   id boolean PRIMARY KEY DEFAULT true,
   function_url text,
   trigger_secret text,
@@ -28,7 +29,7 @@ CREATE TABLE push_config (
   CONSTRAINT push_config_singleton CHECK (id = true)
 );
 
-INSERT INTO push_config (id) VALUES (true);
+INSERT INTO push_config (id) VALUES (true) ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE push_config ENABLE ROW LEVEL SECURITY;
 

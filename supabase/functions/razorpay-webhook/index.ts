@@ -513,7 +513,11 @@ async function fulfilRent(
       updated_at: new Date().toISOString(),
     })
     .eq("id", rent.id)
-    .neq("status", "paid")
+    // Only a genuinely unpaid row is a claim target. neq('paid') also
+    // matched 'refunded' and 'reconciled', so a late capture could resurrect
+    // a refunded rent payment or un-reconcile a settled one. Mirror
+    // claimInvoice's scoping.
+    .in("status", ["pending", "failed"])
     .select("id");
 
   if (error) return { target: "rent", status: "failed", error: error.message };

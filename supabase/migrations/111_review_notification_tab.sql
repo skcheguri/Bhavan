@@ -46,7 +46,10 @@ $$;
 -- fixing only the trigger would leave the reported symptom in place. The
 -- title records which side the review came from.
 UPDATE public.notifications
-   SET action_url = '/feedback?tab='
-     || CASE WHEN title = 'An owner reviewed you' THEN 'owner_on_renter'
-             ELSE 'renter_on_owner' END
- WHERE action_url = '/feedback';
+   SET action_url = CASE
+       WHEN title = 'An owner reviewed you' THEN '/feedback?tab=owner_on_renter'
+       WHEN title = 'A tenant reviewed you' THEN '/feedback?tab=renter_on_owner'
+       ELSE action_url
+     END
+ WHERE action_url = '/feedback'
+   AND title IN ('An owner reviewed you', 'A tenant reviewed you');

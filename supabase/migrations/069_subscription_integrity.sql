@@ -12,6 +12,7 @@ USING owner_subscriptions b
 WHERE a.owner_id = b.owner_id
   AND (a.updated_at, a.id) < (b.updated_at, b.id);
 
+ALTER TABLE owner_subscriptions DROP CONSTRAINT IF EXISTS owner_subscriptions_owner_id_key;
 ALTER TABLE owner_subscriptions
   ADD CONSTRAINT owner_subscriptions_owner_id_key UNIQUE (owner_id);
 

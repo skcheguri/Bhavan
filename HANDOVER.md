@@ -557,39 +557,43 @@ after migration 139. None of it overlaps §4.1–4.6.
 Triage order is roughly the order below — the first four can corrupt or
 double-charge, the rest mislead.
 
-**Database — a 2026 workflow undone by a 2024 policy.** Three of the
-highest-value tables carry a permissive `FOR ALL` policy inherited from
-the baseline that quietly makes the newer, careful logic optional:
+**Database — RESOLVED in migrations 141–143 (2026-08-13).** The 19-finding
+database-correctness audit was worked Critical → Low; every finding is
+fixed (only #4 was already done, in migration 140). What changed:
 
-- **`rent_payments` is the only money table with no immutable-fields
-  trigger.** `001_baseline.sql:1941` pins only `status` in its
-  `WITH CHECK`, so an owner can `PATCH` `amount`, `tenant_id`, `month` or
-  `razorpay_payment_id` on any of their payment rows. Give it the same
-  guard `connection_requests`, `maintenance_requests` and `rent_receipts`
-  already have.
-- **The 137 signing/stamping workflow has no server-side enforcement.**
-  `"Owners can manage own agreements"` is `FOR ALL`, and there is no
-  trigger on `rental_agreements` guarding `agreement_status`,
-  `stamped_document_path` or the signature columns. One PATCH marks an
-  unsigned agreement `completed` and shared.
-- **114's block is bypassable on `connection_requests`.**
-  `"Owners can read and update their requests"` is `FOR ALL` with no
-  `WITH CHECK`, so it also grants INSERT. Permissive policies OR, so an
-  owner can create a request naming a tenant who blocked them.
+- **`rent_payments`** gained an immutable-fields trigger (141): an owner
+  PATCH can no longer rewrite `amount`, the parties, `month` or the
+  Razorpay ids — only reconcile. Service role and admin are exempt.
+- **The 137 signing/stamping workflow is enforced** (141): a trigger blocks
+  direct changes to `agreement_status`, the signature columns,
+  `stamped_document_path` and `shared_with_tenant` unless one of the
+  SECURITY DEFINER RPCs set its transaction-local flag.
+- **`connection_requests`** split its `FOR ALL` owner policy into explicit
+  SELECT + UPDATE (141), closing the 114 block-bypass and owner-DELETE
+  counter drift.
+- **`property_has_active_tenancy()`** (141) and the **account-deletion
+  guard** (142) now agree: only an in-force agreement (`pending_admin`/
+  `stamped`/`completed`) with a NULL or future end date is active — drafts
+  no longer pin a flat, and an open-ended lease no longer lets an owner
+  self-delete and strand the tenant.
+- **Chat coalescing** keeps the original `created_at` (142) so the window
+  truly expires; **escalation** advances only when a notification actually
+  sent (142); **`inquiries_count`** handles DELETE and a booking-confirm no
+  longer burns the owner's inquiry-response quota (142); the **payout gate**
+  refuses a cancelled booking with a live refund (142); **`no_show`** can't
+  be marked before check-in day has passed (142); a **society admin can
+  record a contribution** on a member's behalf (142); the **watchdog** now
+  watches `maintenance-escalation` (142).
+- **Low:** the listings counters no longer bump `updated_at` (143);
+  `confirmed_by` is server-stamped (143); the `razorpay-webhook` rent claim
+  is scoped to pending/failed rows (edge fn); migrations 065/069/098/128 and
+  the 111 backfill are now re-runnable for the §4.1 staging replay.
 
-Also: `property_has_active_tenancy()` (101) ignores `agreement_status`
-and treats a null `lease_end_date` as active forever, so an abandoned
-draft pins a flat to `rented_out` with no way out; 067 and 101 disagree
-about whether an open-ended lease counts as active, which lets an owner
-delete an account 067 was written to block; the chat-notification
-coalescing window (070) refreshes `created_at`, so a conversation under
-5-minute spacing produces exactly one push ever; escalation (104)
-increments the stage even when the dedupe suppressed the notification, so
-a ticket exhausts its chases having notified nobody; `inquiries_count`
-(119) has no DELETE trigger and only ever rises; and
-`maintenance-escalation` is the one cron job the 134 watchdog does not
-watch. Four migrations (065, 069, 098, 128) are not re-runnable, which
-matters for the §4.1 staging replay.
+Two residuals left deliberately: a confirmed vacation booking still counts
+as one inquiry (its `connection_requests` row genuinely exists to carry the
+host↔guest chat; excluding it would need a source flag), and there is still
+no "end tenancy" action — a completed open-ended agreement stays active
+until the row is removed.
 
 **Fixed while auditing:** migration 105 used `CREATE OR REPLACE FUNCTION`
 and restated only `LANGUAGE plpgsql`, which silently dropped the
