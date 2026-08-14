@@ -332,11 +332,14 @@ paid (the existing offline/cash path) until Route lands.
 Automated Rent Reminders, Lease Expiry Alerts, Bulk Receipts, Priority
 Listing Placement, Verified Pro Badge, Custom Branded URLs, Auto-filled
 Tax Forms, Data Export, Priority Support, Dedicated Account Manager, …).
-**None are gated.** `FREE_TIER_LIMITS` in `src/lib/subscriptionConfig.ts`
-is `Infinity` on every count, `PRO_FEATURE_KEYS` is defined but never
-consulted, and `isPro` is read only to render the billing tab — no
-feature checks it. So a free user has everything a paid user does, and
-charging for Pro today is selling access that isn't withheld.
+**Almost none are gated.** The one real Pro gate is server-side — the
+free plan caps you at one active vacation listing (`enforce_vacation_listing_tier`
+→ `has_pro()`, migration 126). Of the advertised list, none are: `FREE_TIER_LIMITS`
+in `src/lib/subscriptionConfig.ts` is `Infinity` on every count,
+`PRO_FEATURE_KEYS` is defined but never consulted, and `isPro` is read
+only to render the billing tab — no advertised feature checks it. So a
+free user has essentially everything a paid user does, and charging for
+Pro today is selling access that isn't withheld.
 
 Before taking Pro money, either enforce the list or shrink the list to
 what's real:
@@ -528,7 +531,9 @@ Google OAuth currently bounce real users to localhost. Application code is
 correct (`window.location.origin` throughout) — this is dashboard config.
 
 Fix: Authentication → URL Configuration → Site URL = production URL;
-Redirect URLs = production `/**` plus `http://localhost:3000/**`.
+Redirect URLs = production `/**` plus `http://localhost:3000/**`, and the
+native OAuth deep link `com.bhavan.app://auth/callback` (required for native
+Google sign-in — see ANDROID_RELEASE.md).
 
 ### 4.5 Accessibility
 
@@ -546,18 +551,23 @@ it fails.
   (`android/app/src/main/assets/public/assets/*.js.map`) may linger from
   an earlier build — it's gitignored, but run `npm run cap:sync` before
   packaging locally to purge it.
-- **Unused dependencies**: `@stripe/react-stripe-js` and `recharts` have
-  zero source references. Remove them.
+- ~~**Unused dependencies** (`@stripe/react-stripe-js`, `recharts`).~~
+  Removed — neither is in `package.json` anymore.
 - **`audit_logs` is dormant** — the table exists and nothing writes to it.
   Either wire it to admin actions or drop it; a security table everyone
   assumes is populated is worse than none.
-- **Pro entitlements are client-side only.** The subscription purchase is
-  server-verified, but what a Pro user is *allowed to do* is enforced in
-  React. Move the gates into RLS.
-- **Reviews have no uniqueness or rate limit** — nothing stops one user
-  submitting many reviews for the same tenancy.
-- **The `geocode` edge function is an open proxy** — no auth, no rate
-  limit. Fine at current volume, a bill risk at scale.
+- **Pro entitlements are mostly client-side.** The subscription purchase is
+  server-verified, and the free-tier cap of one active vacation listing is
+  enforced server-side via `has_pro()` (migration 126) — but the ~13
+  advertised Pro features are still gated (where at all) only in React.
+  Move those gates into RLS. See §4.3e.
+- ~~**Reviews have no uniqueness**~~ Fixed: a `reviews_one_per_tenancy`
+  unique index (migration 107) enforces one review per tenancy, so the
+  "many reviews for the same tenancy" hole is closed. A cross-tenancy
+  submission *rate* limit is still absent — minor.
+- ~~**The `geocode` edge function is an open proxy**~~ Fixed: it now
+  rejects unauthenticated callers (`401`, signed-in only). No per-user
+  *rate* limit yet — fine at current volume, revisit at scale.
 - ~18KB of unused Font Awesome; dead i18n scaffolding.
 
 ### 4.7 Defects in code that already ships
@@ -861,14 +871,14 @@ items the constraint is a third party, not the work (see the end).
 
 | Work | Days |
 |---|---|
-| Ramp-up on the codebase (RLS-heavy, 157 files) | 3–5 |
+| Ramp-up on the codebase (RLS-heavy, ~197 source files) | 3–5 |
 | Staging Supabase project + repoint CI/E2E (§4.1) | 3–4 |
 | Supabase Site URL / redirect config (§4.4) | 0.5 |
 | Finish and verify push delivery (§5) | 1–3 |
-| Razorpay live keys + webhook + idempotency | 2–3 |
+| Razorpay live keys + webhook dashboard wiring (webhook code + idempotency + `payment.failed`/`refund.processed` already built) | 1–2 |
 | Pro entitlements moved into RLS (§4.6) | 2–3 |
 | Accessibility pass (§4.5) | 5–8 |
-| Small items: source maps, unused deps, `audit_logs`, review rate limit, `geocode` auth | 2–3 |
+| Small items: `audit_logs` wiring + a review cross-tenancy rate limit (source maps, unused deps, `geocode` auth and review uniqueness are already done) | 1 |
 | Aadhaar provider integration, once a contract exists | 3–5 |
 | MSG91 OTP wiring | 2–3 |
 
@@ -898,6 +908,14 @@ Everything above, including accessibility and the RLS entitlements:
 | Device-matrix testing and the fixes it produces | 4–6 |
 
 **~18–28 days (~4–6 weeks).**
+
+Some of this is already spent (§4.2, §4.8): Android builds clean and was
+walked on an emulator, the four Capacitor plugins are synced, native Google
+sign-in (Custom Tabs + deep link) and native camera/photo upload are wired,
+and the back button + a My-Society pass were verified on-device. So the
+first-build row is effectively retired and several rows start part-done —
+the remaining time is real-device UX, Razorpay-in-shell, deep links, store
+setup and the device matrix. The estimate's low end is the more likely one.
 
 ### iOS
 
