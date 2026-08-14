@@ -196,13 +196,14 @@ a test account that is a member of two societies.
 | 6.1 | Open rent payment | Checkout opens inside the app |
 | 6.2 | Complete with a test card | Returns to the app; payment recorded |
 | 6.3 | Cancel mid-checkout | Returns cleanly; nothing marked paid |
-| 6.4 | Kill the app mid-checkout | No phantom paid state — **the missing webhook makes this the risky one** |
+| 6.4 | Kill the app mid-checkout | No phantom paid state — the Razorpay webhook now exists (and handles `payment.failed`); **this stays the risky path until the webhook is wired in the Razorpay dashboard** |
 | 6.5 | Lose network mid-checkout | Fails safe |
 
 ## 7. Sessions and data
 
 | # | Scenario | Expected |
 |---|---|---|
+| 7.0 | Sign in with Google (native) | A Custom Tab opens (not the WebView), consent completes, and the app resumes via the `com.bhavan.app://auth/callback` deep link — no stuck "Connecting to Google…" spinner if the tab is dismissed. A brand-new Google account lands on the role picker |
 | 7.1 | Sign in, kill, reopen | Still signed in |
 | 7.2 | Leave for a week, reopen | Token refresh works or a clean re-login is prompted |
 | 7.3 | Sign out | Session gone; push token detached |

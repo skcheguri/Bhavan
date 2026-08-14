@@ -29,7 +29,7 @@ Bhavan is a web platform that connects renters with landlords and fellow tenants
 | Mobile | Capacitor — Android builds, installs and runs (debug + minified release, verified on emulator); iOS scaffolded, never built |
 | Testing | Vitest (unit) + Playwright (e2e) |
 | CI | GitHub Actions (typecheck, lint, unit tests, build, Playwright e2e; deploys gated on green) |
-| Build Tooling | ESLint 9 + TypeScript 5.8 |
+| Build Tooling | ESLint 10 + TypeScript 5.8 |
 
 ---
 
@@ -82,8 +82,8 @@ src/
 └── main.tsx                 # App entry point
 
 supabase/
-├── migrations/              # 9 migrations; 001 is a squashed baseline of schema + RLS
-├── functions/                # Edge Functions (Razorpay, Aadhaar, rate limits, admin actions)
+├── migrations/              # 86 migrations; 001 is a squashed baseline of schema + RLS, then 064–148
+├── functions/                # 19 Edge Functions (Razorpay, Aadhaar, bookings, rate limits, admin actions)
 └── tests/                    # Rollback-safe RLS regression scripts, run manually via
                                # `npx supabase db query --linked --file supabase/tests/<name>.sql`
 
@@ -119,20 +119,32 @@ e2e/                          # Playwright end-to-end specs
 | `/notifications` | Notification Center | Yes |
 | `/rent-payment` | Rent Payment | Yes |
 | `/subscription` | Subscription Plans | Yes (Owner) |
+| `/society` | Society / community hub | Yes |
+| `/register-flat` | Register a flat in a society | Yes |
 | `/403` | Access Denied | No |
 | `*` (catch-all) | Not Found | No |
 | `/500` | Server Error | No |
-| `/admin/login` | Admin Login | No |
+| `/admin/login` | Admin Login (standalone surface) | No |
+| `/admin/mfa-setup` | Admin MFA enrolment (standalone surface) | Yes (Admin) |
+| `/admin/mfa-challenge` | Admin MFA challenge (standalone surface) | Yes (Admin) |
 | `/admin` | Admin Dashboard | Yes (Admin) |
 | `/admin/broker-reports` | Broker Report Moderation | Yes (Admin) |
+| `/admin/listing-reports` | Listing Report Moderation | Yes (Admin) |
 | `/admin/verification` | Aadhaar Verification Queue | Yes (Admin) |
 | `/admin/property-verification` | Property Ownership Verification | Yes (Admin) |
+| `/admin/agreements` | Rental Agreement Stamp-Duty Queue | Yes (Admin) |
+| `/admin/payouts` | Host Payout Queue | Yes (Admin) |
+| `/admin/societies` | Society Moderation | Yes (Admin) |
 | `/admin/users` | User Management | Yes (Admin) |
 | `/admin/listings` | Listing Moderation | Yes (Admin) |
 | `/admin/support` | Support Queue | Yes (Admin) |
+| `/admin/purged-accounts` | Purged-Account Audit | Yes (Admin) |
+| `/admin/security` | Security / audit log | Yes (Admin) |
 | `/admin/errors` | Client Error Log Viewer | Yes (Admin) |
 
 > Note: `/landlord-dashboard`, `/rent-management`, `/track-requests`, and `/soft-block` from earlier planning docs were never built as standalone routes — that functionality now lives inside the Owner/Tenant dashboard tabs.
+>
+> **Standalone surfaces** (no Navbar/Footer, via `isStandaloneSurface` in `src/App.tsx`): `/admin/login`, `/admin/mfa-setup`, `/admin/mfa-challenge`, and `/auth/callback` — the last so a brand-new Google user's role picker isn't shown alongside a defaulted "Tenant" navbar badge.
 
 ---
 
@@ -154,7 +166,7 @@ Two distinct user roles with separate dashboards:
 - **Tenant Home** (`/tenant-profile`): Overview, Saved Listings, My Inquiries, Documents, Settings
 - **Owner Home** (`/owner-profile`): Overview, Properties, Listings, Tenants, Inquiries, Messages, Requests, Documents, Billing, Settings
 
-Role is set at signup and stored in the `users` table (synced to Supabase `users` table).
+Sign-in is **universal** — the login page has no tenant-vs-owner choice; one email maps to one role, which the app reads from the profile. Role is chosen at signup and stored in the `users` table. A brand-new user who signs in with Google (which creates the account on the spot) instead picks their role on `/auth/callback` before entering the app, rather than being defaulted to tenant.
 
 ### 3. Trust & Safety Stack
 - **Rate Limiting**: server-enforced, not client-side. The public "Request to Connect" flow uses Edge Functions (`check-contact-limit` + `record-contact`) with device fingerprinting and IP throttling; authenticated-user actions (inquiry responses, the Contact form) are enforced by Postgres triggers via `check_and_record_rate_limit()` and the `rate_limit_events` table — a client bypass (clearing storage, incognito) cannot defeat either path.
@@ -171,15 +183,16 @@ Role is set at signup and stored in the `users` table (synced to Supabase `users
 - **Grace Period**: 7 days after failed renewal before reverting to Free
 
 ### 5. Payment Integration
-- UPI AutoPay (Razorpay token-based)
+- One-time online rent payment via Razorpay Checkout (server-verified; a rent receipt is auto-generated on success)
 - UPI QR codes
 - Bank transfer + offline payment logging
-- Payment failure handling with retry + reconciliation panel
+- Payment failure handling with `payment.failed` webhook + reconciliation panel
 - Unit-level payment tracking via `property_unit_id` on rent payments
+- UPI AutoPay (recurring token mandates) is scaffolded but **not functional** — see HANDOVER.md
 
 ### 6. Notification System
-- Browser push via Firebase Cloud Messaging
-- SMS and email fallback for critical events
+- In-app notification center + browser/native push via Firebase Cloud Messaging
+- SMS and email channels are marked **coming-soon** in the UI (the delivery columns exist, but no SMS/email is actually sent yet)
 - Delivery status tracking per notification (`push_delivered`, `sms_delivered`, `email_delivered`, `read_at`)
 - Channel preferences (push / SMS / email toggles)
 
@@ -218,7 +231,7 @@ npm run ios:open       # Sync + open the iOS project
 
 CI (`.github/workflows/ci.yml`) runs type-check, lint, test, and build on every push. E2E tests are intentionally excluded from CI (they need live Supabase state) — run them locally with `npm run test:e2e`.
 
-Database changes are managed as sequential files in `supabase/migrations/` (currently 001–053). Before applying a new migration for real, test it in a rolled-back transaction against the linked project:
+Database changes are managed as sequential files in `supabase/migrations/` (currently 001, then 064–148). Before applying a new migration for real, test it in a rolled-back transaction against the linked project:
 ```bash
 npx supabase db query --linked --file supabase/migrations/<new_migration>.sql   # wrap in BEGIN/ROLLBACK first to test
 ```
@@ -265,7 +278,7 @@ RLS regression scripts in `supabase/tests/` follow the same pattern and are mean
 2. `properties` — owner properties with derived unit counts
 3. `units` — per-unit rent, tenant, lease, payment status
 4. `listings` — public rental listings with metadata + counts
-5. `connection_requests` — tenant inquiries to landlords (immutable-fields trigger: only `status`/`responded_at` are owner-writable)
+5. `connection_requests` — tenant inquiries to landlords (immutable-fields trigger: only `status`/`responded_at` are owner-writable; plus `tenant_confirmed_at`, set via the `set_connection_tenant` RPC when an owner confirms an approved contact as their tenant)
 6. `chat_messages` — tenant-landlord threaded messages
 7. `broker_reports` — owner-reported broker flags (insert-time status/admin_note locked to admin-only)
 8. `soft_block_states` — active restriction records
@@ -292,6 +305,12 @@ RLS regression scripts in `supabase/tests/` follow the same pattern and are mean
 32. `aadhaar_verification_attempts` — KYC attempt history (retry limiting)
 33. `client_error_logs` — client-side error capture (insert own / admin read)
 34. `rate_limit_events` — backing table for `check_and_record_rate_limit()`, the shared server-side rate-limit function
+
+Added since the baseline (migrations 064+), grouped by feature:
+- **Societies / community:** `communities`, `community_members`, `community_announcements`, `community_tickets`, `community_ticket_comments`, `community_polls` (+ `community_poll_options`, `community_poll_voters`, `community_poll_ballots`, `community_poll_open_votes`), `community_collections`, `community_contributions`, `community_subscriptions`
+- **Host payouts:** `host_payout_accounts` (bank/UPI payout details; scrubbed on account deletion)
+- **Maintenance vendors:** `service_vendors` (an owner's own contractors)
+- **Safety / infra:** `user_blocks`, `razorpay_webhook_events`, `push_config`
 
 > The Product/Order tables (`product_categories`, `product_items`, `product_variants`, `product_skus`, `order_headers`, `order_items`, etc.) that shipped with the original platform scaffold were dropped in migration `017_drop_dead_ecommerce_tables.sql` — Bhavan doesn't sell physical products.
 

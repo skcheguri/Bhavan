@@ -1,7 +1,7 @@
 # Bhavan — Architecture
 
 Counts and statuses verified against the repo and the live Supabase
-project on 2026-08-08. See [HANDOVER.md](HANDOVER.md) for what is left to
+project on 2026-08-14. See [HANDOVER.md](HANDOVER.md) for what is left to
 do and why.
 
 **Status key** — `✅` live and verified · `🟡` built, not wired up · `⛔` not started
@@ -14,11 +14,11 @@ flowchart TD
   end
 
   subgraph SUPA["Supabase — the backend"]
-    DB["✅ Postgres + RLS<br/><small>48 tables · 153 policies · 26 migrations<br/>authorization lives here, not in the client</small>"]
-    AUTH["✅ Auth — email + Google<br/><small>admin requires TOTP (aal2)<br/>🟡 phone OTP: hook written, no SMS provider</small>"]
-    STORE["✅ Storage + Realtime<br/><small>3 buckets: listing-images, avatars (public)<br/>ownership-documents (private)<br/>realtime used only for chat</small>"]
-    FN["✅ Edge functions (14)<br/><small>payments · subscriptions · society plans<br/>Razorpay webhook · push · KYC · geocode</small>"]
-    CRON["✅ Scheduled jobs (4, pg_cron)<br/><small>error rate · cron health · expire subscriptions<br/>purge unconfirmed accounts</small>"]
+    DB["✅ Postgres + RLS<br/><small>55 tables · ~196 policies · 86 migrations (001 + 064–148)<br/>authorization lives here, not in the client</small>"]
+    AUTH["✅ Auth — universal sign-in, email + Google<br/><small>one email = one role; new Google users pick a role on /auth/callback<br/>admin requires TOTP (aal2)<br/>🟡 phone OTP: hook written, no SMS provider</small>"]
+    STORE["✅ Storage + Realtime<br/><small>6 buckets: listing-images, avatars (public);<br/>ownership-documents, maintenance-images, stamped-agreements, aadhaar-temp (private)<br/>realtime used only for chat</small>"]
+    FN["✅ Edge functions (19)<br/><small>rent/booking/subscription payments · society plans<br/>Razorpay webhook · refunds · push · KYC · geocode</small>"]
+    CRON["✅ Scheduled jobs (7, pg_cron)<br/><small>error rate · cron health · expire subscriptions · purge unconfirmed accounts<br/>society renewal reminders · maintenance escalation · webhook-failure alerting</small>"]
   end
 
   subgraph EXT["External services"]
@@ -30,7 +30,7 @@ flowchart TD
   end
 
   subgraph CI["CI — GitHub Actions, every push and PR"]
-    GATE["✅ verify + e2e<br/><small>typecheck · lint · 110 unit tests · build<br/>Playwright: 50 tests across 7 specs</small>"]
+    GATE["✅ verify + e2e<br/><small>typecheck · lint · 143 unit tests · build<br/>Playwright: 50 tests across 7 specs</small>"]
   end
 
   subgraph DEPLOY["Deployment"]
@@ -102,21 +102,6 @@ Four things that are easy to get wrong when changing it:
   what an admin confirmed. Taking the money into a Bhavan account would be
   payment-aggregator activity under the RBI framework. Migration 085 says
   so at the top.
-
-## Corrections against the previous diagram
-
-| Previously shown | Actual |
-|---|---|
-| 34 tables, 119 RLS policies | **39 tables, 134 policies** |
-| Edge functions (7) | **11** |
-| Auth: "email, Google, phone OTP" | email and Google are live; **phone OTP is not wired** — no SMS provider |
-| Razorpay "live & verified" | signature verification is real and tested, but **no webhook**, and whether the keys are live or test is unconfirmed |
-| Auto-deploy: "no deploy step yet" | **Vercel deploy exists**, gated on CI |
-| Web hosting: "not configured in this repo" | **`vercel.json` present and wired** |
-| CI: typecheck, lint, test, build | plus **Playwright E2E**, which deploys are gated on |
-| *(absent)* | **Firebase Cloud Messaging** — a live dependency |
-| *(absent)* | **pg_cron / pg_net** — scheduled jobs and push dispatch run inside Postgres |
-| "Manual Capacitor builds" | projects **scaffolded and plugin-wired**, but never built or run |
 
 ## Two things the boxes don't convey
 

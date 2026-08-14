@@ -59,11 +59,9 @@ template actually uses if it isn't `OTP`.
 ## 6. Test it
 
 Use the Mobile OTP tab on `/signup` or `/login` with a real phone
-number. If something's wrong, check:
-
-```bash
-npx supabase functions logs send-sms-hook
-```
+number. If something's wrong, check the function logs in the Supabase
+dashboard under **Edge Functions -> send-sms-hook -> Logs** (this CLI has
+no `functions logs` subcommand).
 
 Common issues:
 - **"MSG91 could not send the OTP SMS"** -- template ID, sender ID, or

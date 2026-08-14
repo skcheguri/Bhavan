@@ -29,8 +29,8 @@ additive; none of the rental flows changed. See
 | Hosting | Vercel, deployed from GitHub Actions after CI passes |
 | Mobile | Capacitor — Android builds and runs; iOS never built, see §4 |
 
-Scale: 26 migrations (001 is a squashed baseline), 14 edge functions,
-48 tables, 153 RLS policies, 110 unit tests, 50 E2E tests.
+Scale: 86 migrations (001 is a squashed baseline, then 064–148),
+19 edge functions, 55 tables, ~196 RLS policies, 143 unit tests, 50 E2E tests.
 
 ### Security model — read this first
 
@@ -89,10 +89,22 @@ Genuinely working and verified against a live database:
 - Listing browse/search, including proximity search and geocoding
 - Connection request → owner approval (the trust loop everything depends on)
 - Chat, with notifications and push dispatch (§5 caveat on delivery)
-- Rental agreements and rent receipts, with Indian legal formatting
+- Rental agreements and rent receipts, with Indian legal formatting.
+  Stamp duty is optional per agreement (skip → owner shares the
+  digitally-signed copy directly; the new `signed` status); owners can add
+  their own custom terms. Document tenant-pickers list only "confirmed
+  tenants" — an approved contact the owner promoted via the Inquiries tab
+  ("Confirm as tenant", `set_connection_tenant` RPC)
+- Vacation bookings (paid request → owner confirm/decline → stay) and
+  Stage-1 host payouts (details capture, admin due-payouts queue, mark-paid)
+- Universal sign-in — one email = one role; no tenant/owner login picker;
+  a brand-new Google user picks a role on `/auth/callback` before entering
 - Rent payments and Pro subscription via Razorpay, signature-verified server-side
 - Admin panel with enforced TOTP MFA
-- Self-service account deletion with a DPDP-aware retention carve-out
+- Self-service account deletion with a DPDP-aware retention carve-out:
+  anonymizes the profile in place, blocks while a tenancy is in force or a
+  vacation booking is live / a host payout is still owed, and scrubs host
+  payout-account PII (bank/IFSC/UPI)
 - Server-side rate limiting, error logging, error-rate alerting
 - RLS audited across all tables; several real holes closed (migrations 047–053)
 - CI gating deploys; DB rebuildable from `supabase/migrations/`
@@ -117,7 +129,8 @@ migrations are designed to rebuild from scratch, so this should work —
 `001_baseline.sql` is a real baseline generated from live system
 catalogs, not a hand-written guess.
 
-Until that exists, CI runs only the tests that need no backend (7 of 32).
+Until that exists, CI runs only the tests that need no backend (the
+public-pages / no-auth subset; the rest skip cleanly without seeded creds).
 
 ### 4.2 Mobile: scaffolded, never built or run
 
@@ -572,10 +585,13 @@ fixed (only #4 was already done, in migration 140). What changed:
   SELECT + UPDATE (141), closing the 114 block-bypass and owner-DELETE
   counter drift.
 - **`property_has_active_tenancy()`** (141) and the **account-deletion
-  guard** (142) now agree: only an in-force agreement (`pending_admin`/
-  `stamped`/`completed`) with a NULL or future end date is active — drafts
-  no longer pin a flat, and an open-ended lease no longer lets an owner
-  self-delete and strand the tenant.
+  guard** (142, last updated in 147) now agree: only an in-force agreement
+  (`pending_admin`/`signed`/`stamped`/`completed`) with a NULL or future end
+  date is active — drafts no longer pin a flat, and an open-ended lease no
+  longer lets an owner self-delete and strand the tenant. (`signed` was
+  added in 147 when stamp duty became optional; the deletion guard also
+  blocks on live vacation bookings / owed payouts and scrubs payout PII, per
+  146.)
 - **Chat coalescing** keeps the original `created_at` (142) so the window
   truly expires; **escalation** advances only when a notification actually
   sent (142); **`inquiries_count`** handles DELETE and a booking-confirm no
@@ -677,6 +693,35 @@ Counts across the three audits: 1 Critical, 14 High, 33 Medium, 16 Low.
 Roughly 60% are a known-good pattern in this repo not having been applied
 consistently, which is cheap to fix mechanically; the rest need a
 decision.
+
+### 4.7b Feature changes since the audits (migrations 146–148)
+
+Product changes made after the audit sweeps, not audit findings:
+
+- **146 — account deletion hardened.** `delete_my_account()` now also
+  blocks while either party has a live or paid-but-unsettled vacation
+  booking or an owed host payout, and explicitly `DELETE`s the
+  `host_payout_accounts` row (bank/IFSC/UPI PII the anonymize-not-delete
+  flow never cascaded).
+- **147 — stamp duty optional.** New `rental_agreements.stamp_duty_requested`
+  (default `true`) and a new `agreement_status` value **`signed`**. When an
+  owner skips stamp duty, a fully-signed agreement goes to `signed` and the
+  owner shares the digitally-signed copy directly (the admin stamp-duty
+  queue is skipped). `signed` counts as an in-force tenancy in
+  `property_has_active_tenancy()` and the deletion guard. Owners can also
+  add their own custom terms on the create form (HTML-escaped in the doc).
+- **148 — confirm as tenant.** New `connection_requests.tenant_confirmed_at`
+  + `set_connection_tenant(request_id, confirmed)` RPC (owner-only, only an
+  `approved` request can be confirmed). Deliberately additive/reversible:
+  status stays `approved`, so the unique one-active-request index, chat
+  access and review eligibility are untouched, and occupancy + the deletion
+  guard still key only on a signed agreement. The rental-agreement and
+  rent-receipt "Select tenant" pickers now show only confirmed tenants.
+
+Frontend-only alongside these: **universal sign-in** (no tenant/owner login
+picker; a new Google user picks a role on `/auth/callback`, which is a
+standalone surface with no navbar/footer), and a **Reset Filters** control
+on Browse Listings.
 
 ### 4.8 Android build — verified
 

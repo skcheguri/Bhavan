@@ -1,28 +1,37 @@
 # Bhavan - Renter Platform
 
+> **Status:** this is the original planning document, kept for intent and
+> history; it is not maintained in lockstep with the code. For what is
+> actually built and current, treat **README.md** (routes, data model),
+> **HANDOVER.md** (state, gaps) and **WORKFLOWS.md** (as-built flows) as
+> authoritative. Notably since this plan was written: auth is fully
+> Supabase with **universal sign-in** (no mock); the `/community` forum was
+> removed for MVP and the live community feature is **Societies**
+> (`/society`); and the schema now runs to migration 148.
+
 ## 1. Project Description
 Bhavan is a platform that connects renters with landlords and fellow tenants across India. It offers verified property listings, rent management tools, and a supportive community for Indian renters. Target users include renters searching for homes in major Indian cities, landlords listing properties, and tenants seeking community support.
 
 ## 2. Page Structure
 Full, verified-current route table lives in README.md ("Route Map") — kept there instead of duplicated here to avoid the two drifting apart again. Summary:
-- Public: Home, Listings, Listing Detail, Community, About, Contact, How It Works, Feedback, legal pages (Terms/Privacy/Cookies/Accessibility), QR scan landing
+- Public: Home, Listings, Listing Detail, About, Contact, How It Works, Feedback, legal pages (Terms/Privacy/Cookies/Accessibility), QR scan landing
 - Auth: Login, Signup, OAuth callback, password reset
 - Tenant Home (`/tenant-profile`) — consolidated dashboard: Overview, Saved Listings, My Inquiries, Documents, Settings
 - Owner Home (`/owner-profile`) — consolidated dashboard: Overview, Properties, Listings, Tenants, Inquiries, Messages, Requests, Documents, Billing, Settings
 - Document generators (`/rent-receipts`, `/rental-agreements`), `/tax-forms`, `/rent-payment`, `/subscription`, `/notifications`, `/list-property`, `/aadhaar-verify`
-- Admin (`/admin/*`) — dashboard, broker-reports, verification, property-verification, community, users, listings, support, errors, login
+- Admin (`/admin/*`) — dashboard, broker-reports, listing-reports, verification, property-verification, agreements, payouts, societies, users, listings, support, purged-accounts, security, errors, login (+ MFA setup/challenge)
 - Error pages: `/403`, catch-all Not Found, `/500`
 
 > `/landlord-dashboard`, `/rent-management`, `/track-requests`, and `/soft-block` from earlier planning were never built as standalone routes — that functionality lives inside the dashboard tabs and modals instead (e.g. soft-block resolution is a modal on `/tenant-profile` and `/listings/:id`, not its own page).
 
 ## 3. Core Features
-- [x] User authentication (login/signup) — mock auth context ready, Supabase-ready
+- [x] User authentication — universal sign-in on Supabase Auth (email + Google; admin TOTP MFA; new Google users pick a role on `/auth/callback`)
 - [x] Role-based profiles (Tenant Home + Owner Home consolidated dashboards)
 - [x] Maintenance request system (submit, track, inline owner management)
 - [x] Aadhaar verification flow
 - [x] Property listings with search and filter
 - [x] Rent management informational tools + generators (Receipt + Agreement)
-- [x] Community forum and discussions
+- [x] Societies (apartment/villa communities): notices, maintenance + discussion, fund ledger — replaces the removed `/community` forum
 - [x] Contact form
 - [x] Responsive design
 - [x] Rental Agreement Generator with print/share

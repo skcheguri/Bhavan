@@ -64,6 +64,21 @@ flowchart TD
 | Payment marked paid only on a verified Razorpay signature | edge function |
 | Tenant cannot flip a payment to paid | no UPDATE policy on `rent_payments` |
 
+**Added to this loop since the diagram was drawn**
+
+- **Confirm as tenant.** After approval, the owner can promote an approved
+  contact to their tenant (Inquiries tab → "Confirm as tenant"). This is a
+  reversible shortlist/label only — it feeds the rental-agreement and
+  rent-receipt tenant pickers (which now list *confirmed* tenants, not every
+  approved chat) and does **not** by itself mark an active tenancy.
+- **Optional stamp duty.** Generating an agreement lets the owner choose per
+  agreement whether Bhavan does stamp duty (both sign → admin stamp queue →
+  share) or skip it (both sign → `signed` → owner shares the digitally-signed
+  copy directly). Owners can also add their own custom terms.
+- **Vacation bookings + host payouts** run alongside the long-let loop: a
+  guest pays upfront to request a short stay, the owner confirms/declines,
+  and completed stays feed a Stage-1 admin payout queue.
+
 ---
 
 ## 2. Who verifies what
@@ -203,6 +218,11 @@ flowchart LR
   classDef fn fill:#d9f2e6,stroke:#2f7d5d,color:#14452f
   class E1,E2,E3,E4 fn
 ```
+
+Vacation-booking money runs through the same pattern on its own edge
+functions — `create-booking-order` → `verify-booking-payment`, with
+`refund-payment` for host declines / eligible cancellations, and a Stage-1
+admin payout queue (`admin_mark_payout_paid`) for completed stays.
 
 Both gaps this section used to record have moved.
 

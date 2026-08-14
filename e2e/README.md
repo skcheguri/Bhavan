@@ -107,14 +107,16 @@ doesn't have one. So anything needing a live backend -- a listing to
 click, a password-reset round trip -- skips, on top of the credentialed
 tests skipping.
 
-With nothing configured that's 7 tests passing and 25 skipping: static
-public pages, client-side form validation, and the listings browse UI
-including the collapsible filter panel.
+The suite is now **50 tests across 7 specs** (account-deletion 5, auth 4,
+critical-path 2, payment 8, public-pages 4, society 18, subscription 9).
+With nothing configured, only the backend-free tests run — static public
+pages, client-side form validation, and the listings browse UI including
+the collapsible filter panel; everything else skips.
 
 Adding two **repository variables** (Settings -> Secrets and variables ->
 Actions -> **Variables**, not Secrets -- both values already ship inside
-the browser bundle) takes it to 13 by connecting the app and enabling the
-edge-function auth guards and subscription pricing checks:
+the browser bundle) connects the app and enables the edge-function auth
+guards and subscription pricing checks (a dozen or so more tests):
 
 ```
 PUBLIC_SUPABASE_URL
@@ -125,9 +127,10 @@ Neither tier signs in nor creates rows, so pointing them at the
 production project is harmless, and both work on pull requests from forks
 (which cannot read repo secrets at all).
 
-The remaining 19 tests need fixture accounts, and turning them on in CI
-is a decision, not a config step: they sign in as real users and the
-deletion spec creates and destroys real ones. Against the production
+The remaining tests — the bulk of the 50, across the authenticated,
+payment, deletion, critical-path and society specs — need fixture
+accounts, and turning them on in CI is a decision, not a config step: they
+sign in as real users and the deletion spec creates and destroys real ones. Against the production
 project that means every push mutates production. Wire
 `E2E_SUPABASE_URL`, `E2E_SUPABASE_ANON_KEY`, the fixture credentials and
 `E2E_SERVICE_ROLE_KEY` only once a **disposable** Supabase project exists
