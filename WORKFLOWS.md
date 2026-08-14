@@ -101,9 +101,12 @@ flowchart LR
   class Q1,Q2 queue
 ```
 
-> **Aadhaar is not actually live.** The edge function is written but returns
-> "provider is not configured" until a KYC contract exists. The queue and
-> the UI are real; the automated check is not.
+> **Aadhaar verification runs via IDfy Aadhaar OCR.** The edge function has
+> two modes: `ocr` (IDfy Aadhaar OCR — wired and working once IDfy keys are
+> set; on self-serve test keys today, rotate before production) and `otp`
+> (UIDAI OTP e-KYC, which still needs a licensed provider contract). The
+> queue and UI are real, and the OCR check works with IDfy credentials — see
+> HANDOVER §4.3.
 
 ### Two ways in, one queue
 

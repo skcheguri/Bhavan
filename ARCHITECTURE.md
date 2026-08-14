@@ -25,7 +25,7 @@ flowchart TD
     RZP["🟡 Razorpay<br/><small>HMAC verified server-side, unit tested<br/>webhook built + deployed, NOT yet configured<br/>in the Razorpay dashboard — see HANDOVER 4.3</small>"]
     GOOG["✅ Google OAuth<br/><small>via Supabase Auth</small>"]
     FCM["✅ Firebase Cloud Messaging<br/><small>web push verified end to end<br/>native path never executed</small>"]
-    AADH["🟡 Aadhaar KYC<br/><small>function built, no provider contract or keys</small>"]
+    AADH["🟡 Aadhaar KYC<br/><small>IDfy Aadhaar OCR wired (runs on IDfy keys — test keys, rotate for prod)<br/>OTP e-KYC path still needs a licensed provider contract</small>"]
     SMS["🟡 SMS — MSG91<br/><small>auth hook written, account + DLT registration pending</small>"]
   end
 
