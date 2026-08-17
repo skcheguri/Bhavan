@@ -559,7 +559,25 @@ export function useAuthProvider(): AuthContextValue {
     const supabase = getSupabase();
     if (!supabase) return { error: 'Supabase not connected' };
 
-    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
+    // Clear EVERY leftover unverified TOTP factor first. An abandoned
+    // enrollment leaves an unverified factor behind, and Supabase rejects a
+    // fresh enroll() that collides with it on the friendly name ("A factor
+    // with the friendly name '' already exists"). Repeated attempts can
+    // stack up more than one, so unenroll them all -- never a verified
+    // factor (that would remove working MFA), only unverified ones.
+    const { data: existing } = await supabase.auth.mfa.listFactors();
+    for (const f of existing?.totp ?? []) {
+      if (f.status === 'unverified') {
+        await supabase.auth.mfa.unenroll({ factorId: f.id });
+      }
+    }
+
+    // A unique friendly name means a future half-finished attempt can never
+    // collide on the empty default, even if cleanup somehow missed one.
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: 'totp',
+      friendlyName: `admin-totp-${Date.now()}`,
+    });
     if (error) return { error: error.message };
 
     return {
