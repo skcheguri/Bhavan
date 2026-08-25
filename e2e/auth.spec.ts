@@ -27,7 +27,9 @@ test.describe("signup form", () => {
     await page.getByRole("checkbox").nth(1).check();
     await page.getByRole("button", { name: /create account/i }).click();
 
-    await expect(page.getByText(/name can only contain letters and spaces/i)).toBeVisible();
+    // The name validator now allows apostrophes/hyphens/periods and
+    // non-ASCII letters (D'Souza, Jean-Pierre), so the message is generic.
+    await expect(page.getByText(/enter a valid name/i)).toBeVisible();
   });
 });
 
