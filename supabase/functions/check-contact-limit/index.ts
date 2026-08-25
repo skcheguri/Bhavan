@@ -131,7 +131,8 @@ Deno.serve(async (req) => {
       status: 200,
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
+    console.error("check-contact-limit error:", (err as Error).message);
+    return new Response(JSON.stringify({ error: "Something went wrong." }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

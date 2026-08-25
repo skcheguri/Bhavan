@@ -132,16 +132,32 @@ Deno.serve(async (req) => {
 
   if (claimError) {
     if (claimError.code === "23505") {
-      // Already seen. 200 so Razorpay stops retrying.
-      return new Response(JSON.stringify({ ok: true, duplicate: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      // A row for this event already exists. Only a TERMINAL row is a true
+      // duplicate -- a row still 'received' means a prior delivery crashed
+      // after recording but before fulfilling, and answering {duplicate}
+      // would strand it forever. Re-drive those through fulfilment; the
+      // fulfilment paths are all idempotent compare-and-set claims, so a
+      // second run on an already-fulfilled purchase is a safe no-op.
+      const { data: existing } = await serviceClient
+        .from("razorpay_webhook_events")
+        .select("status")
+        .eq("event_id", eventId)
+        .maybeSingle();
+      if (existing && ["processed", "failed", "ignored"].includes(String(existing.status))) {
+        // Already fully handled. 200 so Razorpay stops retrying.
+        return new Response(JSON.stringify({ ok: true, duplicate: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      // Row is still 'received' (or vanished): fall through and re-drive
+      // fulfilment below. `finish` updates the existing row by event_id.
+    } else {
+      console.error("Could not record webhook event:", claimError.message);
+      // 500 so it is retried -- losing the ledger row means losing the
+      // ability to fulfil safely.
+      return new Response("Could not record event", { status: 500 });
     }
-    console.error("Could not record webhook event:", claimError.message);
-    // 500 so it is retried -- losing the ledger row means losing the
-    // ability to fulfil safely.
-    return new Response("Could not record event", { status: 500 });
   }
 
   const finish = async (result: Fulfilment) => {
@@ -429,37 +445,79 @@ async function reconcileRefund(
   const refund =
     ((event.payload as Record<string, Record<string, Record<string, unknown>>>)?.refund?.entity) ?? {};
   const refundId = String(refund.id ?? "");
+  // Amount actually refunded, in paise. Dashboard refunds can be PARTIAL;
+  // in-app refunds (refund-payment / respond-booking / cancel-booking)
+  // are always full, so only a dashboard partial ever fails the full
+  // check below.
+  const refundAmount = Number(refund.amount ?? 0);
   if (!paymentId) {
     return { target: "refund", status: "ignored", error: "Refund event carried no payment id." };
   }
 
   const now = new Date().toISOString();
 
-  // billing_history (Pro / society) and rent_payments both key on
-  // razorpay_payment_id; vacation_bookings does too. Mark the first that
-  // matches and isn't already refunded.
-  const patch = { status: "refunded", razorpay_refund_id: refundId, refunded_at: now };
+  // A full refund is one whose amount equals the record's total charge.
+  // Only a full refund marks the row 'refunded' and revokes the
+  // entitlement; a partial refund leaves the record and its entitlement
+  // intact (logged for a human), so a Rs.100-of-Rs.5000 dashboard refund
+  // can't strip someone's Pro plan.
+  const isFull = (recordTotalPaise: number) =>
+    refundAmount > 0 && Number.isFinite(recordTotalPaise) && refundAmount >= recordTotalPaise;
 
-  const inv = await client.from("billing_history").update(patch)
-    .eq("razorpay_payment_id", paymentId).neq("status", "refunded").select("id, community_id, owner_id");
-  if (inv.data && inv.data.length > 0) {
-    const row = inv.data[0] as { community_id: string | null; owner_id: string | null };
-    if (row.community_id) {
-      await client.from("community_subscriptions").update({ status: "cancelled", updated_at: now }).eq("community_id", row.community_id);
-    } else if (row.owner_id) {
-      await client.from("owner_subscriptions").update({ status: "cancelled", cancel_at_period_end: true, updated_at: now }).eq("owner_id", row.owner_id);
+  // --- billing_history (Pro / society): total_amount is in paise. ---
+  const invRow = (await client.from("billing_history")
+    .select("id, community_id, owner_id, total_amount")
+    .eq("razorpay_payment_id", paymentId).neq("status", "refunded").maybeSingle()).data as
+    { id: string; community_id: string | null; owner_id: string | null; total_amount: number } | null;
+  if (invRow) {
+    if (!isFull(Number(invRow.total_amount))) {
+      console.warn(`Partial refund ${refundId} (${refundAmount} of ${invRow.total_amount} paise) on billing_history ${invRow.id}; entitlement retained.`);
+      return { target: "refund:pro", status: "processed", error: "Partial refund; invoice and entitlement left intact." };
+    }
+    const upd = await client.from("billing_history")
+      .update({ status: "refunded", razorpay_refund_id: refundId, refunded_at: now })
+      .eq("id", invRow.id).neq("status", "refunded").select("id, community_id, owner_id");
+    if (upd.data && upd.data.length > 0) {
+      if (invRow.community_id) {
+        await client.from("community_subscriptions").update({ status: "cancelled", updated_at: now }).eq("community_id", invRow.community_id);
+      } else if (invRow.owner_id) {
+        await client.from("owner_subscriptions").update({ status: "cancelled", cancel_at_period_end: true, updated_at: now }).eq("owner_id", invRow.owner_id);
+      }
     }
     return { target: "refund:pro", status: "processed" };
   }
 
-  const rent = await client.from("rent_payments").update(patch)
-    .eq("razorpay_payment_id", paymentId).neq("status", "refunded").select("id");
-  if (rent.data && rent.data.length > 0) return { target: "refund:rent", status: "processed" };
+  // --- rent_payments: amount is in paise. ---
+  const rentRow = (await client.from("rent_payments")
+    .select("id, amount")
+    .eq("razorpay_payment_id", paymentId).neq("status", "refunded").maybeSingle()).data as
+    { id: string; amount: number } | null;
+  if (rentRow) {
+    if (!isFull(Number(rentRow.amount))) {
+      console.warn(`Partial refund ${refundId} (${refundAmount} of ${rentRow.amount} paise) on rent_payments ${rentRow.id}; record left paid.`);
+      return { target: "refund:rent", status: "processed", error: "Partial refund; rent payment left intact." };
+    }
+    await client.from("rent_payments")
+      .update({ status: "refunded", razorpay_refund_id: refundId, refunded_at: now })
+      .eq("id", rentRow.id).neq("status", "refunded");
+    return { target: "refund:rent", status: "processed" };
+  }
 
-  const booking = await client.from("vacation_bookings")
-    .update({ payment_status: "refunded", razorpay_refund_id: refundId, refunded_at: now })
-    .eq("razorpay_payment_id", paymentId).neq("payment_status", "refunded").select("id");
-  if (booking.data && booking.data.length > 0) return { target: "refund:booking", status: "processed" };
+  // --- vacation_bookings: total_price is in RUPEES, so x100 for paise. ---
+  const bookingRow = (await client.from("vacation_bookings")
+    .select("id, total_price")
+    .eq("razorpay_payment_id", paymentId).neq("payment_status", "refunded").maybeSingle()).data as
+    { id: string; total_price: number } | null;
+  if (bookingRow) {
+    if (!isFull(Number(bookingRow.total_price) * 100)) {
+      console.warn(`Partial refund ${refundId} (${refundAmount} paise of Rs.${bookingRow.total_price}) on vacation_bookings ${bookingRow.id}; booking left paid.`);
+      return { target: "refund:booking", status: "processed", error: "Partial refund; booking left intact." };
+    }
+    await client.from("vacation_bookings")
+      .update({ payment_status: "refunded", razorpay_refund_id: refundId, refunded_at: now })
+      .eq("id", bookingRow.id).neq("payment_status", "refunded");
+    return { target: "refund:booking", status: "processed" };
+  }
 
   // Already reconciled (in-app path or an earlier delivery), or a payment
   // we don't have. Either way nothing more to do.

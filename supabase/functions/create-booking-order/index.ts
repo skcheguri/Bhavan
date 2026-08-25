@@ -120,12 +120,17 @@ Deno.serve(async (req) => {
     if (clash) return json({ error: "Those dates were just booked by someone else. Please choose different dates." }, 409);
 
     // Abandoned checkouts leave unpaid awaiting_payment rows behind;
-    // clear the caller's stale ones so they never accumulate.
+    // clear the caller's stale ones so they never accumulate. Never touch
+    // a row that already carries a razorpay_payment_id or is payment_status
+    // 'paid': that's a paid-but-not-yet-promoted booking waiting on a
+    // delayed webhook, and deleting it would lose money the guest paid.
     await serviceClient
       .from("vacation_bookings")
       .delete()
       .eq("tenant_id", userId)
       .eq("status", "awaiting_payment")
+      .is("razorpay_payment_id", null)
+      .neq("payment_status", "paid")
       .lt("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
 
     const baseAmount = nights * Number(listing.price);
@@ -228,6 +233,7 @@ Deno.serve(async (req) => {
       tenantEmail: userData.user.email ?? "",
     });
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    console.error("create-booking-order error:", (err as Error).message);
+    return json({ error: "Something went wrong." }, 500);
   }
 });

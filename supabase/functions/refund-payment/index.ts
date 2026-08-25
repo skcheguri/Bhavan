@@ -34,6 +34,9 @@ async function razorpayRefund(paymentId: string, notes: Record<string, string>):
     headers: {
       "Content-Type": "application/json",
       Authorization: `Basic ${btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)}`,
+      // Stable per-payment key: if this call is retried (a crash between
+      // the DB claim and Razorpay confirming), Razorpay refunds once.
+      "Idempotency-Key": paymentId,
     },
     body: JSON.stringify({ notes }),
   });
@@ -107,20 +110,49 @@ Deno.serve(async (req) => {
       return json({ error: "This payment has no Razorpay reference (was it an offline/cash payment?)." }, 409);
     }
 
+    // Atomically CLAIM the row BEFORE calling Razorpay: flip paid ->
+    // refunded gated on status='paid'. A concurrent second refund updates
+    // 0 rows here and stops, so Razorpay is only ever hit once.
+    const now = new Date().toISOString();
+    const { data: claimed, error: claimError } = await serviceClient
+      .from(table)
+      .update({ status: "refunded", refunded_at: now })
+      .eq("id", id)
+      .eq("status", "paid")
+      .select("id");
+    if (claimError) {
+      console.error("refund-payment claim failed:", claimError.message);
+      return json({ error: "Something went wrong." }, 500);
+    }
+    if (!claimed || claimed.length === 0) {
+      // Another request already claimed and refunded this payment. Treat
+      // as already-handled -- do NOT call Razorpay again.
+      return json({ success: true, alreadyRefunded: true });
+    }
+
     const refund = await razorpayRefund(row.razorpay_payment_id, {
       kind,
       record_id: id,
       refunded_by: userData.user.id,
       reason,
     });
-    if (!refund.ok) return json({ error: refund.error }, 502);
+    if (!refund.ok) {
+      // Release the claim so a retry can proceed -- nothing was refunded.
+      await serviceClient
+        .from(table)
+        .update({ status: "paid", refunded_at: null })
+        .eq("id", id);
+      return json({ error: refund.error }, 502);
+    }
 
-    const now = new Date().toISOString();
     const { error: updateError } = await serviceClient
       .from(table)
-      .update({ status: "refunded", razorpay_refund_id: refund.refundId, refunded_at: now })
+      .update({ razorpay_refund_id: refund.refundId })
       .eq("id", id);
-    if (updateError) return json({ error: updateError.message }, 500);
+    if (updateError) {
+      console.error("refund-payment refund-id write failed:", updateError.message);
+      return json({ error: "Something went wrong." }, 500);
+    }
 
     // A refunded Pro/society purchase loses the entitlement it bought.
     let notifyUser = row.owner_id as string | null;
@@ -168,6 +200,7 @@ Deno.serve(async (req) => {
 
     return json({ success: true, refundId: refund.refundId });
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    console.error("refund-payment error:", (err as Error).message);
+    return json({ error: "Something went wrong." }, 500);
   }
 });

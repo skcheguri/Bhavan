@@ -34,6 +34,8 @@ async function razorpayRefund(paymentId: string): Promise<{ ok: boolean; refundI
     headers: {
       "Content-Type": "application/json",
       Authorization: `Basic ${btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)}`,
+      // Stable per-payment key: a retry after a crash refunds once.
+      "Idempotency-Key": paymentId,
     },
     body: "{}",
   });
@@ -100,23 +102,58 @@ Deno.serve(async (req) => {
       Boolean(booking.razorpay_payment_id) &&
       (booking.status === "pending" || msUntilCheckIn(booking.check_in) > 24 * 60 * 60 * 1000);
 
-    let refundId: string | null = null;
+    let refunded = false;
     if (refundable) {
-      const refund = await razorpayRefund(booking.razorpay_payment_id as string);
-      if (!refund.ok) return json({ error: refund.error }, 502);
-      refundId = refund.refundId ?? null;
+      // Atomically CLAIM the refund BEFORE calling Razorpay: flip the row
+      // to cancelled+refunded gated on the still-refundable state. A
+      // concurrent second cancel updates 0 rows and stops, so Razorpay is
+      // only ever hit once.
+      const now = new Date().toISOString();
+      const { data: claimed, error: claimError } = await serviceClient
+        .from("vacation_bookings")
+        .update({ status: "cancelled", payment_status: "refunded", refunded_at: now })
+        .eq("id", bookingId)
+        .eq("payment_status", "paid")
+        .is("refunded_at", null)
+        .select("id");
+      if (claimError) {
+        console.error("cancel-booking claim failed:", claimError.message);
+        return json({ error: "Something went wrong." }, 500);
+      }
+      if (!claimed || claimed.length === 0) {
+        // A concurrent cancel already claimed and refunded this booking.
+        refunded = true;
+      } else {
+        const refund = await razorpayRefund(booking.razorpay_payment_id as string);
+        if (!refund.ok) {
+          // Release the claim so the money isn't stranded refunded-but-not.
+          await serviceClient
+            .from("vacation_bookings")
+            .update({ status: booking.status, payment_status: "paid", refunded_at: null })
+            .eq("id", bookingId);
+          return json({ error: refund.error }, 502);
+        }
+        refunded = true;
+        const { error: refIdError } = await serviceClient
+          .from("vacation_bookings")
+          .update({ razorpay_refund_id: refund.refundId })
+          .eq("id", bookingId);
+        if (refIdError) {
+          console.error("cancel-booking refund-id write failed:", refIdError.message);
+          return json({ error: "Something went wrong." }, 500);
+        }
+      }
+    } else {
+      // No refund due (unpaid, or inside the 24h forfeit window): just cancel.
+      const { error: updateError } = await serviceClient
+        .from("vacation_bookings")
+        .update({ status: "cancelled" })
+        .eq("id", bookingId);
+      if (updateError) {
+        console.error("cancel-booking status update failed:", updateError.message);
+        return json({ error: "Something went wrong." }, 500);
+      }
     }
-
-    const { error: updateError } = await serviceClient
-      .from("vacation_bookings")
-      .update({
-        status: "cancelled",
-        ...(refundId
-          ? { payment_status: "refunded", razorpay_refund_id: refundId, refunded_at: new Date().toISOString() }
-          : {}),
-      })
-      .eq("id", bookingId);
-    if (updateError) return json({ error: updateError.message }, 500);
 
     // The status trigger always sees the service role, so the
     // actor-aware "guest cancelled" message is sent here instead.
@@ -130,8 +167,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    return json({ success: true, refunded: Boolean(refundId) });
+    return json({ success: true, refunded });
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    console.error("cancel-booking error:", (err as Error).message);
+    return json({ error: "Something went wrong." }, 500);
   }
 });

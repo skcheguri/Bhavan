@@ -389,8 +389,15 @@ Deno.serve(async (req) => {
 
       // The badge asserts "this account belongs to this cardholder" --
       // the weakest link in OCR mode, so at minimum the profile name
-      // must be the name on the card.
-      const profileName = String(body?.name ?? userData.user.user_metadata?.name ?? "").trim();
+      // must be the name on the card. Read the name from public.users
+      // (service role) rather than trusting body.name / user_metadata,
+      // which the client controls and could set to match any card.
+      const { data: profileRow } = await admin
+        .from("users")
+        .select("name")
+        .eq("id", userId)
+        .maybeSingle();
+      const profileName = String(profileRow?.name ?? "").trim();
       if (!cardName || !profileName || !namesMatch(profileName, cardName)) {
         const message = cardName
           ? `The name on the card (${cardName}) doesn't match your profile name. Update your profile name to match your Aadhaar, then retry.`
@@ -509,6 +516,7 @@ Deno.serve(async (req) => {
 
     return json({ error: "Unknown action" }, 400);
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    console.error("aadhaar-verify error:", (err as Error).message);
+    return json({ error: "Something went wrong." }, 500);
   }
 });

@@ -36,6 +36,8 @@ async function razorpayRefund(paymentId: string): Promise<{ ok: boolean; refundI
     headers: {
       "Content-Type": "application/json",
       Authorization: `Basic ${btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)}`,
+      // Stable per-payment key: a retry after a crash refunds once.
+      "Idempotency-Key": paymentId,
     },
     body: "{}",
   });
@@ -46,25 +48,46 @@ async function razorpayRefund(paymentId: string): Promise<{ ok: boolean; refundI
   return { ok: true, refundId: String(json.id) };
 }
 
-// Refund first, then flip the row -- if the refund fails the booking
-// keeps its current status so the money is never stranded in a state
-// nobody retries.
+// Atomically CLAIM the row BEFORE calling Razorpay, then flip it. The
+// claim is a compare-and-set on the refundable state (payment_status
+// 'paid', refunded_at still null); a concurrent second refund updates 0
+// rows and stops as a no-op, so Razorpay is only ever hit once. If the
+// refund itself fails the claim is released so the money is never
+// stranded in a refunded-but-not state nobody retries.
 async function refundAndMark(
   serviceClient: SupabaseClient,
-  booking: { id: string; razorpay_payment_id: string | null; payment_status: string },
+  booking: { id: string; razorpay_payment_id: string | null; payment_status: string; status: string },
   newStatus: "declined" | "cancelled"
 ): Promise<{ ok: boolean; error?: string }> {
   if (booking.payment_status === "paid" && booking.razorpay_payment_id) {
-    const refund = await razorpayRefund(booking.razorpay_payment_id);
-    if (!refund.ok) return { ok: false, error: refund.error };
-    const { error } = await serviceClient
+    const { data: claimed, error: claimError } = await serviceClient
       .from("vacation_bookings")
       .update({
         status: newStatus,
         payment_status: "refunded",
-        razorpay_refund_id: refund.refundId,
         refunded_at: new Date().toISOString(),
       })
+      .eq("id", booking.id)
+      .eq("payment_status", "paid")
+      .is("refunded_at", null)
+      .select("id");
+    if (claimError) return { ok: false, error: claimError.message };
+    if (!claimed || claimed.length === 0) {
+      // Already refunded by a concurrent caller / earlier delivery.
+      return { ok: true };
+    }
+    const refund = await razorpayRefund(booking.razorpay_payment_id);
+    if (!refund.ok) {
+      // Release the claim: restore the pre-refund state for a retry.
+      await serviceClient
+        .from("vacation_bookings")
+        .update({ status: booking.status, payment_status: "paid", refunded_at: null })
+        .eq("id", booking.id);
+      return { ok: false, error: refund.error };
+    }
+    const { error } = await serviceClient
+      .from("vacation_bookings")
+      .update({ razorpay_refund_id: refund.refundId })
       .eq("id", booking.id);
     if (error) return { ok: false, error: error.message };
     return { ok: true };
@@ -146,7 +169,7 @@ Deno.serve(async (req) => {
       // The losing requests: overlapping, still pending, already paid.
       const { data: losers } = await serviceClient
         .from("vacation_bookings")
-        .select("id, razorpay_payment_id, payment_status")
+        .select("id, razorpay_payment_id, payment_status, status")
         .eq("listing_id", booking.listing_id)
         .eq("status", "pending")
         .neq("id", bookingId)
@@ -202,6 +225,7 @@ Deno.serve(async (req) => {
     }
     return json({ success: true });
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    console.error("respond-booking error:", (err as Error).message);
+    return json({ error: "Something went wrong." }, 500);
   }
 });
