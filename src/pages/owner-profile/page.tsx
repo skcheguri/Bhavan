@@ -78,6 +78,7 @@ export default function OwnerProfile() {
   const [deletingListingId, setDeletingListingId] = useState<string | null>(null);
   const [togglingListingId, setTogglingListingId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const { addToast } = useToast();
   const { inquiry } = useOwnerRateLimit(user?.id);
 
@@ -176,6 +177,7 @@ export default function OwnerProfile() {
     const dateOfBirth = composeIsoDate(formDobDay, formDobMonth, formDobYear);
     const occupation = formOccupation === 'Other' ? formOccupationOther.trim() : formOccupation;
 
+    setSavingProfile(true);
     const { error, emailVerificationSent } = await updateProfile({
       name: formName.trim(),
       phone: formPhone,
@@ -184,6 +186,7 @@ export default function OwnerProfile() {
       occupation,
       emergencyContact: formEmergency,
     });
+    setSavingProfile(false);
 
     if (error) {
       addToast(error, 'error');
@@ -671,6 +674,23 @@ export default function OwnerProfile() {
                     <div>
                       <label className="block text-xs font-semibold text-charcoal/60 mb-1.5 uppercase tracking-wide">Member Since</label>
                       <div className="w-full px-4 py-3 bg-lightgray rounded-xl text-sm text-charcoal/40">{user.joinedAt}</div>
+                    </div>
+                    <div className="sm:col-span-2 flex items-center justify-end gap-3 pt-2">
+                      <button
+                        onClick={() => setEditMode(false)}
+                        disabled={savingProfile}
+                        className="px-5 py-2.5 rounded-full border border-black/10 text-sm font-medium text-charcoal/60 hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={savingProfile}
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                      >
+                        <i className={`${savingProfile ? 'ri-loader-4-line animate-spin' : 'ri-save-line'} text-sm`} />
+                        {savingProfile ? 'Saving...' : 'Save Changes'}
+                      </button>
                     </div>
                   </div>
                 ) : (

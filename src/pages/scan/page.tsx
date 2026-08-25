@@ -41,7 +41,7 @@ export default function ScanLanding() {
   const [formPhoneError, setFormPhoneError] = useState('');
 
   const { listing, loading: listingLoading } = useListingDetail(id);
-  const { create: createConnectionRequest } = useCreateConnectionRequest();
+  const { create: createConnectionRequest, submitting: creatingRequest } = useCreateConnectionRequest();
   const { requests: tenantRequests, refresh: refreshTenantRequests } = useTenantConnectionRequests(user?.id);
   const { visits: tenantVisits, refresh: refreshTenantVisits } = useTenantPropertyVisits(user?.id);
   const { create: createPropertyVisit } = useCreatePropertyVisit();
@@ -578,14 +578,18 @@ export default function ScanLanding() {
                   </button>
                   <button
                     type="submit"
-                    disabled={brokerReport.isSoftBlocked || !contactRate.canSend}
+                    disabled={brokerReport.isSoftBlocked || !contactRate.canSend || creatingRequest}
                     className={`flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${
-                      brokerReport.isSoftBlocked || !contactRate.canSend
+                      brokerReport.isSoftBlocked || !contactRate.canSend || creatingRequest
                         ? 'bg-lightgray text-charcoal/40 cursor-not-allowed'
                         : 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
                     }`}
                   >
-                    <i className="ri-send-plane-line text-sm" /> Send Request
+                    {creatingRequest ? (
+                      <><i className="ri-loader-4-line animate-spin text-sm" /> Sending...</>
+                    ) : (
+                      <><i className="ri-send-plane-line text-sm" /> Send Request</>
+                    )}
                   </button>
                 </div>
               </form>

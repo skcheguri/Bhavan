@@ -65,6 +65,7 @@ export function useSubmitContactInquiry() {
 export function useAdminContactInquiries() {
   const [inquiries, setInquiries] = useState<ContactInquiry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const supabase = getSupabase();
@@ -80,8 +81,10 @@ export function useAdminContactInquiries() {
 
     if (error) {
       console.warn('Supabase contact_inquiries fetch error:', error.message);
+      setError(error.message);
       setInquiries([]);
     } else {
+      setError(null);
       setInquiries(((data ?? []) as Record<string, unknown>[]).map(mapRow));
     }
     setLoading(false);
@@ -130,5 +133,5 @@ export function useAdminContactInquiries() {
     [load]
   );
 
-  return { inquiries, loading, updateStatus, refresh: load };
+  return { inquiries, loading, error, updateStatus, refresh: load };
 }

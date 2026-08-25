@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
-import { isValidName, isValidRawIndianMobile } from '@/lib/validation';
+import { isValidName, isValidRawIndianMobile, filterNameInput } from '@/lib/validation';
 
 type AuthTab = 'email' | 'mobile';
 type ForgotStep = 'email' | 'sent';
@@ -26,6 +26,16 @@ export default function Signup() {
   // Google sign-up state
   const [googleError, setGoogleError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Countdown intervals, held in refs so they can be cleared if the
+  // component unmounts mid-countdown (otherwise the timer keeps firing
+  // setState on an unmounted component).
+  const otpIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const forgotIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (otpIntervalRef.current) clearInterval(otpIntervalRef.current);
+    if (forgotIntervalRef.current) clearInterval(forgotIntervalRef.current);
+  }, []);
 
   const handleGoogleSignUp = async () => {
     setGoogleError('');
@@ -52,7 +62,6 @@ export default function Signup() {
 
   // Mobile OTP state
   const [mobileName, setMobileName] = useState('');
-  const [mobileRole, setMobileRole] = useState('renter');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpSent, setOtpSent] = useState(false);
@@ -65,7 +74,7 @@ export default function Signup() {
     e.preventDefault();
     setSignupError('');
     if (!isValidName(name)) {
-      setNameError('Name can only contain letters and spaces.');
+      setNameError('Please enter a valid name.');
       return;
     }
     setNameError('');
@@ -95,12 +104,14 @@ export default function Signup() {
     }
     setOtpSent(true);
     setOtpTimer(30);
+    if (otpIntervalRef.current) clearInterval(otpIntervalRef.current);
     const interval = setInterval(() => {
       setOtpTimer((prev) => {
         if (prev <= 1) { clearInterval(interval); return 0; }
         return prev - 1;
       });
     }, 1000);
+    otpIntervalRef.current = interval;
   };
 
   const handleOtpChange = (index: number, value: string) => {
@@ -172,12 +183,14 @@ export default function Signup() {
     }
     setForgotStep('sent');
     setForgotResendTimer(30);
+    if (forgotIntervalRef.current) clearInterval(forgotIntervalRef.current);
     const interval = setInterval(() => {
       setForgotResendTimer((prev) => {
         if (prev <= 1) { clearInterval(interval); return 0; }
         return prev - 1;
       });
     }, 1000);
+    forgotIntervalRef.current = interval;
   };
 
   return (
@@ -326,7 +339,7 @@ export default function Signup() {
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) => { setName(e.target.value.replace(/[^A-Za-z\s]/g, '')); setNameError(''); }}
+                  onChange={(e) => { setName(filterNameInput(e.target.value)); setNameError(''); }}
                   required
                   className={`w-full px-4 py-3 bg-lightgray rounded-xl text-sm focus:outline-none focus:ring-2 ${nameError ? 'ring-2 ring-red-300' : 'focus:ring-brand/30'}`}
                   placeholder="John Doe"
@@ -414,7 +427,7 @@ export default function Signup() {
                 <input
                   type="text"
                   value={mobileName}
-                  onChange={(e) => setMobileName(e.target.value.replace(/[^A-Za-z\s]/g, ''))}
+                  onChange={(e) => setMobileName(filterNameInput(e.target.value))}
                   required
                   disabled={otpSent}
                   className="w-full px-4 py-3 bg-lightgray rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-60"

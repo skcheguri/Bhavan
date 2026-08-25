@@ -16,6 +16,8 @@ export default function AdminMfaChallenge() {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [listError, setListError] = useState('');
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const redirectTo = (location.state as { from?: string } | null)?.from || '/admin';
 
@@ -29,6 +31,14 @@ export default function AdminMfaChallenge() {
     let mounted = true;
     mfaListFactors().then((factors) => {
       if (!mounted) return;
+      if (factors.error) {
+        // A transient listFactors failure must NOT be read as
+        // "not enrolled" -- routing to setup would bounce an enrolled
+        // admin into a fresh enrollment. Surface a retry instead.
+        setListError(factors.error);
+        setPreparing(false);
+        return;
+      }
       if (!factors.verifiedTotpFactorId) {
         // No verified factor at all -- this account hasn't finished
         // enrollment, so a challenge screen doesn't apply here.
@@ -43,7 +53,13 @@ export default function AdminMfaChallenge() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, user]);
+  }, [loading, user, reloadNonce]);
+
+  const retryListFactors = () => {
+    setListError('');
+    setPreparing(true);
+    setReloadNonce((n) => n + 1);
+  };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +79,35 @@ export default function AdminMfaChallenge() {
     return (
       <div className="min-h-screen bg-charcoal flex items-center justify-center">
         <i className="ri-loader-4-line animate-spin text-2xl text-white/50" />
+      </div>
+    );
+  }
+
+  if (listError) {
+    return (
+      <div className="min-h-screen bg-charcoal flex items-center justify-center px-4">
+        <div className="w-full max-w-sm bg-white rounded-2xl p-6 text-center space-y-4">
+          <div className="w-12 h-12 flex items-center justify-center mx-auto bg-red-100 rounded-full">
+            <i className="ri-error-warning-line text-2xl text-red-600" />
+          </div>
+          <h1 className="text-lg font-bold text-charcoal">Couldn&apos;t check your security setup</h1>
+          <p className="text-sm text-charcoal/60">
+            We couldn&apos;t confirm your authenticator status just now. This is usually temporary — try again.
+          </p>
+          <button
+            onClick={retryListFactors}
+            className="block w-full bg-charcoal text-white font-semibold py-3 rounded-full hover:bg-black transition-colors cursor-pointer"
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            onClick={() => signOut().then(() => navigate('/admin/login'))}
+            className="w-full text-center text-xs text-charcoal/40 hover:text-charcoal/70 cursor-pointer"
+          >
+            Sign out instead
+          </button>
+        </div>
       </div>
     );
   }

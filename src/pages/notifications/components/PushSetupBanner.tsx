@@ -20,7 +20,7 @@ export default function PushSetupBanner() {
         <div>
           <p className="text-sm font-semibold text-charcoal/60">Push notifications not supported</p>
           <p className="text-xs text-charcoal/40">
-            This browser can't receive push notifications. Email notifications still work.
+            This browser can't receive push notifications. Try a different browser or device to turn them on.
           </p>
         </div>
       </div>

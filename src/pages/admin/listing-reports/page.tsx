@@ -16,7 +16,7 @@ const statusBadge: Record<AdminListingReport['status'], string> = {
 
 export default function AdminListingReportsPage() {
   const { addToast } = useToast();
-  const { reports, loading, updateStatus } = useAdminListingReports();
+  const { reports, loading, error, refresh, updateStatus } = useAdminListingReports();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
@@ -69,6 +69,20 @@ export default function AdminListingReportsPage() {
           {loading ? (
             <div className="bg-white rounded-3xl border border-black/5 p-12 text-center text-sm text-charcoal/40">
               Loading reports…
+            </div>
+          ) : error ? (
+            <div className="bg-white rounded-3xl border border-red-200 p-12 text-center">
+              <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-red-50 rounded-full">
+                <i className="ri-error-warning-line text-2xl text-red-500" />
+              </div>
+              <h3 className="text-base font-bold text-charcoal mb-2">Couldn't load reports</h3>
+              <p className="text-sm text-charcoal/60 mb-4">{error}</p>
+              <button
+                onClick={() => void refresh()}
+                className="px-4 py-2 rounded-full text-xs font-semibold bg-charcoal text-white hover:bg-black transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">

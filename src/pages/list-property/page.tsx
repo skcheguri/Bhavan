@@ -23,17 +23,6 @@ const AMENITY_OPTIONS = [
   { name: 'amenity_balcony', label: 'Balcony', icon: 'ri-building-line' },
 ];
 
-function generateImageUrl(category: PropertyCategory, city: string) {
-  const citySlug = city.toLowerCase().replace(/\s+/g, '-');
-  if (category === 'vacation') {
-    return '/placeholders/photo.svg';
-  }
-  if (category === 'commercial') {
-    return '/placeholders/photo.svg';
-  }
-  return '/placeholders/photo.svg';
-}
-
 export default function ListProperty() {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -199,8 +188,6 @@ export default function ListProperty() {
       .filter((el) => (el as HTMLInputElement).checked)
       .map((el) => AMENITY_OPTIONS.find((a) => a.name === (el as HTMLInputElement).name)?.label ?? (el as HTMLInputElement).name);
 
-    const imageUrl = generateImageUrl(propertyCategory, city);
-
     setSubmitting(true);
 
     // Best-effort geocode so the listing can show up in "nearby" and
@@ -261,7 +248,7 @@ export default function ListProperty() {
         furnished,
         parking,
         property_type: propType,
-        images: [imageUrl],
+        images: ['/placeholders/photo.svg'],
         amenities: amenityFields,
         nearby_places: nearbyPlaces.filter((p) => p.label.trim() && p.distance.trim()),
         status: 'active',
@@ -363,7 +350,16 @@ export default function ListProperty() {
               Browse Listings
             </Link>
             <button
-              onClick={() => { setSubmitted(false); setStep('landing'); setPropertyCategory(''); }}
+              onClick={() => {
+                setSubmitted(false);
+                setStep('landing');
+                setPropertyCategory('');
+                setListingImages([]);
+                setNearbyPlaces([]);
+                setSelectedState('');
+                setSelectedCity('');
+                setCharCount(0);
+              }}
               className="border border-black/10 text-charcoal font-medium px-6 py-3 rounded-full hover:bg-lightgray transition-colors text-sm whitespace-nowrap cursor-pointer"
             >
               List Another Property

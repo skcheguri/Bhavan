@@ -237,7 +237,12 @@ export default function Home() {
               </Link>
             </div>
 
-            {featuredVacation.length === 0 ? (
+            {listingsLoading ? (
+              <div className="text-center py-12">
+                <i className="ri-loader-4-line animate-spin text-sage-dark text-2xl" />
+                <p className="mt-3 text-charcoal/50">Loading vacation rentals&hellip;</p>
+              </div>
+            ) : featuredVacation.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-charcoal/50">No vacation rentals listed yet.</p>
               </div>

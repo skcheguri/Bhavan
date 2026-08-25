@@ -1,5 +1,5 @@
 import { readCache, writeCache } from '@/lib/offlineCache';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabase, isSupabaseConnected } from '@/lib/supabase';
 import type { Tables } from '@/types/database.types';
 import type { Json } from '@/types/database.types';
@@ -55,6 +55,11 @@ export function useListings(category?: string): UseListingsReturn {
   const [listings, setListings] = useState<ListingFromDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Sequence tag: switching category tabs quickly races two fetches, and
+  // without this the slower response can land last and show the wrong
+  // category. Only the newest request is allowed to write state. Mirrors
+  // useAdminUsers.ts.
+  const requestIdRef = useRef(0);
 
   const fetchListings = useCallback(async () => {
     if (!isSupabaseConnected()) {
@@ -67,6 +72,7 @@ export function useListings(category?: string): UseListingsReturn {
       return;
     }
 
+    const reqId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
 
@@ -81,6 +87,8 @@ export function useListings(category?: string): UseListingsReturn {
     }
 
     const { data, error: dbError } = await query;
+
+    if (reqId !== requestIdRef.current) return;
 
     if (dbError) {
       setError(dbError.message);
@@ -218,7 +226,10 @@ export function useSavedListings(userId: string | undefined): UseListingsReturn 
     fetchSaved();
   }, [fetchSaved]);
 
-  return { listings, loading, error, refresh: fetchSaved };
+  // cachedAt is surfaced (additive) so a consumer can label a snapshot
+  // honestly -- it was maintained but never returned, so the "showing saved
+  // copy" indicator the comments promise had nothing to read.
+  return { listings, loading, error, refresh: fetchSaved, cachedAt };
 }
 
 // saveListing/createProperty that used to live here were dead exports --

@@ -24,7 +24,6 @@ interface VerifiedUserSummary {
   id: string;
   name: string;
   avatar_url: string | null;
-  aadhaar_last4: string | null;
 }
 
 function mapRow(r: Record<string, unknown>): AadhaarAuditEntry {
@@ -86,7 +85,6 @@ export function useAdminVerification() {
           id: u.id,
           name: u.name,
           avatar_url: u.avatar_url,
-          aadhaar_last4: null,
         }))
       );
     }

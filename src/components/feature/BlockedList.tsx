@@ -26,6 +26,7 @@ export default function BlockedList() {
   const { addToast } = useToast();
   const [people, setPeople] = useState<BlockedPerson[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -35,13 +36,23 @@ export default function BlockedList() {
       return;
     }
     setLoading(true);
+    setError(false);
     // users_public rather than users: this only ever needs the name and
     // picture, and the blocked person is not a connection.
-    const { data } = await supabase
+    const { data, error: dbError } = await supabase
       .from('user_blocks')
       .select('blocked_id, created_at, blocked:users_public!user_blocks_blocked_id_fkey(name, avatar_url)')
       .eq('blocker_id', user.id)
       .order('created_at', { ascending: false });
+
+    // A failed fetch is not an empty block list. Showing "You haven't
+    // blocked anyone" on an error would tell someone the person they cut
+    // off is no longer blocked -- the opposite of the truth.
+    if (dbError) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
 
     setPeople(
       ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => {
@@ -74,6 +85,26 @@ export default function BlockedList() {
   };
 
   if (loading) return <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />;
+
+  if (error) {
+    return (
+      <div>
+        <h3 className="text-sm font-bold text-charcoal">Blocked people</h3>
+        <div className="mt-2 flex items-start gap-3 p-3 bg-red-50 border border-red-100 rounded-xl">
+          <i className="ri-error-warning-line text-red-500 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-charcoal">Couldn&apos;t load your blocked list.</p>
+            <button
+              onClick={() => void load()}
+              className="mt-1.5 text-xs font-semibold text-red-600 hover:text-red-700"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

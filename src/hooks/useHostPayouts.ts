@@ -109,6 +109,7 @@ export function useAdminDuePayouts() {
   const [payouts, setPayouts] = useState<DuePayoutRow[]>([]);
   const [accounts, setAccounts] = useState<Record<string, PayoutAccount>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
@@ -128,12 +129,14 @@ export function useAdminDuePayouts() {
 
     if (error) {
       console.warn('Supabase due payouts fetch error:', error.message);
+      setError(error.message);
       setPayouts([]);
       setAccounts({});
       setLoading(false);
       return;
     }
 
+    setError(null);
     const rows = (data ?? []) as unknown as DuePayoutRow[];
     setPayouts(rows);
 
@@ -185,5 +188,5 @@ export function useAdminDuePayouts() {
     [refresh]
   );
 
-  return { payouts, accounts, loading, refresh, markPaid, withhold };
+  return { payouts, accounts, loading, error, refresh, markPaid, withhold };
 }

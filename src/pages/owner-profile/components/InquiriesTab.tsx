@@ -457,23 +457,21 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
   const confirmAction = async () => {
     if (!showConfirm) return;
 
-    if (!inquiry.canSend) {
+    const isApprove = showConfirm.action === 'approve';
+
+    // Only approvals are rate-limited and debited. Declining a request is
+    // free — it neither charges the inquiry quota nor gets blocked by it.
+    if (isApprove && !inquiry.canSend) {
       addToast(inquiry.limitReason || 'Rate limit reached. Please try again later.', 'error');
       setShowConfirm(null);
       return;
     }
 
-    const ok = recordInquiry();
-    if (!ok) {
-      addToast(inquiry.limitReason || 'Rate limit reached. Please try again later.', 'error');
-      setShowConfirm(null);
-      return;
-    }
-
-    const success = await updateStatus(showConfirm.id, showConfirm.action === 'approve' ? 'approved' : 'declined');
+    const success = await updateStatus(showConfirm.id, isApprove ? 'approved' : 'declined');
     if (success) {
+      if (isApprove) recordInquiry();
       addToast(
-        showConfirm.action === 'approve' ? 'Request approved successfully.' : 'Request declined.',
+        isApprove ? 'Request approved successfully.' : 'Request declined.',
         'success',
       );
     } else {
@@ -610,8 +608,8 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowConfirm(null)} />
           <div className="relative bg-white rounded-2xl p-6 max-w-sm w-full">
-            {/* Rate limit warning inside modal */}
-            {!inquiry.canSend && (
+            {/* Rate limit warning inside modal — only approvals are gated */}
+            {showConfirm.action === 'approve' && !inquiry.canSend && (
               <div className="bg-red-50 border border-red-100 rounded-lg p-3 mb-4 flex items-start gap-2">
                 <i className="ri-error-warning-line text-red-500 text-sm flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-red-600">{inquiry.limitReason}</p>
@@ -638,7 +636,7 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
               </button>
               <button
                 onClick={confirmAction}
-                disabled={!inquiry.canSend}
+                disabled={showConfirm.action === 'approve' && !inquiry.canSend}
                 className={`flex-1 px-4 py-2.5 rounded-full text-white text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
                   showConfirm.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-500 hover:bg-red-600'
                 }`}

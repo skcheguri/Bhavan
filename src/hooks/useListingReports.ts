@@ -47,6 +47,7 @@ export interface AdminListingReport {
 export function useAdminListingReports() {
   const [reports, setReports] = useState<AdminListingReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const supabase = getSupabase();
@@ -63,11 +64,13 @@ export function useAdminListingReports() {
 
     if (error) {
       console.warn('Supabase listing_reports fetch error:', error.message);
+      setError(error.message);
       setReports([]);
       setLoading(false);
       return;
     }
 
+    setError(null);
     setReports(
       ((data ?? []) as Record<string, unknown>[]).map((row) => ({
         id: String(row.id),
@@ -107,5 +110,5 @@ export function useAdminListingReports() {
     [load]
   );
 
-  return { reports, loading, updateStatus, refresh: load };
+  return { reports, loading, error, updateStatus, refresh: load };
 }

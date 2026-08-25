@@ -68,7 +68,14 @@ export function useAdminListings() {
       });
       const ownerIds = ((matchingUsers ?? []) as { id: string }[]).map((u) => u.id);
 
-      const filters = [`title.ilike.%${searchQuery}%`, `location.ilike.%${searchQuery}%`, `city.ilike.%${searchQuery}%`];
+      // PostgREST's .or() grammar uses commas to separate clauses and
+      // parentheses to group them -- a raw ',' or '(' / ')' in the search
+      // text would break the filter string (and could smuggle extra
+      // clauses), so strip them from the ilike patterns. The unmodified
+      // searchQuery still drives the parameterized admin_list_users RPC
+      // above, so owner-name matches are unaffected.
+      const safeQuery = searchQuery.replace(/[(),]/g, ' ').trim();
+      const filters = [`title.ilike.%${safeQuery}%`, `location.ilike.%${safeQuery}%`, `city.ilike.%${safeQuery}%`];
       if (ownerIds.length > 0) {
         filters.push(`owner_id.in.(${ownerIds.join(',')})`);
       }

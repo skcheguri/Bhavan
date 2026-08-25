@@ -230,10 +230,18 @@ export default function TenantProfile() {
     addToast(`"${title}" removed from saved listings`, 'success');
   };
 
-  // Count upcoming rent due
+  // Count upcoming rent due. Read the tenant's real due day (not a
+  // hardcoded 5th), and count with the same month-length-correct formula
+  // RentManagementTab uses -- the old `30 + dueDay - date` was off by a day
+  // or more in months that aren't 30 days long, and 0 on the due day itself.
   const today = new Date();
-  const rentDueDay = 5;
-  const daysUntilRentDue = rentDueDay - today.getDate() > 0 ? rentDueDay - today.getDate() : 30 + rentDueDay - today.getDate();
+  const rentDueDay = activeAgreement?.rentDueDay || 5;
+  const daysUntilRentDue = (() => {
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let next = new Date(today.getFullYear(), today.getMonth(), rentDueDay);
+    if (next.getTime() < start.getTime()) next = new Date(today.getFullYear(), today.getMonth() + 1, rentDueDay);
+    return Math.round((next.getTime() - start.getTime()) / 86400000);
+  })();
 
   // Maintenance counts
   const activeMaint = maintRequestsFromDB.filter((r) => r.status !== 'resolved').length;

@@ -67,6 +67,14 @@ export default function Listings() {
   const { listings: dbListings, loading: dbLoading } = useListings(
     activeCategory === 'all' ? undefined : activeCategory
   );
+  // A second, always-unscoped fetch feeds the category-tab count badges.
+  // The scoped `dbListings` above only holds the active category, so
+  // counting tab totals off it made "All"/other tabs show wrong (or zero)
+  // numbers once a category was selected. This is additive -- useListings'
+  // public API is untouched.
+  const { listings: allListingsForCounts } = useListings();
+  const categoryCount = (key: ListingCategory | 'all') =>
+    allListingsForCounts.filter((l) => key === 'all' || (l.category ?? 'residential') === key).length;
   const isAadhaarVerified = user?.verified ?? false;
 
   const applySearch = (e?: React.FormEvent) => {
@@ -295,7 +303,7 @@ export default function Listings() {
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                   activeCategory === tab.key ? 'bg-white/20 text-white' : 'bg-lightgray text-charcoal/50'
                 }`}>
-                  {displayListings.filter((l) => tab.key === 'all' || l.category === tab.key).length}
+                  {categoryCount(tab.key)}
                 </span>
               </button>
             ))}

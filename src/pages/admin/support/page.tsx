@@ -7,15 +7,18 @@ type StatusFilter = 'all' | ContactInquiryStatus;
 
 export default function AdminSupportPage() {
   const { addToast } = useToast();
-  const { inquiries, loading, updateStatus } = useAdminContactInquiries();
+  const { inquiries, loading, error, refresh, updateStatus } = useAdminContactInquiries();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const filtered = inquiries.filter((i) => (filter === 'all' ? true : i.status === filter));
 
   const handleUpdate = async (id: string, status: ContactInquiryStatus) => {
+    setSubmitting(true);
     const ok = await updateStatus(id, status, noteDraft || undefined);
+    setSubmitting(false);
     setExpandedId(null);
     setNoteDraft('');
     if (ok) addToast('Inquiry updated', 'success');
@@ -63,6 +66,20 @@ export default function AdminSupportPage() {
         <div className="space-y-4">
           {loading ? (
             <div className="bg-white rounded-3xl border border-black/5 p-12 text-center text-sm text-charcoal/40">Loading inquiries…</div>
+          ) : error ? (
+            <div className="bg-white rounded-3xl border border-red-200 p-12 text-center">
+              <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-red-50 rounded-full">
+                <i className="ri-error-warning-line text-2xl text-red-500" />
+              </div>
+              <h3 className="text-base font-bold text-charcoal mb-2">Couldn't load inquiries</h3>
+              <p className="text-sm text-charcoal/60 mb-4">{error}</p>
+              <button
+                onClick={() => void refresh()}
+                className="px-4 py-2 rounded-full text-xs font-semibold bg-charcoal text-white hover:bg-black transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
               <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-lightgray rounded-full">
@@ -115,13 +132,15 @@ export default function AdminSupportPage() {
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => handleUpdate(i.id, 'in_progress')}
-                          className="px-4 py-2 rounded-full text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors cursor-pointer whitespace-nowrap"
+                          disabled={submitting}
+                          className="px-4 py-2 rounded-full text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           Mark In Progress
                         </button>
                         <button
                           onClick={() => handleUpdate(i.id, 'resolved')}
-                          className="px-4 py-2 rounded-full text-xs font-semibold bg-green-500 text-white hover:bg-green-600 transition-colors cursor-pointer whitespace-nowrap"
+                          disabled={submitting}
+                          className="px-4 py-2 rounded-full text-xs font-semibold bg-green-500 text-white hover:bg-green-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           Mark Resolved
                         </button>

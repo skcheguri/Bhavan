@@ -34,6 +34,7 @@ function deriveStatus(row: Record<string, unknown>): PropertyVerificationStatus 
 export function useAdminPropertyVerification() {
   const [requests, setRequests] = useState<PropertyVerificationRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const supabase = getSupabase();
@@ -54,11 +55,13 @@ export function useAdminPropertyVerification() {
 
     if (error) {
       console.warn('Supabase properties verification fetch error:', error.message);
+      setError(error.message);
       setRequests([]);
       setLoading(false);
       return;
     }
 
+    setError(null);
     setRequests(
       ((data ?? []) as Record<string, unknown>[]).map((row) => ({
         id: String(row.id),
@@ -143,5 +146,5 @@ export function useAdminPropertyVerification() {
     return data.signedUrl;
   }, []);
 
-  return { requests, loading, approve, reject, getDocumentUrl, refresh: load };
+  return { requests, loading, error, approve, reject, getDocumentUrl, refresh: load };
 }

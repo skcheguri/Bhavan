@@ -53,6 +53,27 @@ function formatDate(iso: string): string {
   return local.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// True when `iso` carries a time-of-day, i.e. it is a real TIMESTAMP
+// ("2026-08-25T01:30:00Z") rather than a bare date ("2026-08-25").
+function hasTimeComponent(iso: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(iso);
+}
+
+// For genuine TIMESTAMP columns (createdAt / landlord_signed_at), which
+// carry a time and timezone. parseDateOnly would take the UTC date prefix
+// verbatim, so an agreement executed 00:00-05:30 IST (the previous UTC day)
+// prints yesterday. Converting the full instant to the reader's local date
+// fixes that. A value with no time-of-day is still a genuine date-only
+// string (e.g. passed by a test) and is read verbatim to avoid the opposite
+// rollback for readers behind UTC.
+function formatTimestamp(iso: string): string {
+  if (!iso) return '_______________';
+  if (hasTimeComponent(iso)) {
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  return formatDate(iso);
+}
+
 function formatINR(n: number): string {
   return `₹${(n || 0).toLocaleString('en-IN')}`;
 }
@@ -156,10 +177,10 @@ export function buildRentalAgreementHtml(a: RentalAgreementData): string {
 </head>
 <body>
   <h1 class="doc-title">Rental Agreement</h1>
-  <p class="doc-subtitle">Agreement No. ${escapeHtml(a.agreementNumber)} &nbsp;·&nbsp; Executed on ${formatDate(a.createdAt)}</p>
+  <p class="doc-subtitle">Agreement No. ${escapeHtml(a.agreementNumber)} &nbsp;·&nbsp; Executed on ${formatTimestamp(a.createdAt)}</p>
 
   <p class="recital">
-    This Rental Agreement (&ldquo;Agreement&rdquo;) is made and entered into on <strong>${formatDate(a.createdAt)}</strong>,
+    This Rental Agreement (&ldquo;Agreement&rdquo;) is made and entered into on <strong>${formatTimestamp(a.createdAt)}</strong>,
     by and between the parties named below, for the residential premises described in this Agreement.
   </p>
 

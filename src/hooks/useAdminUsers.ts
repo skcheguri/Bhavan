@@ -73,7 +73,14 @@ export async function setUserSuspended(
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) return { error: 'Not authenticated' };
 
-  const functionsUrl = `${import.meta.env.VITE_PUBLIC_SUPABASE_URL}/functions/v1/admin-suspend-user`;
+  // Guard the env var the same way supabase.ts does -- an undefined base
+  // would otherwise build a "undefined/functions/v1/..." URL that fails
+  // with an opaque network error instead of a clear misconfiguration.
+  const baseUrl =
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_PUBLIC_SUPABASE_URL) || '';
+  if (!baseUrl) return { error: 'Supabase URL is not configured' };
+
+  const functionsUrl = `${baseUrl}/functions/v1/admin-suspend-user`;
   const res = await fetch(functionsUrl, {
     method: 'POST',
     headers: {

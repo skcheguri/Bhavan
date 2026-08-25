@@ -35,8 +35,28 @@ function formatDate(iso: string): string {
   return local.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// True when `iso` carries a time-of-day, i.e. it is a real TIMESTAMP
+// ("2026-08-25T01:30:00Z") rather than a bare date ("2026-08-25").
+function hasTimeComponent(iso: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(iso);
+}
+
+// paidOn (created_at) and confirmedOn (confirmed_at) are timestamptz
+// columns. parseDateOnly would take the UTC date prefix verbatim, so a
+// contribution confirmed 00:00-05:30 IST (the previous UTC day) prints
+// yesterday. Convert the full instant to the reader's local date. A value
+// with no time-of-day is a genuine date-only string and is read verbatim to
+// avoid the opposite rollback for readers behind UTC.
+function formatTimestamp(iso: string): string {
+  if (!iso) return '—';
+  if (hasTimeComponent(iso)) {
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  return formatDate(iso);
+}
+
 function formatINR(n: number): string {
-  return `₹${n.toLocaleString('en-IN')}`;
+  return `₹${(n || 0).toLocaleString('en-IN')}`;
 }
 
 function escapeHtml(value: string | number | null | undefined): string {
@@ -95,7 +115,7 @@ export function buildContributionReceiptHtml(r: ContributionReceiptData): string
 
     <div class="meta-row">
       <span>${escapeHtml(r.societyName)}</span>
-      <span>Confirmed: ${formatDate(r.confirmedOn)}</span>
+      <span>Confirmed: ${formatTimestamp(r.confirmedOn)}</span>
     </div>
 
     <p class="recital">
@@ -112,7 +132,7 @@ export function buildContributionReceiptHtml(r: ContributionReceiptData): string
       <tr><td>Purpose</td><td>${escapeHtml(r.collectionPurpose)}</td></tr>
       <tr><td>Flat / villa</td><td>${escapeHtml(units)}</td></tr>
       <tr><td>Payment reference</td><td>${escapeHtml(r.reference || '—')}</td></tr>
-      <tr><td>Recorded on</td><td>${formatDate(r.paidOn)}</td></tr>
+      <tr><td>Recorded on</td><td>${formatTimestamp(r.paidOn)}</td></tr>
       <tr><td>Confirmed by</td><td>${escapeHtml(r.confirmedByName || 'Society admin')}</td></tr>
     </table>
 

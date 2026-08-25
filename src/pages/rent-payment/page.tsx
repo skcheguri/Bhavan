@@ -38,7 +38,7 @@ const statusLabels: Record<string, string> = {
 
 export default function RentPayment() {
   const { user } = useAuth();
-  const { payments, mandates, tenantPayments, getMandateForTenant, createPayment, refresh, error: paymentsFetchError } = useRentPayment();
+  const { payments, mandates, tenantPayments, getMandateForTenant, createPayment, pauseMandate, cancelMandate, refresh, error: paymentsFetchError } = useRentPayment();
   const { addToast } = useToast();
   const isTenant = user?.role === 'tenant';
   const isOwner = user?.role === 'owner';
@@ -58,6 +58,7 @@ export default function RentPayment() {
   const [monthFilter, setMonthFilter] = useState<string>('all');
   const [offlineReceipt, setOfflineReceipt] = useState('');
   const [offlineDate, setOfflineDate] = useState(todayLocalISO());
+  const [mandateBusy, setMandateBusy] = useState(false);
 
   const { agreements: rentalAgreements } = useTenantRentalAgreements(user?.id);
   const [selectedAgreementId, setSelectedAgreementId] = useState<string | null>(null);
@@ -386,11 +387,14 @@ export default function RentPayment() {
                           <i className="ri-repeat-line text-green-600 text-lg" />
                         </div>
                         <div>
-                          <p className="text-[15px] font-semibold text-charcoal">AutoPay {myMandate.status === 'active' ? 'Active' : 'Paused'}</p>
+                          {/* getMandateForTenant returns only ACTIVE mandates,
+                              so the old status === 'active' ? ... : 'Paused'
+                              branch here was unreachable. */}
+                          <p className="text-[15px] font-semibold text-charcoal">AutoPay Active</p>
                           <p className="text-xs text-charcoal/60">{myMandate.upi_id}</p>
                         </div>
-                        <span className={`ml-auto text-xs font-semibold px-2.5 py-1 rounded-full ${myMandate.status === 'active' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
-                          {myMandate.status.charAt(0).toUpperCase() + myMandate.status.slice(1)}
+                        <span className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-600">
+                          Active
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -407,20 +411,29 @@ export default function RentPayment() {
                     <div className="flex gap-3">
                       <button
                         onClick={async () => {
-                          // pause mandate
+                          setMandateBusy(true);
+                          const { error } = await pauseMandate(myMandate.id);
+                          setMandateBusy(false);
+                          if (error) { addToast(error, 'error'); return; }
                           addToast('Mandate paused', 'success');
                           await refresh();
                         }}
-                        className="flex-1 py-3 rounded-xl border border-black/10 text-sm font-medium text-charcoal hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap"
+                        disabled={mandateBusy}
+                        className="flex-1 py-3 rounded-xl border border-black/10 text-sm font-medium text-charcoal hover:bg-lightgray transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Pause Mandate
                       </button>
                       <button
                         onClick={async () => {
+                          setMandateBusy(true);
+                          const { error } = await cancelMandate(myMandate.id);
+                          setMandateBusy(false);
+                          if (error) { addToast(error, 'error'); return; }
                           addToast('Mandate cancelled', 'success');
                           await refresh();
                         }}
-                        className="flex-1 py-3 rounded-xl border border-red-100 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
+                        disabled={mandateBusy}
+                        className="flex-1 py-3 rounded-xl border border-red-100 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Cancel AutoPay
                       </button>

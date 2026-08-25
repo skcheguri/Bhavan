@@ -20,6 +20,12 @@ export default function ReviewCard({ entry, onEdit, minutesLeftToEdit }: ReviewC
 
   const isOwnerReview = entry.role === 'owner_on_renter';
 
+  // overall_rating can arrive as 0 or out of range (a null coerces to 0),
+  // and indexing the 1-5 badge/colour maps below with it returns undefined
+  // -- reading `.label`/`.color` off that throws and crashes the whole
+  // reviews list, which has no error boundary. Clamp into 1-5 first.
+  const rating = Math.min(5, Math.max(1, Math.round(entry.overall_rating) || 1));
+
   const ratingColors: Record<number, string> = {
     1: 'bg-red-50 border-red-200',
     2: 'bg-orange-50 border-orange-200',
@@ -37,7 +43,7 @@ export default function ReviewCard({ entry, onEdit, minutesLeftToEdit }: ReviewC
   };
 
   return (
-    <div className={`rounded-2xl border p-6 transition duration-300 ${ratingColors[entry.overall_rating]}`}>
+    <div className={`rounded-2xl border p-6 transition duration-300 ${ratingColors[rating]}`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
         {/* Reviewer */}
@@ -78,9 +84,9 @@ export default function ReviewCard({ entry, onEdit, minutesLeftToEdit }: ReviewC
 
         {/* Rating badge */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <StarRating value={entry.overall_rating} readonly size="sm" />
-          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${ratingBadge[entry.overall_rating].color}`}>
-            {ratingBadge[entry.overall_rating].label}
+          <StarRating value={rating} readonly size="sm" />
+          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${ratingBadge[rating].color}`}>
+            {ratingBadge[rating].label}
           </span>
         </div>
       </div>

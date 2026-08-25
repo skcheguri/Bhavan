@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import VerificationSteps from './components/VerificationSteps';
 import FaqAccordion from './components/FaqAccordion';
@@ -87,14 +87,23 @@ export default function AadhaarVerify() {
   const rawAadhaar = aadhaar.replace(/\s/g, '');
   const aadhaarValid = isValidAadhaarFormat(rawAadhaar) && isValidAadhaarChecksum(rawAadhaar);
 
+  // Held in a ref so the countdown can be cleared if the component unmounts
+  // mid-timer (otherwise it keeps firing setState on an unmounted component).
+  const otpIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (otpIntervalRef.current) clearInterval(otpIntervalRef.current);
+  }, []);
+
   const startOtpTimer = () => {
     setOtpTimer(60);
+    if (otpIntervalRef.current) clearInterval(otpIntervalRef.current);
     const interval = setInterval(() => {
       setOtpTimer((prev) => {
         if (prev <= 1) { clearInterval(interval); return 0; }
         return prev - 1;
       });
     }, 1000);
+    otpIntervalRef.current = interval;
   };
 
   const handleSendOtp = async () => {

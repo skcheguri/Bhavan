@@ -78,7 +78,12 @@ function appRoleToDbRole(role: 'tenant' | 'owner' | 'admin'): string {
   return role;
 }
 
-async function buildAuthUser(supabaseUser: User): Promise<AuthUser | null> {
+// `previousRole` is the role this session already knew for the user (from
+// current auth state), passed so the fallback below can fail CLOSED. This
+// runs on every token refresh; a transient RPC failure must not silently
+// demote an owner/admin to the tenant default. Left null only for a
+// genuinely-first load, where there is no prior role to preserve.
+async function buildAuthUser(supabaseUser: User, previousRole: UserRole = null): Promise<AuthUser | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
 
@@ -100,12 +105,16 @@ async function buildAuthUser(supabaseUser: User): Promise<AuthUser | null> {
 
   if (error || !profile) {
     // Fallback when the profile genuinely hasn't synced yet (fresh signup),
-    // or after retries still failed.
+    // or after retries still failed. Prefer the role we already knew for
+    // this user (fail closed): on a transient fetch error mid-session this
+    // keeps an owner/admin from being demoted to tenant on a token refresh.
+    // previousRole is null only on a genuinely-first load, where we fall
+    // back to the signup metadata role, then the tenant default.
     return {
       id: supabaseUser.id,
       name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
       email: supabaseUser.email || '',
-      role: dbRoleToAppRole(supabaseUser.user_metadata?.role) || 'tenant',
+      role: previousRole ?? dbRoleToAppRole(supabaseUser.user_metadata?.role) ?? 'tenant',
       verified: false,
       verifiedEmail: !!supabaseUser.email_confirmed_at,
       verifiedPhone: !!supabaseUser.phone_confirmed_at,
@@ -184,13 +193,19 @@ export function useAuthProvider(): AuthContextValue {
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
 
+  // Mirrors the latest user so async flows (token-refresh rebuilds in
+  // particular) can read the last-known role without a stale closure, and
+  // pass it to buildAuthUser to fail closed on a transient profile error.
+  const userRef = useRef<AuthUser | null>(null);
+  useEffect(() => { userRef.current = user; }, [user]);
+
   const refreshUser = useCallback(async (sessionUser: User | null) => {
     if (!sessionUser) {
       setUser(null);
       setLoading(false);
       return;
     }
-    const authUser = await buildAuthUser(sessionUser);
+    const authUser = await buildAuthUser(sessionUser, userRef.current?.role ?? null);
     if (!mountedRef.current) return;
     setUser(authUser);
     setLoading(false);
@@ -245,7 +260,7 @@ export function useAuthProvider(): AuthContextValue {
     }
 
     if (data.user) {
-      const authUser = await buildAuthUser(data.user);
+      const authUser = await buildAuthUser(data.user, userRef.current?.role ?? null);
       setUser(authUser);
     }
     setLoading(false);
@@ -289,7 +304,7 @@ export function useAuthProvider(): AuthContextValue {
     }
 
     if (data.user) {
-      const authUser = await buildAuthUser(data.user);
+      const authUser = await buildAuthUser(data.user, userRef.current?.role ?? null);
       setUser(authUser);
     }
     setLoading(false);
@@ -467,7 +482,7 @@ export function useAuthProvider(): AuthContextValue {
     }
 
     if (data.user) {
-      const authUser = await buildAuthUser(data.user);
+      const authUser = await buildAuthUser(data.user, userRef.current?.role ?? null);
       setUser(authUser);
     }
     setLoading(false);
@@ -511,7 +526,7 @@ export function useAuthProvider(): AuthContextValue {
     if (!supabase) return;
     const { data } = await supabase.auth.getUser();
     if (data.user) {
-      const authUser = await buildAuthUser(data.user);
+      const authUser = await buildAuthUser(data.user, userRef.current?.role ?? null);
       setUser(authUser);
     }
   };

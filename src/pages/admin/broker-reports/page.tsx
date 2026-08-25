@@ -24,7 +24,7 @@ const statusBadge: Record<AdminBrokerReport['status'], string> = {
 
 export default function AdminBrokerReportsPage() {
   const { addToast } = useToast();
-  const { reports, activeSoftBlockCount, loading, updateReportStatus } = useAdminBrokerReports();
+  const { reports, activeSoftBlockCount, loading, error, updateReportStatus, refresh } = useAdminBrokerReports();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
@@ -127,6 +127,17 @@ export default function AdminBrokerReportsPage() {
           {loading ? (
             <div className="bg-white rounded-3xl border border-black/5 p-12 text-center text-sm text-charcoal/40">
               Loading reports…
+            </div>
+          ) : error ? (
+            // A failed fetch must never read as "all handled" on a
+            // moderation queue -- say so and offer a retry.
+            <div className="bg-white rounded-3xl border border-red-100 p-12 text-center">
+              <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-red-50 rounded-full">
+                <i className="ri-error-warning-line text-2xl text-red-500" />
+              </div>
+              <h3 className="text-base font-bold text-charcoal mb-2">Couldn't load broker reports</h3>
+              <p className="text-sm text-charcoal/60 mb-5">This queue may be incomplete. Retry before assuming it's clear.</p>
+              <button onClick={() => refresh()} className="bg-charcoal text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-black transition-colors whitespace-nowrap cursor-pointer">Retry</button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">

@@ -1,5 +1,5 @@
 import { getBiometricStatus, type BiometricStatus } from '@/lib/biometricAuth';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { isValidRawIndianMobile } from '@/lib/validation';
@@ -51,6 +51,16 @@ export default function Login() {
   // Google sign-in state
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState('');
+
+  // Countdown intervals, held in refs so they can be cleared if the
+  // component unmounts mid-countdown (otherwise the timer keeps firing
+  // setState on an unmounted component).
+  const otpIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const forgotIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (otpIntervalRef.current) clearInterval(otpIntervalRef.current);
+    if (forgotIntervalRef.current) clearInterval(forgotIntervalRef.current);
+  }, []);
 
   const handleGoogleSignIn = async () => {
     setGoogleError('');
@@ -114,12 +124,14 @@ export default function Login() {
     }
     setOtpSent(true);
     setOtpTimer(30);
+    if (otpIntervalRef.current) clearInterval(otpIntervalRef.current);
     const interval = setInterval(() => {
       setOtpTimer((prev) => {
         if (prev <= 1) { clearInterval(interval); return 0; }
         return prev - 1;
       });
     }, 1000);
+    otpIntervalRef.current = interval;
   };
 
   const handleOtpChange = (index: number, value: string) => {
@@ -177,12 +189,14 @@ export default function Login() {
     }
     setForgotStep('sent');
     setForgotResendTimer(30);
+    if (forgotIntervalRef.current) clearInterval(forgotIntervalRef.current);
     const interval = setInterval(() => {
       setForgotResendTimer((prev) => {
         if (prev <= 1) { clearInterval(interval); return 0; }
         return prev - 1;
       });
     }, 1000);
+    forgotIntervalRef.current = interval;
   };
 
   return (
@@ -366,11 +380,7 @@ export default function Login() {
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="w-4 h-4 rounded border-black/15" />
-                      <span className="text-sm text-charcoal/70">Remember me</span>
-                    </label>
+                  <div className="flex items-center justify-end">
                     <button
                       type="button"
                       onClick={openForgot}

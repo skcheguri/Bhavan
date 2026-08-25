@@ -19,6 +19,8 @@ export default function AdminMfaSetup() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [alreadyEnrolled, setAlreadyEnrolled] = useState(false);
+  const [listError, setListError] = useState('');
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     if (loading) return;
@@ -31,6 +33,15 @@ export default function AdminMfaSetup() {
     (async () => {
       const factors = await mfaListFactors();
       if (!mounted) return;
+
+      if (factors.error) {
+        // A transient listFactors failure must NOT fall through to
+        // enrollment -- that would enroll a fresh factor on top of an
+        // account that may already be enrolled. Surface a retry instead.
+        setListError(factors.error);
+        setPreparing(false);
+        return;
+      }
 
       if (factors.verifiedTotpFactorId) {
         // Already fully enrolled -- RequireAdmin wouldn't have sent an
@@ -66,7 +77,13 @@ export default function AdminMfaSetup() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, user]);
+  }, [loading, user, reloadNonce]);
+
+  const retryListFactors = () => {
+    setListError('');
+    setPreparing(true);
+    setReloadNonce((n) => n + 1);
+  };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +103,36 @@ export default function AdminMfaSetup() {
     return (
       <div className="min-h-screen bg-charcoal flex items-center justify-center">
         <i className="ri-loader-4-line animate-spin text-2xl text-white/50" />
+      </div>
+    );
+  }
+
+  if (listError) {
+    return (
+      <div className="min-h-screen bg-charcoal flex items-center justify-center px-4">
+        <div className="w-full max-w-sm bg-white rounded-2xl p-6 text-center space-y-4">
+          <div className="w-12 h-12 flex items-center justify-center mx-auto bg-red-100 rounded-full">
+            <i className="ri-error-warning-line text-2xl text-red-600" />
+          </div>
+          <h1 className="text-lg font-bold text-charcoal">Couldn&apos;t check your security setup</h1>
+          <p className="text-sm text-charcoal/60">
+            We couldn&apos;t confirm whether this account already has an authenticator registered. This is usually
+            temporary — try again rather than setting up a new one.
+          </p>
+          <button
+            onClick={retryListFactors}
+            className="block w-full bg-charcoal text-white font-semibold py-3 rounded-full hover:bg-black transition-colors cursor-pointer"
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            onClick={() => signOut().then(() => navigate('/admin/login'))}
+            className="w-full text-center text-xs text-charcoal/40 hover:text-charcoal/70 cursor-pointer"
+          >
+            Sign out instead
+          </button>
+        </div>
       </div>
     );
   }

@@ -24,8 +24,12 @@ export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: 
   const [purposeOfRenting, setPurposeOfRenting] = useState(broker.softBlockState.details?.purposeOfRenting ?? '');
 
   const handleAadhaarReverify = async () => {
-    await broker.resolveAadhaar();
+    // Lock the button immediately: broker.softBlockState.aadhaar_re_verified
+    // only flips once the hook refetches, so without this guard the button
+    // stays live and a second click fires resolveAadhaar again.
+    if (aadhaarDone) return;
     setAadhaarDone(true);
+    await broker.resolveAadhaar();
     addToast('Aadhaar re-verified successfully', 'success');
   };
 
@@ -94,9 +98,10 @@ export default function SoftBlockModal({ open, onClose, tenantId, tenantName }: 
                   {!broker.softBlockState.aadhaar_re_verified && (
                     <button
                       onClick={handleAadhaarReverify}
-                      className="px-3 py-1.5 rounded-full bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0"
+                      disabled={aadhaarDone}
+                      className="px-3 py-1.5 rounded-full bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Verify Now
+                      {aadhaarDone ? 'Verifying…' : 'Verify Now'}
                     </button>
                   )}
                 </div>

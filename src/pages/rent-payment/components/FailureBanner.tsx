@@ -5,31 +5,31 @@ interface Props {
   onContactLandlord?: () => void;
 }
 
-const failureMessages: Record<string, { title: string; description: string; action: string }> = {
+// No `action` label per reason: every retry re-opens the same Razorpay
+// order, and there is no separate bank-transfer / alternative-account rail
+// to send the tenant to. Labelling the button "Try Bank Transfer" etc.
+// promised rails that don't exist, so the button is always the honest
+// "Retry payment".
+const failureMessages: Record<string, { title: string; description: string }> = {
   UPI_TIMEOUT: {
     title: 'UPI Timeout',
     description: 'The UPI request timed out. Your bank may be experiencing high traffic.',
-    action: 'Retry with UPI',
   },
   BANK_REJECTED: {
     title: 'Bank Rejected',
     description: 'Your bank declined the transaction. Please check your account status.',
-    action: 'Try Bank Transfer',
   },
   INSUFFICIENT_FUNDS: {
     title: 'Insufficient Funds',
     description: 'Your account does not have enough balance for this transaction.',
-    action: 'Try Another Account',
   },
   USER_CANCELLED: {
     title: 'Payment Cancelled',
     description: 'You cancelled the payment on your UPI app. No amount was deducted.',
-    action: 'Retry Payment',
   },
   RISK_REJECTED: {
     title: 'Risk Rejected',
     description: 'The transaction was flagged for security reasons. Contact your bank.',
-    action: 'Try Alternative Method',
   },
 };
 
@@ -37,7 +37,6 @@ export default function FailureBanner({ failureReason, onRetry, onAlternative, o
   const info = failureMessages[failureReason] ?? {
     title: 'Payment Failed',
     description: 'Something went wrong with your payment. Please try again.',
-    action: 'Retry Payment',
   };
 
   return (
@@ -54,7 +53,7 @@ export default function FailureBanner({ failureReason, onRetry, onAlternative, o
               onClick={onRetry}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap"
             >
-              <i className="ri-refresh-line text-xs" /> {info.action}
+              <i className="ri-refresh-line text-xs" /> Retry payment
             </button>
             <button
               onClick={onAlternative}

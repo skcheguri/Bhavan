@@ -114,15 +114,12 @@ export default function AdminListingsPage() {
                     </div>
                   </div>
                   <div className="flex-shrink-0">
-                    {l.status === 'inactive' ? (
-                      <button
-                        onClick={() => handleSetStatus(l.id, 'active')}
-                        disabled={busyId === l.id}
-                        className="px-3 py-2 rounded-full text-xs font-semibold bg-green-500 text-white hover:bg-green-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60"
-                      >
-                        {busyId === l.id ? 'Restoring…' : 'Restore'}
-                      </button>
-                    ) : (
+                    {/* Take Down only for a live listing, Restore only for a
+                        taken-down one. A `draft` is the owner's unpublished
+                        work -- offering Restore on it would let admin
+                        moderation publish it on the owner's behalf, so it
+                        gets no status control at all. */}
+                    {l.status === 'active' ? (
                       <button
                         onClick={() => handleSetStatus(l.id, 'inactive')}
                         disabled={busyId === l.id}
@@ -130,7 +127,15 @@ export default function AdminListingsPage() {
                       >
                         {busyId === l.id ? 'Taking down…' : 'Take Down'}
                       </button>
-                    )}
+                    ) : l.status === 'inactive' ? (
+                      <button
+                        onClick={() => handleSetStatus(l.id, 'active')}
+                        disabled={busyId === l.id}
+                        className="px-3 py-2 rounded-full text-xs font-semibold bg-green-500 text-white hover:bg-green-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60"
+                      >
+                        {busyId === l.id ? 'Restoring…' : 'Restore'}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>

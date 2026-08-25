@@ -23,12 +23,13 @@ interface RefundablePayment {
 function useUserPayments(userId: string) {
   const [payments, setPayments] = useState<RefundablePayment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const supabase = getSupabase();
     if (!supabase) { setLoading(false); return; }
     setLoading(true);
-    const [{ data: invoices }, { data: rents }] = await Promise.all([
+    const [{ data: invoices, error: invoicesError }, { data: rents, error: rentsError }] = await Promise.all([
       supabase
         .from('billing_history')
         .select('id, plan, total_amount, status, razorpay_payment_id, created_at')
@@ -42,6 +43,17 @@ function useUserPayments(userId: string) {
         .in('status', ['paid', 'refunded'])
         .order('created_at', { ascending: false }),
     ]);
+
+    // A failed fetch must not read as "no payments on file" -- that would
+    // hide refundable payments behind a reassuring empty state.
+    if (invoicesError || rentsError) {
+      console.warn('Supabase user payments fetch error:', (invoicesError ?? rentsError)?.message);
+      setError((invoicesError ?? rentsError)?.message ?? 'Failed to load payments');
+      setPayments([]);
+      setLoading(false);
+      return;
+    }
+    setError(null);
 
     const rows: RefundablePayment[] = [];
     for (const inv of (invoices ?? []) as Record<string, unknown>[]) {
@@ -71,7 +83,7 @@ function useUserPayments(userId: string) {
   }, [userId]);
 
   useEffect(() => { load(); }, [load]);
-  return { payments, loading, refresh: load };
+  return { payments, loading, error, refresh: load };
 }
 
 interface OwnerListingRow {
@@ -99,8 +111,9 @@ const listingStatusBadge: Record<string, string> = {
 function useOwnerListings(ownerId: string | undefined) {
   const [listings, setListings] = useState<OwnerListingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!ownerId) {
       setLoading(false);
       return;
@@ -111,19 +124,27 @@ function useOwnerListings(ownerId: string | undefined) {
       return;
     }
     setLoading(true);
-    supabase
+    const { data, error: dbError } = await supabase
       .from('listings')
       .select('id, title, status, verified, price')
       .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) console.warn('Supabase owner listings fetch error:', error.message);
-        setListings((data as OwnerListingRow[]) ?? []);
-        setLoading(false);
-      });
+      .order('created_at', { ascending: false });
+    // Don't let an RLS/network failure render as "no listings posted".
+    if (dbError) {
+      console.warn('Supabase owner listings fetch error:', dbError.message);
+      setError(dbError.message);
+      setListings([]);
+      setLoading(false);
+      return;
+    }
+    setError(null);
+    setListings((data as OwnerListingRow[]) ?? []);
+    setLoading(false);
   }, [ownerId]);
 
-  return { listings, loading };
+  useEffect(() => { load(); }, [load]);
+
+  return { listings, loading, error, refresh: load };
 }
 
 interface AdminUserDetailModalProps {
@@ -140,9 +161,9 @@ export default function AdminUserDetailModal({ user, onClose, onSuspend, onReact
   const [reasonDraft, setReasonDraft] = useState('');
 
   const brokerStatus = useBrokerReport(user.role === 'tenant' ? user.id : undefined);
-  const { listings: ownerListings, loading: listingsLoading } = useOwnerListings(user.role === 'owner' ? user.id : undefined);
+  const { listings: ownerListings, loading: listingsLoading, error: listingsError, refresh: refreshOwnerListings } = useOwnerListings(user.role === 'owner' ? user.id : undefined);
   const { reviews, loading: reviewsLoading } = useSubjectReviews(user.id);
-  const { payments, loading: paymentsLoading, refresh: refreshPayments } = useUserPayments(user.id);
+  const { payments, loading: paymentsLoading, error: paymentsError, refresh: refreshPayments } = useUserPayments(user.id);
   const [refundingId, setRefundingId] = useState<string | null>(null);
   const [confirmingRefund, setConfirmingRefund] = useState<RefundablePayment | null>(null);
 
@@ -254,6 +275,11 @@ export default function AdminUserDetailModal({ user, onClose, onSuspend, onReact
               <h3 className="text-sm font-bold text-charcoal mb-2">Listings Posted</h3>
               {listingsLoading ? (
                 <p className="text-xs text-charcoal/40">Loading…</p>
+              ) : listingsError ? (
+                <p className="text-xs text-red-500">
+                  Couldn&apos;t load listings.{' '}
+                  <button onClick={() => void refreshOwnerListings()} className="font-semibold underline cursor-pointer">Retry</button>
+                </p>
               ) : ownerListings.length === 0 ? (
                 <p className="text-xs text-charcoal/40">No listings posted by this owner.</p>
               ) : (
@@ -279,6 +305,11 @@ export default function AdminUserDetailModal({ user, onClose, onSuspend, onReact
             <h3 className="text-sm font-bold text-charcoal mb-2">Payments &amp; Refunds</h3>
             {paymentsLoading ? (
               <p className="text-xs text-charcoal/40">Loading…</p>
+            ) : paymentsError ? (
+              <p className="text-xs text-red-500">
+                Couldn&apos;t load payments.{' '}
+                <button onClick={() => void refreshPayments()} className="font-semibold underline cursor-pointer">Retry</button>
+              </p>
             ) : payments.length === 0 ? (
               <p className="text-xs text-charcoal/40">No Razorpay payments on file.</p>
             ) : (

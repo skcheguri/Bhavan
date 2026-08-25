@@ -1,4 +1,14 @@
-export const NAME_REGEX = /^[A-Za-z][A-Za-z\s]*$/;
+// Allows any Unicode letter, plus the apostrophe, period and hyphen that
+// occur in real names (D'Souza, Jean-Pierre, A. Kumar). Must still start
+// with a letter, so a name can't begin with punctuation or a space.
+export const NAME_REGEX = /^\p{L}[\p{L}\s.'-]*$/u;
+
+// The on-change filter for name inputs: strips characters a name can never
+// contain, matching what NAME_REGEX accepts (letters, spaces, and ' . -).
+// Kept here so the signup/profile inputs and the validator can't drift.
+export function filterNameInput(raw: string): string {
+  return raw.replace(/[^\p{L}\s.'-]/gu, '');
+}
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export const INDIA_PHONE_REGEX = /^\+91 \d{5} \d{5}$/;
 

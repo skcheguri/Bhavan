@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/useToast';
 // Razorpay dashboard, then mark it paid here -- that stamps the
 // reference on the booking and notifies the host.
 export default function AdminPayouts() {
-  const { payouts, accounts, loading, markPaid, withhold } = useAdminDuePayouts();
+  const { payouts, accounts, loading, error, refresh, markPaid, withhold } = useAdminDuePayouts();
   const { addToast } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [referenceById, setReferenceById] = useState<Record<string, string>>({});
@@ -63,6 +63,20 @@ export default function AdminPayouts() {
 
         {loading ? (
           <div className="bg-white rounded-2xl border border-black/5 p-10 text-center text-sm text-charcoal/40">Loading…</div>
+        ) : error ? (
+          <div className="bg-white rounded-2xl border border-red-200 p-10 text-center">
+            <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto">
+              <i className="ri-error-warning-line text-red-500 text-2xl" />
+            </div>
+            <p className="mt-4 text-charcoal/80 text-sm font-semibold">Couldn't load the payouts queue.</p>
+            <p className="mt-1 text-charcoal/50 text-xs">{error}</p>
+            <button
+              onClick={() => void refresh()}
+              className="mt-4 px-4 py-2 rounded-full text-xs font-semibold bg-charcoal text-white hover:bg-black transition-colors cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
         ) : payouts.length === 0 ? (
           <div className="bg-white rounded-2xl border border-black/5 p-10 text-center">
             <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto">

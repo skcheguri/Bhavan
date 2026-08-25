@@ -6,6 +6,12 @@ interface PayoutAccountCardProps {
   userId: string | undefined;
 }
 
+// Mirror the DB CHECK constraints so malformed VPAs / IFSC / account numbers
+// are caught before they ever hit the network.
+const UPI_RE = /^[a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,}$/;
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const ACCOUNT_RE = /^[0-9]{9,18}$/;
+
 // Where booking earnings get transferred. Stage 1 of host payouts: the
 // account is stored here and shown to the admin next to each due payout;
 // the transfer itself is executed manually until Razorpay Route is live.
@@ -18,6 +24,7 @@ export default function PayoutAccountCard({ userId }: PayoutAccountCardProps) {
   const [accountHolder, setAccountHolder] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [ifsc, setIfsc] = useState('');
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (account) {
@@ -30,6 +37,23 @@ export default function PayoutAccountCard({ userId }: PayoutAccountCardProps) {
   }, [account]);
 
   const handleSave = async () => {
+    if (method === 'upi') {
+      if (!UPI_RE.test(upiId.trim())) {
+        setFormError('Enter a valid UPI ID, e.g. yourname@bank.');
+        return;
+      }
+    } else {
+      if (!ACCOUNT_RE.test(accountNumber.trim())) {
+        setFormError('Enter a valid account number (9 to 18 digits).');
+        return;
+      }
+      if (!IFSC_RE.test(ifsc.trim().toUpperCase())) {
+        setFormError('Enter a valid IFSC code, e.g. HDFC0001234.');
+        return;
+      }
+    }
+    setFormError('');
+
     const { error } = await save({ method, upiId, accountHolder, accountNumber, ifsc });
     if (error) {
       addToast(error, 'error');
@@ -91,7 +115,7 @@ export default function PayoutAccountCard({ userId }: PayoutAccountCardProps) {
               <button
                 key={m}
                 type="button"
-                onClick={() => setMethod(m)}
+                onClick={() => { setMethod(m); setFormError(''); }}
                 className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
                   method === m ? 'bg-brand text-white' : 'text-charcoal/60 hover:text-charcoal'
                 }`}
@@ -147,6 +171,12 @@ export default function PayoutAccountCard({ userId }: PayoutAccountCardProps) {
                 />
               </div>
             </div>
+          )}
+
+          {formError && (
+            <p className="text-xs text-red-500 flex items-center gap-1">
+              <i className="ri-error-warning-line" /> {formError}
+            </p>
           )}
 
           <div className="flex gap-2">

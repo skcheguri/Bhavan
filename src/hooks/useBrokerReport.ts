@@ -307,6 +307,9 @@ export function useAdminBrokerReports() {
   const [reports, setReports] = useState<AdminBrokerReport[]>([]);
   const [activeSoftBlockCount, setActiveSoftBlockCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  // A failed fetch must not read as "no reports" on a moderation queue --
+  // surface it so the page can show an error/retry instead of "all handled".
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const supabase = getSupabase();
@@ -315,6 +318,7 @@ export function useAdminBrokerReports() {
       return;
     }
     setLoading(true);
+    setError(null);
 
     const [{ data: reportRows, error: reportsError }, { count: blockCount }] = await Promise.all([
       supabase
@@ -328,6 +332,7 @@ export function useAdminBrokerReports() {
 
     if (reportsError) {
       console.warn('Supabase admin broker_reports fetch error:', reportsError.message);
+      setError(reportsError.message);
       setReports([]);
     } else {
       setReports(
@@ -373,5 +378,5 @@ export function useAdminBrokerReports() {
     []
   );
 
-  return { reports, activeSoftBlockCount, loading, updateReportStatus, refresh: load };
+  return { reports, activeSoftBlockCount, loading, error, updateReportStatus, refresh: load };
 }

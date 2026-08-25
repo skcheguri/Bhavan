@@ -43,11 +43,13 @@ export default function SubscriptionPage() {
 
   return (
     <div className="min-h-screen bg-offwhite pb-16">
-      <UpgradeModal
-        isOpen={upgradeModalOpen}
-        onClose={() => setUpgradeModalOpen(false)}
-        plan={upgradePlan}
-      />
+      {upgradeModalOpen && (
+        <UpgradeModal
+          isOpen={upgradeModalOpen}
+          onClose={() => setUpgradeModalOpen(false)}
+          plan={upgradePlan}
+        />
+      )}
 
       <div className="max-w-5xl mx-auto px-4 md:px-8">
         {/* Hero */}
@@ -97,12 +99,9 @@ export default function SubscriptionPage() {
                 </li>
               ))}
             </ul>
-            <button
-              disabled
-              className="w-full py-3 rounded-full border border-black/10 text-sm font-semibold text-charcoal/40 bg-lightgray cursor-not-allowed whitespace-nowrap"
-            >
-              {isPro ? 'Current Plan (Downgrade)' : 'Current Plan'}
-            </button>
+            <div className="w-full py-3 rounded-full border border-black/10 text-sm font-semibold text-charcoal/40 bg-lightgray text-center whitespace-nowrap">
+              {isPro ? 'Free Plan' : 'Current Plan'}
+            </div>
           </div>
 
           {/* Pro Card */}

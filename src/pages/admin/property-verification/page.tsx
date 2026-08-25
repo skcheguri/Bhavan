@@ -13,16 +13,19 @@ const QUICK_REASONS = [
 
 export default function AdminPropertyVerificationPage() {
   const { addToast } = useToast();
-  const { requests, loading, approve, reject, getDocumentUrl } = useAdminPropertyVerification();
+  const { requests, loading, error, refresh, approve, reject, getDocumentUrl } = useAdminPropertyVerification();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reasonDraft, setReasonDraft] = useState('');
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const filtered = requests.filter((r) => (filter === 'all' ? true : r.status === filter));
 
   const handleApprove = async (id: string) => {
+    setSubmitting(true);
     const ok = await approve(id);
+    setSubmitting(false);
     setExpandedId(null);
     if (ok) addToast('Property verified', 'success');
     else addToast('Failed to approve property', 'error');
@@ -33,7 +36,9 @@ export default function AdminPropertyVerificationPage() {
       addToast('Please provide a rejection reason', 'error');
       return;
     }
+    setSubmitting(true);
     const ok = await reject(id, reason.trim());
+    setSubmitting(false);
     setExpandedId(null);
     setReasonDraft('');
     if (ok) addToast('Property verification rejected', 'success');
@@ -95,6 +100,20 @@ export default function AdminPropertyVerificationPage() {
           {loading ? (
             <div className="bg-white rounded-3xl border border-black/5 p-12 text-center text-sm text-charcoal/40">
               Loading requests…
+            </div>
+          ) : error ? (
+            <div className="bg-white rounded-3xl border border-red-200 p-12 text-center">
+              <div className="w-14 h-14 flex items-center justify-center mx-auto mb-4 bg-red-50 rounded-full">
+                <i className="ri-error-warning-line text-2xl text-red-500" />
+              </div>
+              <h3 className="text-base font-bold text-charcoal mb-2">Couldn't load requests</h3>
+              <p className="text-sm text-charcoal/60 mb-4">{error}</p>
+              <button
+                onClick={() => void refresh()}
+                className="px-4 py-2 rounded-full text-xs font-semibold bg-charcoal text-white hover:bg-black transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="bg-white rounded-3xl border border-black/5 p-12 text-center">
@@ -180,7 +199,8 @@ export default function AdminPropertyVerificationPage() {
                     <div className="mt-4 pt-4 border-t border-black/5">
                       <button
                         onClick={() => handleApprove(r.id)}
-                        className="px-4 py-2 rounded-full text-xs font-semibold bg-green-500 text-white hover:bg-green-600 transition-colors cursor-pointer whitespace-nowrap"
+                        disabled={submitting}
+                        className="px-4 py-2 rounded-full text-xs font-semibold bg-green-500 text-white hover:bg-green-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         Approve Verification
                       </button>
@@ -209,7 +229,8 @@ export default function AdminPropertyVerificationPage() {
                           />
                           <button
                             onClick={() => handleReject(r.id, reasonDraft)}
-                            className="px-4 py-2 rounded-full text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap"
+                            disabled={submitting}
+                            className="px-4 py-2 rounded-full text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                           >
                             Reject
                           </button>

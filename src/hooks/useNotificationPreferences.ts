@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
 export type NotificationCategory = 'maintenance' | 'inquiries' | 'payments' | 'lease' | 'community' | 'platform';
@@ -29,6 +29,12 @@ const CATEGORY_ORDER: NotificationCategory[] = ['inquiries', 'maintenance', 'pay
 export function useNotificationPreferences(userId: string | undefined) {
   const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
   const [loading, setLoading] = useState(true);
+  // Categories that already have a persisted row. A first toggle writes the
+  // full row (the DB column defaults differ from CATEGORY_DEFAULTS, so a
+  // single-column insert would reset the untouched channels); once the row
+  // exists, later toggles write only their own column, so two rapid toggles
+  // on different channels can't clobber each other in the DB.
+  const persistedRef = useRef<Set<NotificationCategory>>(new Set());
 
   const load = useCallback(async () => {
     if (!userId) {
@@ -51,9 +57,9 @@ export function useNotificationPreferences(userId: string | undefined) {
       console.warn('Supabase notification_preferences fetch error:', error.message);
     }
 
-    const rowByCategory = new Map(
-      ((data ?? []) as Record<string, unknown>[]).map((r) => [r.category as NotificationCategory, r])
-    );
+    const rows = (data ?? []) as Record<string, unknown>[];
+    persistedRef.current = new Set(rows.map((r) => r.category as NotificationCategory));
+    const rowByCategory = new Map(rows.map((r) => [r.category as NotificationCategory, r]));
 
     setPreferences(
       CATEGORY_ORDER.map((category) => {
@@ -86,17 +92,27 @@ export function useNotificationPreferences(userId: string | undefined) {
       if (!supabase) return;
 
       const nextValue = !current[channel];
-      const { error } = await supabase.from('notification_preferences').upsert(
-        {
-          user_id: userId,
-          category,
-          push_enabled: current.push_enabled,
-          sms_enabled: current.sms_enabled,
-          email_enabled: current.email_enabled,
-          [channel]: nextValue,
-        },
-        { onConflict: 'user_id,category' }
-      );
+
+      // Once a row exists, write ONLY the toggled column, so a concurrent
+      // toggle of a different channel (which reads the same pre-toggle
+      // snapshot) can't overwrite this change. On the first toggle there is
+      // no row yet, so write the full row from the currently-displayed
+      // values -- a single-column insert would leave the untouched channels
+      // at the DB column defaults, which differ from CATEGORY_DEFAULTS.
+      const payload = persistedRef.current.has(category)
+        ? { user_id: userId, category, [channel]: nextValue }
+        : {
+            user_id: userId,
+            category,
+            push_enabled: current.push_enabled,
+            sms_enabled: current.sms_enabled,
+            email_enabled: current.email_enabled,
+            [channel]: nextValue,
+          };
+
+      const { error } = await supabase
+        .from('notification_preferences')
+        .upsert(payload, { onConflict: 'user_id,category' });
 
       if (error) {
         // Don't leave the toggle silently reverted with no trace; at least
@@ -104,6 +120,7 @@ export function useNotificationPreferences(userId: string | undefined) {
         console.warn('notification preference update failed:', error.message);
         return;
       }
+      persistedRef.current.add(category);
       setPreferences((prev) =>
         prev.map((p) => (p.category === category ? { ...p, [channel]: nextValue } : p))
       );

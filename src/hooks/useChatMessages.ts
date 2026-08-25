@@ -110,7 +110,7 @@ export function useChatMessages(requestId: string | undefined) {
 
       const { data, error } = await supabase
         .from('chat_messages')
-        .insert({ request_id: requestId, sender, text: text.trim(), read: sender === 'landlord' })
+        .insert({ request_id: requestId, sender, text: text.trim(), read: false })
         .select()
         .single();
 

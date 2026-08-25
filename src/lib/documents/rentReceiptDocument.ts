@@ -45,6 +45,28 @@ function formatDateShort(iso: string): string {
   return local.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// True when `iso` carries a time-of-day, i.e. it is a real TIMESTAMP
+// ("2026-08-25T01:30:00Z") rather than a bare date ("2026-08-25").
+function hasTimeComponent(iso: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(iso);
+}
+
+// For genuine TIMESTAMP columns (createdAt / landlord_signed_at), which
+// carry a time and timezone. parseDateOnly would take the UTC date prefix
+// verbatim, so a receipt generated 00:00-05:30 IST (the previous UTC day)
+// prints yesterday. Converting the full instant to the reader's local date
+// fixes that. A value with no time-of-day is a genuine date-only string and
+// is read verbatim to avoid the opposite rollback for readers behind UTC.
+// (payment_date is a `date` column -- date-only -- so it stays on
+// formatDate, not this.)
+function formatTimestamp(iso: string): string {
+  if (!iso) return '_______________';
+  if (hasTimeComponent(iso)) {
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  return formatDate(iso);
+}
+
 function formatINR(n: number): string {
   return `₹${(n || 0).toLocaleString('en-IN')}`;
 }
@@ -102,7 +124,7 @@ export function buildRentReceiptHtml(r: RentReceiptData): string {
     <p class="doc-subtitle">Receipt No. ${escapeHtml(r.receiptNumber)}</p>
 
     <div class="meta-row">
-      <span>Date: ${formatDate(r.createdAt)}</span>
+      <span>Date: ${formatTimestamp(r.createdAt)}</span>
       <span>Period: ${formatDateShort(r.periodFrom)} – ${formatDateShort(r.periodTo)}</span>
     </div>
 
@@ -132,7 +154,7 @@ export function buildRentReceiptHtml(r: RentReceiptData): string {
     ${r.paymentMode === 'cash' && r.rentAmount > 5000 ? `<p class="stamp-note">Revenue stamp affixed as required for cash payments exceeding ₹5,000, per the Indian Stamp Act.</p>` : ''}
 
     <div class="signature">
-      <span class="sig-line">${escapeHtml(r.landlordName)}<br/>Landlord's Signature${r.landlordSignedAt ? `<br/><small>Digitally signed on ${formatDate(r.landlordSignedAt)}</small>` : ''}</span>
+      <span class="sig-line">${escapeHtml(r.landlordName)}<br/>Landlord's Signature${r.landlordSignedAt ? `<br/><small>Digitally signed on ${formatTimestamp(r.landlordSignedAt)}</small>` : ''}</span>
     </div>
   </div>
 

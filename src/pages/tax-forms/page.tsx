@@ -116,9 +116,11 @@ function OwnerTaxView({ userName }: { userName: string }) {
     const standardDeduction = netAnnualValue * 0.30;
     const interestOnLoan = parseNum(p.interestOnLoan);
     const incomeFromHouse = netAnnualValue - standardDeduction - interestOnLoan;
-    // Clamp to 0-100%: the input's min/max attrs don't constrain typed
-    // values, and a stray 500 would otherwise inflate the share of income 5x.
-    const share = Math.min(1, Math.max(0, parseNum(p.ownershipShare) / 100));
+    // Only apply an ownership share when the property is actually co-owned;
+    // otherwise the owner keeps 100% of the income. Clamp to 0-100%: the
+    // input's min/max attrs don't constrain typed values, and a stray 500
+    // would otherwise inflate the share of income 5x.
+    const share = p.coOwned ? Math.min(1, Math.max(0, parseNum(p.ownershipShare) / 100)) : 1;
     const shareOfIncome = incomeFromHouse * share;
     return { ...p, grossRent, municipalTaxes, netAnnualValue, standardDeduction, interestOnLoan, incomeFromHouse, shareOfIncome };
   });

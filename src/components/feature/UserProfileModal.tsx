@@ -1,5 +1,5 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubjectReviews, useReviewableTenancies, type FeedbackRole } from '@/hooks/useReviews';
@@ -35,6 +35,7 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole = 'rent
   const { addToast } = useToast();
   const [profile, setProfile] = useState<BasicProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [confirmingBlock, setConfirmingBlock] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
@@ -55,24 +56,38 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole = 'rent
   );
   const unreviewed = shared.filter((t) => !t.alreadyReviewed);
 
-  useEffect(() => {
+  // Relationship-gated RPC (migration 116) rather than an open
+  // users_public lookup: it only answers for people the viewer knows
+  // through the product (connection request, tenancy, shared society,
+  // or an active listing). Anyone else resolves to "Profile not found."
+  const loadProfile = useCallback(() => {
     const supabase = getSupabase();
     if (!supabase) {
       setLoadingProfile(false);
       return;
     }
-    // Relationship-gated RPC (migration 116) rather than an open
-    // users_public lookup: it only answers for people the viewer knows
-    // through the product (connection request, tenancy, shared society,
-    // or an active listing). Anyone else resolves to "Profile not found."
+    setLoadingProfile(true);
+    setProfileError(false);
     supabase
       .rpc('get_public_profile', { p_user_id: userId })
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        // A failed fetch is not "Profile not found" -- that message means
+        // the RPC ran and the viewer isn't allowed to see this person. An
+        // error is a transient failure the viewer can retry.
+        if (error) {
+          setProfileError(true);
+          setLoadingProfile(false);
+          return;
+        }
         setProfile(data as BasicProfile | null);
         setLoadingProfile(false);
       });
   }, [userId]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const avgRating = reviews.length > 0 ? reviews.reduce((s, r) => s + r.overall_rating, 0) / reviews.length : 0;
   const initials = (profile?.name ?? '?').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
@@ -83,6 +98,19 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole = 'rent
         <div className="p-6 border-b border-black/5 flex items-start justify-between">
           {loadingProfile ? (
             <p className="text-sm text-charcoal/40">Loading profile…</p>
+          ) : profileError ? (
+            <div className="flex items-start gap-2">
+              <i className="ri-error-warning-line text-red-500 mt-0.5" />
+              <div>
+                <p className="text-sm text-charcoal">Couldn&apos;t load this profile.</p>
+                <button
+                  onClick={loadProfile}
+                  className="mt-1 text-xs font-semibold text-red-600 hover:text-red-700"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
           ) : profile ? (
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
