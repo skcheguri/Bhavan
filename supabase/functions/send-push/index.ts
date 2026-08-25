@@ -134,6 +134,9 @@ const CATEGORY_FOR_TYPE: Record<string, string> = {
   payment: "payments",
   lease: "lease",
   platform: "platform",
+  // Vacation-booking events (request paid, confirmed, declined, no-show)
+  // ride their own toggle; without this they'd bypass the preference check.
+  booking: "booking",
 };
 
 Deno.serve(async (req) => {
