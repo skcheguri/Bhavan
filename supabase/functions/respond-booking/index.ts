@@ -56,42 +56,59 @@ async function razorpayRefund(paymentId: string): Promise<{ ok: boolean; refundI
 // stranded in a refunded-but-not state nobody retries.
 async function refundAndMark(
   serviceClient: SupabaseClient,
-  booking: { id: string; razorpay_payment_id: string | null; payment_status: string; status: string },
+  booking: { id: string; razorpay_payment_id: string | null; payment_status: string; status: string; razorpay_refund_id?: string | null },
   newStatus: "declined" | "cancelled"
 ): Promise<{ ok: boolean; error?: string }> {
-  if (booking.payment_status === "paid" && booking.razorpay_payment_id) {
-    const { data: claimed, error: claimError } = await serviceClient
-      .from("vacation_bookings")
-      .update({
-        status: newStatus,
-        payment_status: "refunded",
-        refunded_at: new Date().toISOString(),
-      })
-      .eq("id", booking.id)
-      .eq("payment_status", "paid")
-      .is("refunded_at", null)
-      .select("id");
-    if (claimError) return { ok: false, error: claimError.message };
-    if (!claimed || claimed.length === 0) {
-      // Already refunded by a concurrent caller / earlier delivery.
-      return { ok: true };
+  const isPaid = booking.payment_status === "paid";
+  // A booking 'refunded' WITHOUT a refund id was claimed but the Razorpay
+  // call never landed (a crash between the claim commit and Razorpay
+  // confirming) -- resume it. The Idempotency-Key refunds at most once even
+  // if the original call actually went through.
+  const stranded = booking.payment_status === "refunded" && !booking.razorpay_refund_id;
+
+  if ((isPaid || stranded) && booking.razorpay_payment_id) {
+    let claimedThisCall = false;
+    if (isPaid) {
+      const { data: claimed, error: claimError } = await serviceClient
+        .from("vacation_bookings")
+        .update({
+          status: newStatus,
+          payment_status: "refunded",
+          refunded_at: new Date().toISOString(),
+        })
+        .eq("id", booking.id)
+        .eq("payment_status", "paid")
+        .is("refunded_at", null)
+        .select("id");
+      if (claimError) return { ok: false, error: claimError.message };
+      if (!claimed || claimed.length === 0) {
+        // A concurrent caller claimed it and will complete the refund; if it
+        // crashes, a later retry recovers via the `stranded` branch.
+        return { ok: true };
+      }
+      claimedThisCall = true;
     }
     const refund = await razorpayRefund(booking.razorpay_payment_id);
     if (!refund.ok) {
-      // Release the claim: restore the pre-refund state for a retry.
-      await serviceClient
-        .from("vacation_bookings")
-        .update({ status: booking.status, payment_status: "paid", refunded_at: null })
-        .eq("id", booking.id);
+      // Release only a claim we took this call -- restore the pre-refund
+      // state for a retry. A stranded row is left for a human/next retry
+      // rather than guessing its pre-claim status.
+      if (claimedThisCall) {
+        await serviceClient
+          .from("vacation_bookings")
+          .update({ status: booking.status, payment_status: "paid", refunded_at: null })
+          .eq("id", booking.id);
+      }
       return { ok: false, error: refund.error };
     }
     const { error } = await serviceClient
       .from("vacation_bookings")
-      .update({ razorpay_refund_id: refund.refundId })
+      .update({ status: newStatus, razorpay_refund_id: refund.refundId })
       .eq("id", booking.id);
     if (error) return { ok: false, error: error.message };
     return { ok: true };
   }
+  // Already fully refunded, or nothing to refund (unpaid) -- just set status.
   const { error } = await serviceClient
     .from("vacation_bookings")
     .update({ status: newStatus })
@@ -142,7 +159,7 @@ Deno.serve(async (req) => {
 
     const { data: booking, error: bookingError } = await serviceClient
       .from("vacation_bookings")
-      .select("id, listing_id, tenant_id, owner_id, check_in, check_out, status, payment_status, razorpay_payment_id, total_price")
+      .select("id, listing_id, tenant_id, owner_id, check_in, check_out, status, payment_status, razorpay_payment_id, razorpay_refund_id, total_price")
       .eq("id", bookingId)
       .maybeSingle();
     if (bookingError) return json({ error: bookingError.message }, 500);
@@ -169,7 +186,7 @@ Deno.serve(async (req) => {
       // The losing requests: overlapping, still pending, already paid.
       const { data: losers } = await serviceClient
         .from("vacation_bookings")
-        .select("id, razorpay_payment_id, payment_status, status")
+        .select("id, razorpay_payment_id, payment_status, status, razorpay_refund_id")
         .eq("listing_id", booking.listing_id)
         .eq("status", "pending")
         .neq("id", bookingId)

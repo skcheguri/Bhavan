@@ -85,12 +85,35 @@ Deno.serve(async (req) => {
 
     const { data: booking, error: bookingError } = await serviceClient
       .from("vacation_bookings")
-      .select("id, listing_id, tenant_id, owner_id, check_in, check_out, status, payment_status, razorpay_payment_id")
+      .select("id, listing_id, tenant_id, owner_id, check_in, check_out, status, payment_status, razorpay_payment_id, razorpay_refund_id")
       .eq("id", bookingId)
       .maybeSingle();
     if (bookingError) return json({ error: bookingError.message }, 500);
     if (!booking || booking.tenant_id !== userId) {
       return json({ error: "Booking not found." }, 404);
+    }
+
+    // Resume a refund stranded by a crash between the claim commit and the
+    // Razorpay call: the row is already 'cancelled'/'refunded' but has no
+    // refund id, and the status check below would otherwise reject the retry.
+    // The Idempotency-Key means the resumed call refunds at most once even if
+    // the original actually went through.
+    if (
+      booking.payment_status === "refunded" &&
+      !booking.razorpay_refund_id &&
+      booking.razorpay_payment_id
+    ) {
+      const refund = await razorpayRefund(booking.razorpay_payment_id as string);
+      if (!refund.ok) return json({ error: refund.error }, 502);
+      const { error: refIdError } = await serviceClient
+        .from("vacation_bookings")
+        .update({ razorpay_refund_id: refund.refundId })
+        .eq("id", bookingId);
+      if (refIdError) {
+        console.error("cancel-booking recovery refund-id write failed:", refIdError.message);
+        return json({ error: "Something went wrong." }, 500);
+      }
+      return json({ success: true, refunded: true });
     }
 
     if (!["awaiting_payment", "pending", "confirmed"].includes(booking.status)) {

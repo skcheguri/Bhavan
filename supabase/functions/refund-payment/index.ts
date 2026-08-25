@@ -99,35 +99,49 @@ Deno.serve(async (req) => {
     const table = kind === "pro" ? "billing_history" : "rent_payments";
     const { data: row, error: rowError } = await serviceClient
       .from(table)
-      .select("id, owner_id, status, razorpay_payment_id")
+      .select("id, owner_id, status, razorpay_payment_id, razorpay_refund_id")
       .eq("id", id)
       .maybeSingle();
     if (rowError) return json({ error: rowError.message }, 500);
     if (!row) return json({ error: "Payment not found." }, 404);
-    if (row.status === "refunded") return json({ error: "This payment is already refunded." }, 409);
-    if (row.status !== "paid") return json({ error: "Only a paid payment can be refunded." }, 409);
     if (!row.razorpay_payment_id) {
       return json({ error: "This payment has no Razorpay reference (was it an offline/cash payment?)." }, 409);
     }
 
-    // Atomically CLAIM the row BEFORE calling Razorpay: flip paid ->
-    // refunded gated on status='paid'. A concurrent second refund updates
-    // 0 rows here and stops, so Razorpay is only ever hit once.
-    const now = new Date().toISOString();
-    const { data: claimed, error: claimError } = await serviceClient
-      .from(table)
-      .update({ status: "refunded", refunded_at: now })
-      .eq("id", id)
-      .eq("status", "paid")
-      .select("id");
-    if (claimError) {
-      console.error("refund-payment claim failed:", claimError.message);
-      return json({ error: "Something went wrong." }, 500);
+    // A row already 'refunded' WITH a refund id is genuinely done. A row
+    // 'refunded' WITHOUT one was claimed but the Razorpay call never landed
+    // (a crash in the window between the claim commit and Razorpay
+    // confirming) -- resume it. The Idempotency-Key means the resumed call
+    // refunds at most once even if the original actually went through.
+    const recovering = row.status === "refunded" && !row.razorpay_refund_id;
+    if (row.status === "refunded" && row.razorpay_refund_id) {
+      return json({ error: "This payment is already refunded." }, 409);
     }
-    if (!claimed || claimed.length === 0) {
-      // Another request already claimed and refunded this payment. Treat
-      // as already-handled -- do NOT call Razorpay again.
-      return json({ success: true, alreadyRefunded: true });
+    if (row.status !== "paid" && !recovering) {
+      return json({ error: "Only a paid payment can be refunded." }, 409);
+    }
+
+    const now = new Date().toISOString();
+    if (!recovering) {
+      // Atomically CLAIM the row BEFORE calling Razorpay: flip paid ->
+      // refunded gated on status='paid'. A concurrent second refund updates
+      // 0 rows here and stops, so Razorpay is only ever hit once.
+      const { data: claimed, error: claimError } = await serviceClient
+        .from(table)
+        .update({ status: "refunded", refunded_at: now })
+        .eq("id", id)
+        .eq("status", "paid")
+        .select("id");
+      if (claimError) {
+        console.error("refund-payment claim failed:", claimError.message);
+        return json({ error: "Something went wrong." }, 500);
+      }
+      if (!claimed || claimed.length === 0) {
+        // A concurrent request already claimed this payment; it will
+        // complete the refund. If it then crashes, a later retry recovers
+        // via the `recovering` branch above.
+        return json({ success: true, alreadyRefunded: true });
+      }
     }
 
     const refund = await razorpayRefund(row.razorpay_payment_id, {
