@@ -577,14 +577,6 @@ Genuinely still open, small:
 
 Real but low-severity; each is a conscious "later," not an unknown.
 
-- **Refund crash-window (suspected).** The refund paths (`refund-payment`,
-  `respond-booking`, `cancel-booking`) claim the row `refunded` before the
-  Razorpay call, so a crash in that sub-second window strands a refund (the
-  row reads refunded, no money returned) and the retry short-circuits. The
-  `Idempotency-Key` that ships alongside makes the fix safe: on the
-  zero-rows branch, re-read and complete the refund when
-  `razorpay_refund_id IS NULL`, or revert to refund-first ordering. Left as a
-  deliberate, separately-tested payment change.
 - **Society badge counts undercount past page 1.** `openTickets` /
   `pollsToAnswer` (`society/page.tsx`) count over the paginated (20) loaded
   list; the hook's `total` is unfiltered so it can't just be substituted. An
@@ -738,7 +730,7 @@ items the constraint is a third party, not the work (see the end).
 | Razorpay live keys + webhook dashboard wiring (webhook code + idempotency + `payment.failed`/`refund.processed` already built) | 1–2 |
 | Pro entitlements moved into RLS (§4.6) | 2–3 |
 | Accessibility pass (§4.5) | 5–8 |
-| §4.7 residuals: `audit_logs` wiring, review rate limit, refund crash-window, society count RPC (the ~50 audit findings are already fixed) | 1–2 |
+| §4.7 residuals: `audit_logs` wiring, review rate limit, society count RPC (the ~50 audit findings + the refund crash-window are already fixed) | 1 |
 | Aadhaar provider integration, once a contract exists | 3–5 |
 | MSG91 OTP wiring | 2–3 |
 
