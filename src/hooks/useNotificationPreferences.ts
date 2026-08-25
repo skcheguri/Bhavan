@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
-export type NotificationCategory = 'maintenance' | 'inquiries' | 'payments' | 'lease' | 'community' | 'platform';
+export type NotificationCategory = 'maintenance' | 'inquiries' | 'payments' | 'lease' | 'booking' | 'platform';
 export type NotificationChannel = 'push_enabled' | 'sms_enabled' | 'email_enabled';
 
 export interface NotificationPreference {
@@ -20,11 +20,11 @@ const CATEGORY_DEFAULTS: Record<NotificationCategory, { label: string; push: boo
   maintenance: { label: 'Maintenance Updates', push: true, sms: true, email: true, criticalOnly: true },
   payments: { label: 'Rent & Payment Alerts', push: true, sms: true, email: true, criticalOnly: true },
   lease: { label: 'Lease & Agreements', push: true, sms: false, email: true },
-  community: { label: 'Community Activity', push: true, sms: false, email: false },
+  booking: { label: 'Booking updates', push: true, sms: false, email: true },
   platform: { label: 'Platform Announcements', push: false, sms: false, email: true },
 };
 
-const CATEGORY_ORDER: NotificationCategory[] = ['inquiries', 'maintenance', 'payments', 'lease', 'community', 'platform'];
+const CATEGORY_ORDER: NotificationCategory[] = ['inquiries', 'maintenance', 'payments', 'lease', 'booking', 'platform'];
 
 export function useNotificationPreferences(userId: string | undefined) {
   const [preferences, setPreferences] = useState<NotificationPreference[]>([]);

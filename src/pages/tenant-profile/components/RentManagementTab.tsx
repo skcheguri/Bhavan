@@ -214,9 +214,11 @@ export default function RentManagementTab({ initialSubTab }: Props) {
                 <i className="ri-money-rupee-circle-line text-brand" />
                 Rent Summary
               </h2>
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${daysUntilRentDue <= 3 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                {daysUntilRentDue <= 3 ? 'Due Soon' : 'On Track'}
-              </span>
+              {activeAgreement && (
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${daysUntilRentDue <= 3 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                  {daysUntilRentDue <= 3 ? 'Due Soon' : 'On Track'}
+                </span>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-offwhite rounded-xl p-4">

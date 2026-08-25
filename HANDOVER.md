@@ -29,8 +29,8 @@ additive; none of the rental flows changed. See
 | Hosting | Vercel, deployed from GitHub Actions after CI passes |
 | Mobile | Capacitor — Android builds and runs; iOS never built, see §4 |
 
-Scale: 86 migrations (001 is a squashed baseline, then 064–148),
-19 edge functions, 55 tables, ~196 RLS policies, 143 unit tests, 50 E2E tests.
+Scale: 88 migrations (001 is a squashed baseline, then 064–150),
+19 edge functions, ~55 tables, ~198 RLS policies, 143 unit tests, 50 E2E tests.
 
 ### Security model — read this first
 
@@ -88,7 +88,7 @@ Genuinely working and verified against a live database:
 
 - Listing browse/search, including proximity search and geocoding
 - Connection request → owner approval (the trust loop everything depends on)
-- Chat, with notifications and push dispatch (§5 caveat on delivery)
+- Chat, with notifications and push dispatch (web push verified; §4.9)
 - Rental agreements and rent receipts, with Indian legal formatting.
   Stamp duty is optional per agreement (skip → owner shares the
   digitally-signed copy directly; the new `signed` status); owners can add
@@ -106,7 +106,11 @@ Genuinely working and verified against a live database:
   vacation booking is live / a host payout is still owed, and scrubs host
   payout-account PII (bank/IFSC/UPI)
 - Server-side rate limiting, error logging, error-rate alerting
-- RLS audited across all tables; several real holes closed (migrations 047–053)
+- RLS audited across all tables; real holes closed across two waves —
+  migrations 047–053, then a 2026-08-25 hardening pass (141–150) that fixed
+  ~50 correctness/security findings, incl. a critical self-registration-as-
+  admin hole and refund idempotency. The code is clean of known defects
+  except the §4 blockers and residuals
 - CI gating deploys; DB rebuildable from `supabase/migrations/`
 - Societies: join by code behind the existing owner verification, Bhavan
   review queue, member admin, notices, maintenance with discussion, and a
@@ -543,300 +547,68 @@ mobile widths. This has had no dedicated pass. If Bhavan is ever procured
 by an institution or challenged under accessibility rules, this is where
 it fails.
 
-### 4.6 Smaller, real
+### 4.6 Smaller, real (still open)
 
-- ~~**Source maps are published in production.**~~ Fixed:
-  `vite.config.ts` now sets `build.sourcemap: false`, so a clean build
-  emits no `.map` files. Note: a stale local Android bundle
-  (`android/app/src/main/assets/public/assets/*.js.map`) may linger from
-  an earlier build — it's gitignored, but run `npm run cap:sync` before
-  packaging locally to purge it.
-- ~~**Unused dependencies** (`@stripe/react-stripe-js`, `recharts`).~~
-  Removed — neither is in `package.json` anymore.
+Two hardening passes on 2026-08-25 (migrations 141–150 plus edge-function and
+frontend fixes) closed ~50 correctness/security audit findings across the
+database, edge functions and the UI — a critical self-registration-as-admin
+hole, refund idempotency, RLS write gaps, a signed-agreement delete guard,
+Aadhaar name-binding, and a batch of broken or half-wired UI (a dead 404,
+profile-save, admin queues that hid fetch errors, chat unread badges, and
+more). The codebase is now clean of known defects except the blockers above
+and the small items below. (The per-finding registers were removed from this
+doc once resolved; they live in git history and migrations 141–150.)
+
+Genuinely still open, small:
+
 - **`audit_logs` is dormant** — the table exists and nothing writes to it.
-  Either wire it to admin actions or drop it; a security table everyone
-  assumes is populated is worse than none.
-- **Pro entitlements are mostly client-side.** The subscription purchase is
-  server-verified, and the free-tier cap of one active vacation listing is
-  enforced server-side via `has_pro()` (migration 126) — but the ~13
-  advertised Pro features are still gated (where at all) only in React.
-  Move those gates into RLS. See §4.3e.
-- ~~**Reviews have no uniqueness**~~ Fixed: a `reviews_one_per_tenancy`
-  unique index (migration 107) enforces one review per tenancy, so the
-  "many reviews for the same tenancy" hole is closed. A cross-tenancy
-  submission *rate* limit is still absent — minor.
-- ~~**The `geocode` edge function is an open proxy**~~ Fixed: it now
-  rejects unauthenticated callers (`401`, signed-in only). No per-user
-  *rate* limit yet — fine at current volume, revisit at scale.
-- ~18KB of unused Font Awesome; dead i18n scaffolding.
+  Wire it to admin actions or drop it; a security table everyone assumes is
+  populated is worse than none.
+- **Pro entitlements are mostly client-side.** The purchase is server-
+  verified and the free-tier one-vacation-listing cap is enforced via
+  `has_pro()` (migration 126), but the ~13 advertised Pro features are gated
+  (where at all) only in React — move those into RLS. See §4.3e.
+- **No cross-tenancy review rate limit** — one review per tenancy is enforced
+  (unique index, migration 107), but nothing caps how many *different*-tenancy
+  reviews one user posts. Minor.
+- ~18 KB of unused Font Awesome; dead i18n scaffolding.
 
-### 4.7 Defects in code that already ships
+### 4.7 Known residuals — small, documented, not blockers
 
-Everything above this point is *unfinished work*. This section is
-different: it is code that is wired up, looks finished, and does the
-wrong thing. Found by a correctness audit (data layer, database, UI)
-after migration 139. None of it overlaps §4.1–4.6.
+Real but low-severity; each is a conscious "later," not an unknown.
 
-Triage order is roughly the order below — the first four can corrupt or
-double-charge, the rest mislead.
-
-**Database — RESOLVED in migrations 141–143 (2026-08-13).** The 19-finding
-database-correctness audit was worked Critical → Low; every finding is
-fixed (only #4 was already done, in migration 140). What changed:
-
-- **`rent_payments`** gained an immutable-fields trigger (141): an owner
-  PATCH can no longer rewrite `amount`, the parties, `month` or the
-  Razorpay ids — only reconcile. Service role and admin are exempt.
-- **The 137 signing/stamping workflow is enforced** (141): a trigger blocks
-  direct changes to `agreement_status`, the signature columns,
-  `stamped_document_path` and `shared_with_tenant` unless one of the
-  SECURITY DEFINER RPCs set its transaction-local flag.
-- **`connection_requests`** split its `FOR ALL` owner policy into explicit
-  SELECT + UPDATE (141), closing the 114 block-bypass and owner-DELETE
-  counter drift.
-- **`property_has_active_tenancy()`** (141) and the **account-deletion
-  guard** (142, last updated in 147) now agree: only an in-force agreement
-  (`pending_admin`/`signed`/`stamped`/`completed`) with a NULL or future end
-  date is active — drafts no longer pin a flat, and an open-ended lease no
-  longer lets an owner self-delete and strand the tenant. (`signed` was
-  added in 147 when stamp duty became optional; the deletion guard also
-  blocks on live vacation bookings / owed payouts and scrubs payout PII, per
-  146.)
-- **Chat coalescing** keeps the original `created_at` (142) so the window
-  truly expires; **escalation** advances only when a notification actually
-  sent (142); **`inquiries_count`** handles DELETE and a booking-confirm no
-  longer burns the owner's inquiry-response quota (142); the **payout gate**
-  refuses a cancelled booking with a live refund (142); **`no_show`** can't
-  be marked before check-in day has passed (142); a **society admin can
-  record a contribution** on a member's behalf (142); the **watchdog** now
-  watches `maintenance-escalation` (142).
-- **Low:** the listings counters no longer bump `updated_at` (143);
-  `confirmed_by` is server-stamped (143); the `razorpay-webhook` rent claim
-  is scoped to pending/failed rows (edge fn); migrations 065/069/098/128 and
-  the 111 backfill are now re-runnable for the §4.1 staging replay.
-
-Two residuals left deliberately: a confirmed vacation booking still counts
-as one inquiry (its `connection_requests` row genuinely exists to carry the
-host↔guest chat; excluding it would need a source flag), and there is still
-no "end tenancy" action — a completed open-ended agreement stays active
-until the row is removed.
-
-**Fixed while auditing:** migration 105 used `CREATE OR REPLACE FUNCTION`
-and restated only `LANGUAGE plpgsql`, which silently dropped the
-`SECURITY DEFINER` and `SET search_path` that 094 gave
-`notify_request_assignment`. The insert then failed RLS and was swallowed
-by that function's own exception handler, so assigning a contractor told
-the tenant nothing. Restored in **140**. A sweep confirmed this was the
-only function affected and that no `SECURITY DEFINER` function is
-missing `search_path`.
-
-**Data layer — RESOLVED (2026-08-13).** The 21-finding data-layer
-correctness audit was worked High → Low; every finding is fixed except #19,
-which is deferred. Frontend-only, except the broker soft-block, which moved
-server-side (migration 144). What changed:
-
-- **Chat** subscribes before taking the snapshot and merges by id, so a
-  message arriving mid-load is neither lost nor wiped (`useChatMessages`).
-- **Maintenance photo** failures are surfaced — the tenant is told when
-  photos couldn't attach instead of getting a silent photo-less report.
-- **Admin notes** are opt-in on update, so a status change no longer nulls
-  them; the update also reports a zero-row (RLS-filtered) result.
-- **Broker soft-block** is computed and persisted by a trigger over *all*
-  reports (migration 144); the client is read-only. It now activates for the
-  owner-side callers it structurally never used to.
-- **Zero-row writes** are caught at 11 mutation sites (incl.
-  `decideContribution`) — each `.select()`s and reports failure instead of a
-  false success.
-- Notification RPC errors are logged; `useRentPayment` shares one refresh
-  fan-out (copies no longer disagree) and clears its error on refetch;
-  on-time/overdue are judged against the rent month, not `created_at`; fund
-  collections list open-first; society pagination dedupes and ends
-  correctly; a transient profile-RPC failure retries instead of demoting an
-  owner to a tenant view; contact/owner rate-limit counters recompute after
-  each use and re-check on sign-in; admin search is request-sequenced;
-  date-only values parse at local midnight; the auth provider guards
-  `setState` after unmount.
-
-Deferred: **#19** — chat previews still fetch full thread histories to render
-one line each (`getLastMessagesByRequest`); the clean fix is a `DISTINCT ON`
-RPC, held back to avoid a migration + `database.types.ts` cycle for a Low
-perf issue. (The redundant 2–3 `get_my_profile` calls per login from #20 are
-also left as-is — the login-flow dedup wasn't worth the risk for a Low perf
-item; the `setState`-after-unmount guard was applied.)
-
-**UI — RESOLVED (2026-08-13).** The 24-finding UI correctness audit was
-worked High → Low; 23 fixed, 1 deferred (#22). Frontend, plus one migration
-(145, receipt/agreement numbers) and one edge-function guard. What changed:
-
-- **Receipt/agreement numbers** scoped per owner (migration 145) with a
-  retry-on-collision, so a legal document no longer fails with a raw
-  duplicate-key string.
-- **Pro "Current Plan"** is disabled when already Pro, and
-  `create-subscription-order` refuses a second purchase while a
-  subscription is active — no double charge.
-- **Owner tax figures** use per-FY slab tables driven by the (now live) year
-  selector, with the §87A rebate — ₹6L net HP income shows ₹0; and the
-  Schedule-HP draft persists to localStorage.
-- **"Receipt shared"** only shows on a confirmed write; the toast reflects
-  the real outcome.
-- Rent "due in N days" is 0 on the due day and month-length-correct;
-  `?tab=` is honoured; booking notifications have an icon, colour and filter
-  chip; the admin dashboard labels non-pending counts (active/verified/
-  purged…); a society invoice shows "Society Annual"; "Active Tenants"
-  excludes unsigned drafts and a lease stays active through the whole last
-  day in local time; UTC date defaults replaced with a local-date helper;
-  the tenant FY rent summary is filtered to the filing FY; unread badge
-  from an exact count; months use `floor`; pricing shows "+ 18% GST";
-  signed-out visitors see "Sign in to see ratings" not "0.0"; the tax
-  Add-Property share is clamped 0–100% and shows a validation message; and
-  raw DB errors are run through `humanizeDbError` before reaching a toast.
-- **Aadhaar copy** on signup / aadhaar-verify / how-it-works corrected: it
-  gates listing creation, and is optional-but-recommended for tenants.
-
-Deferred: **#22** — the listing-detail "Verified Owner" / "Aadhaar Verified"
-badges and the green "Active" liveness dot render unconditionally
-(`useListingDetail` fetches `owner.verified_aadhaar` but never maps it). Left
-as-is: it's accurate in practice today (migration 136 means every listing
-owner is verified) and there's no real presence signal to back the dot.
-
-Counts across the three audits: 1 Critical, 14 High, 33 Medium, 16 Low.
-Roughly 60% are a known-good pattern in this repo not having been applied
-consistently, which is cheap to fix mechanically; the rest need a
-decision.
-
-### 4.7b Feature changes since the audits (migrations 146–148)
-
-Product changes made after the audit sweeps, not audit findings:
-
-- **146 — account deletion hardened.** `delete_my_account()` now also
-  blocks while either party has a live or paid-but-unsettled vacation
-  booking or an owed host payout, and explicitly `DELETE`s the
-  `host_payout_accounts` row (bank/IFSC/UPI PII the anonymize-not-delete
-  flow never cascaded).
-- **147 — stamp duty optional.** New `rental_agreements.stamp_duty_requested`
-  (default `true`) and a new `agreement_status` value **`signed`**. When an
-  owner skips stamp duty, a fully-signed agreement goes to `signed` and the
-  owner shares the digitally-signed copy directly (the admin stamp-duty
-  queue is skipped). `signed` counts as an in-force tenancy in
-  `property_has_active_tenancy()` and the deletion guard. Owners can also
-  add their own custom terms on the create form (HTML-escaped in the doc).
-- **148 — confirm as tenant.** New `connection_requests.tenant_confirmed_at`
-  + `set_connection_tenant(request_id, confirmed)` RPC (owner-only, only an
-  `approved` request can be confirmed). Deliberately additive/reversible:
-  status stays `approved`, so the unique one-active-request index, chat
-  access and review eligibility are untouched, and occupancy + the deletion
-  guard still key only on a signed agreement. The rental-agreement and
-  rent-receipt "Select tenant" pickers now show only confirmed tenants.
-
-Frontend-only alongside these: **universal sign-in** (no tenant/owner login
-picker; a new Google user picks a role on `/auth/callback`, which is a
-standalone surface with no navbar/footer), and a **Reset Filters** control
-on Browse Listings.
-
-### 4.7c Handover gap sweep (2026-08-25)
-
-A five-part parallel audit (edge functions, hooks/data layer, pages/
-components, DB/RLS/triggers, lib/auth) of the *existing* code, separate from
-the known blockers above. ~40 findings. All were addressed in a hardening
-pass the same day (migration 149 for DB, edge-function edits, and frontend
-fixes) unless marked **DEFERRED**. Kept here as the audit trail.
-
-**CRITICAL**
-- GS-1 **Self-registration as platform admin.** `handle_new_auth_user()`
-  (001:1190) copied `role` from client `raw_user_meta_data` with no
-  whitelist; `users_role_check` allows `admin` and `is_admin()` is a pure
-  role lookup (no aal2). `signUp({data:{role:'admin'}})` on the anon key
-  granted full data-layer admin. Fixed: trigger whitelists tenant/owner.
-
-**HIGH — security / data integrity**
-- GS-2 **Refund double-refund.** `refund-payment`/`respond-booking`/
-  `cancel-booking` had no atomic status claim and no Razorpay
-  `Idempotency-Key`; concurrent guest-cancel + host-decline both refunded.
-- GS-3 **Owner could DELETE a signed/completed agreement** (`FOR ALL`
-  policy, UPDATE-only guard); nulls linked `rent_payments.agreement_id`.
-- GS-4 **Owner could INSERT `rent_payments` for any tenant** (001:1939 WITH
-  CHECK omitted `tenant_id`) — fabricated "paid" rows in a stranger's ledger.
-- GS-5 **5 maintenance SECURITY DEFINER fns anon-executable** (no REVOKE):
-  expire_lapsed_subscriptions, check_error_rate_and_alert,
-  check_webhook_failures_and_alert, check_cron_health_and_alert,
-  run_maintenance_escalation.
-- GS-6 **Aadhaar OCR badge on a stranger's card** — name-match read the
-  profile name from the request body; now read server-side from `users`.
-
-**HIGH — broken user-facing features**
-- GS-7 **404 page is leftover generator template + dead-end** (`NotFound.tsx`).
-- GS-8 **Owner profile edit can never save** (`owner-profile` handleSave
-  had no call site / no Save button).
-- GS-9 **"List Another Property" republishes the previous listing's photos
-  & landmarks** (success path didn't reset image/nearby/location state).
-- GS-10 **UpgradeModal traps the Android back button on `/subscription`**
-  (`useDismissableLayer` ran before the `!isOpen` guard, always registered).
-- GS-11 **Admin trust-&-safety queues render a failed fetch as "all clear"**
-  (payouts, broker-reports, listing-reports, property-verification, support).
-- GS-12 **Tenant chat unread badges never appear** (`useChatMessages`
-  inserted landlord messages with `read:true`).
-
-**MEDIUM**
-- GS-13 Legal-document dates off by one day for IST 00:00–05:30 generation
-  (timestamps run through the date-only parser).
-- GS-14 Name validation rejects real names (D'Souza, Jean-Pierre, A. Kumar).
-- GS-15 Owner/admin silently demoted to `tenant` on a transient
-  `get_my_profile` failure (runs on every token refresh).
-- GS-16 AutoPay Pause/Cancel buttons fake success (never call the
-  implemented `pauseMandate`/`cancelMandate`).
-- GS-17 Admin can publish an owner's `draft` listing (wrong action for draft).
-- GS-18 Tax-forms understate income (ownership share applied even when
-  "Co-owned" unchecked).
-- GS-19 Reviews list crashes on a rating outside 1–5 (`ratingBadge[0].label`).
-- GS-20 Decline is rate-limited & debited like an approve (InquiriesTab).
-- GS-21 Category tab count badges wrong after selecting a tab.
-- GS-22 Home vacation section shows "none" during load / on error.
-- GS-23 Scan "Send Request" can double-submit.
-- GS-24 BlockedList / UserProfileModal render fetch errors as empty/not-found.
-- GS-25 MFA pages treat a transient `listFactors` error as "not enrolled".
-- GS-26 Society member reject uses `window.prompt` (no-ops when dialogs
-  suppressed).
-- GS-27 Payment failure banner promises "Try Bank Transfer" rails that
-  don't exist.
-- GS-28 Notification-preferences rapid toggle clobbers channels in the DB.
-- GS-29 `useListings` category switch has no stale-response guard (race).
-- GS-30 "Showing saved copy" cached-snapshot labeling never wired;
-  `useSavedListings` drops its `cachedAt` return.
-- GS-31 Cross-society ticket theft — `guard_community_ticket_changes`
-  authorized on the destination society.
-- GS-32 Owner could DELETE their own `confirmed` community contribution
-  (ledger integrity); `reference`/`note` also editable after confirm.
-- GS-33 Duplicate reviews / rating manipulation via `agreement_id = NULL`
-  (partial unique index + policy accepted NULL).
-- GS-34 Webhook claim-before-fulfil could strand an event as `received` on
-  a crash (retries then 200-dup forever).
-- GS-35 Partial dashboard refund marks the whole record refunded + revokes
-  the entitlement (`refund.entity.amount` ignored).
-- GS-36 `record-contact` requires no JWT and enforces no limit (the cap is
-  advisory, client-side only).
-
-**LOW / dead code**
-- GS-37 No UNIQUE on `rent_receipts.rent_payment_id` (duplicate receipts);
-  `blocked_between()` leaks block existence; `expire_lapsed_subscriptions`
-  can flip a free plan to `expired`; booking-rules trigger never asserts
-  `owner_id` against the listing; `seed_first_community_admin` only fires
-  AFTER UPDATE; `poll_closed()` missing `search_path`; `delete_my_account`
-  over-blocks a tenant for the host's unsettled payout. (migration 149)
-- GS-38 Edge functions leak raw DB/Razorpay error strings to the client;
-  `create-booking-order` sweep can delete a paid-but-unpromoted booking.
-- GS-39 Frontend polish: "Remember me" wired to nothing; vacation cards
-  show `₹/mo` not `/night`; `₹NaN` on the society receipt (missing `||0`);
-  interval leaks on unmount (login/signup/aadhaar-verify); missing
-  lease/receipt date-order validation; admin support/verification buttons
-  double-submittable; PayoutAccountCard accepts malformed UPI/IFSC.
-- GS-40 Dead code: `mobileRole`, `aadhaarDone`, `generateImageUrl`,
-  unreachable AutoPay "Paused" branch, dead Free-plan "Downgrade" button,
-  stale `rentDueDay=5` countdown in tenant-profile, `useAdminVerification`
-  dead `aadhaar_last4`, `useAdminListings` `.or()` search-grammar fragility.
-
-*Discarded false positive:* the audit's "skip stamp duty never works" was
-checked against migration 137 and missed 147 — the skip path (the `signed`
-status) works.
+- **Refund crash-window (suspected).** The refund paths (`refund-payment`,
+  `respond-booking`, `cancel-booking`) claim the row `refunded` before the
+  Razorpay call, so a crash in that sub-second window strands a refund (the
+  row reads refunded, no money returned) and the retry short-circuits. The
+  `Idempotency-Key` that ships alongside makes the fix safe: on the
+  zero-rows branch, re-read and complete the refund when
+  `razorpay_refund_id IS NULL`, or revert to refund-first ordering. Left as a
+  deliberate, separately-tested payment change.
+- **Society badge counts undercount past page 1.** `openTickets` /
+  `pollsToAnswer` (`society/page.tsx`) count over the paginated (20) loaded
+  list; the hook's `total` is unfiltered so it can't just be substituted. An
+  accurate badge needs a server-side *filtered* count RPC — `// TODO` in code.
+- **No dedicated society-push toggle.** Society notices/polls/collections are
+  typed `platform`/`maintenance`/`payment`, so they follow those toggles. A
+  separate switch needs a new `community` notification type, retyping those
+  inserts, and a `send-push` mapping.
+- **Consumer route role-guards.** `/tenant-profile`, `/owner-profile`, etc. are
+  reachable by either role (self-gated by `if (!user)`, own-user-id scoped,
+  RLS-backed — no cross-user leak); a role redirect would be polish.
+- **Chat previews over-fetch.** `getLastMessagesByRequest` pulls full thread
+  histories to render one preview line each; a `DISTINCT ON` RPC is the clean
+  fix, held back to avoid a migration cycle for a Low perf item. (Login also
+  makes 2–3 redundant `get_my_profile` calls — same reason.)
+- **Listing-detail badges render unconditionally.** The "Verified Owner" /
+  "Aadhaar Verified" badges and the green "Active" dot aren't mapped from data
+  (`useListingDetail` fetches `verified_aadhaar` but never uses it). Accurate
+  in practice today — migration 136 means every listing owner is verified —
+  and there's no real presence signal to back the dot.
+- **By design, not bugs.** A confirmed vacation booking counts as one inquiry
+  (its `connection_requests` row genuinely carries the host↔guest chat); and
+  there is no "end tenancy" action — a completed open-ended agreement stays
+  active until the row is removed.
 
 ### 4.8 Android build — verified
 
@@ -856,45 +628,30 @@ to `C:\bhavan-build`, not `android/app/build` — look there for artifacts.
 This supersedes §4.2's "never built" for Android. iOS is unchanged and
 still unbuilt.
 
+### 4.9 Push notifications — working on web, native untested
+
+**Web push works end to end and is verified** — a chat message creates a
+notification, the trigger dispatches it, FCM accepts it, and it arrives on a
+registered device (`notifications.push_delivered` flips to true), confirmed
+against production on a real device. **Push is not a launch blocker for web.**
+Getting here took three fixes worth knowing if you touch it: chat messages
+weren't creating a `notifications` row (070); the AFTER-INSERT notify trigger
+briefly aborted chat sends on the `notifications.type` CHECK (071); and
+`PushManager.subscribe()` ran before the service worker was active (no tokens
+registered).
+
+Residuals:
+
+- **One Windows/Edge machine** fails to register (*"push service error"*)
+  while iOS Safari on the same account registers fine and the server side is
+  proven healthy — so it's that browser failing to reach its own push service
+  (network / VPN / Windows notification settings), not app config. **Don't
+  chase the VAPID key**: it isn't validated at `subscribe()` time (VAPID is
+  project-agnostic; a mismatched key fails later, at *send*).
+- **Native push (Capacitor) has never executed** — there is no app to run it
+  in yet (§4.2). Verify it when the app builds.
+
 ---
-
-## 5. Push notifications — state
-
-**Working and verified end to end.** A chat message creates a
-notification, the trigger dispatches it, FCM accepts it, and it arrives
-on a registered device (`notifications.push_delivered` flips to true).
-Confirmed against production on a real iOS device.
-
-Three bugs were fixed to get there, all worth knowing about:
-
-1. Chat messages never created a `notifications` row, so the dispatcher —
-   which fires on insert into that table — never saw them (migration 070).
-2. Migration 071 exists because 070 alone broke chat message *sending* for
-   about two minutes: `notifications.type` has a CHECK constraint that
-   rejected the new value, and because the trigger is AFTER INSERT the
-   rejection aborted the transaction. A cautionary tale about trigger-based
-   side effects.
-3. `PushManager.subscribe()` was called before the service worker became
-   active, so no browser could register a token — `user_push_tokens` was
-   empty for every account.
-
-### Known limitation
-
-One Windows/Edge machine still fails to register with
-*"Registration failed – push service error"*. iOS Safari on the same
-account registers fine, and the server side is proven healthy (FCM
-rejects a bogus token with a precise, correct error, which means the
-service account authenticates and the FCM v1 API is enabled). So this is
-the browser failing to reach its own push service — network, VPN, or
-Windows notification settings — not app configuration.
-
-**Do not go looking at the VAPID key for this.** The key is not validated
-against the Firebase project at `subscribe()` time; VAPID is
-project-agnostic and a mismatched key fails later, when *sending*. The
-banner now says as much rather than surfacing a raw DOMException.
-
-Native push (Capacitor) has still never executed — there is no app to run
-it in (§4.2).
 
 ## 6. Operational docs
 
@@ -935,29 +692,28 @@ Each of these was a real bug, not a hypothetical:
 
 1. Stand up a staging Supabase project; repoint CI and E2E (§4.1)
 2. Fix Supabase Site URL / Redirect URLs — this affects real users today (§4.4)
-3. Close out push (§5), then confirm delivery end-to-end on web
-4. Razorpay: confirm live keys, set the **real** `RAZORPAY_WEBHOOK_SECRET`
+3. Razorpay: confirm live keys, set the **real** `RAZORPAY_WEBHOOK_SECRET`
    (the current one is a placeholder) and add the dashboard webhook
-   subscribed to `payment.captured` + `refund.processed` (§4.3), and
-   **apply for Route immediately** — its approval clock is the long pole
-   for both booking and rent payouts (§4.3c, §4.3d)
-5. Decide Pro's launch story: gate the advertised features with
+   subscribed to `payment.captured` + `payment.failed` + `refund.processed`
+   (§4.3), and **apply for Route immediately** — its approval clock is the
+   long pole for both booking and rent payouts (§4.3c, §4.3d)
+4. Decide Pro's launch story: gate the advertised features with
    `has_pro()` / a `hasFeature()` check, or trim the pricing page to what
    is actually enforced — do not charge for Pro until one of these is
    done (§4.3e)
-6. Decide rent's launch story: leave rent collection off / owner-marks-
+5. Decide rent's launch story: leave rent collection off / owner-marks-
    paid until Route, or wire rent payouts in Route stage 2 (§4.3d)
-7. Payouts Stage 2 (bookings + rent) once Route is approved (§4.3c, §4.3d)
-8. `cap add android` → device testing → Play Store (§4.2)
-9. iOS after Android — longer review cycle, more account setup
-10. Aadhaar and OTP providers, contracts permitting (§4.3)
-11. Accessibility pass (§4.5), then the §4.6 list
+6. Payouts Stage 2 (bookings + rent) once Route is approved (§4.3c, §4.3d)
+7. `cap add android` → device testing → Play Store (§4.2)
+8. iOS after Android — longer review cycle, more account setup
+9. Aadhaar and phone-OTP providers, contracts permitting (§4.3)
+10. Accessibility pass (§4.5), then the §4.6/§4.7 residuals
 
-Items 1–6 are web launch blockers (for item 4, the Route *application*
-is the blocker — approval and Stage 2 can land after launch as long as
-manual payouts are honored; items 5–6 are "don't take money for what you
-don't deliver" gates). Item 8 onward is a separate project in practice;
-scope it as one.
+Items 1–5 are the web launch blockers (**web push already works — §4.9**; for
+item 3 the Route *application* is the blocker — approval and Stage 2 can land
+after launch as long as manual payouts are honored; items 4–5 are "don't take
+money for what you don't deliver" gates). Item 7 onward is a separate project
+in practice; scope it as one.
 
 ---
 
@@ -979,11 +735,10 @@ items the constraint is a third party, not the work (see the end).
 | Ramp-up on the codebase (RLS-heavy, ~197 source files) | 3–5 |
 | Staging Supabase project + repoint CI/E2E (§4.1) | 3–4 |
 | Supabase Site URL / redirect config (§4.4) | 0.5 |
-| Finish and verify push delivery (§5) | 1–3 |
 | Razorpay live keys + webhook dashboard wiring (webhook code + idempotency + `payment.failed`/`refund.processed` already built) | 1–2 |
 | Pro entitlements moved into RLS (§4.6) | 2–3 |
 | Accessibility pass (§4.5) | 5–8 |
-| Small items: `audit_logs` wiring + a review cross-tenancy rate limit (source maps, unused deps, `geocode` auth and review uniqueness are already done) | 1 |
+| §4.7 residuals: `audit_logs` wiring, review rate limit, refund crash-window, society count RPC (the ~50 audit findings are already fixed) | 1–2 |
 | Aadhaar provider integration, once a contract exists | 3–5 |
 | MSG91 OTP wiring | 2–3 |
 
@@ -993,8 +748,8 @@ but auth settings, storage buckets, edge-function secrets, cron jobs and
 
 ### Web
 
-Launch blockers only — staging, auth config, push, Razorpay + webhook:
-**8–13 days (~2–3 weeks)**.
+Launch blockers only — staging, auth config, Razorpay + webhook (web push
+already works, §4.9): **7–11 days (~2 weeks)**.
 
 Everything above, including accessibility and the RLS entitlements:
 **+12–18 days (~3–4 weeks)**.
@@ -1076,7 +831,8 @@ policy as it stands today; it has changed more than once.
   hardest on the app builds, and it's the line item most likely to double.
 - **Razorpay in a native shell** — the integration that most often turns
   out fiddlier than planned.
-- **The open push bug (§5)** — hours if it's the VAPID key, days if not.
+- **Native push on the app builds (§4.9)** — web push works, but the
+  Capacitor path has never executed; budget time to prove it on-device.
 - **Staging bring-up** surfacing config that was only ever set by hand in
   the dashboard.
 

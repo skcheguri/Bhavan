@@ -15,5 +15,3 @@ Disallow: /auth/
 Disallow: /reset-password
 Disallow: /aadhaar-verify
 Disallow: /scan/
-
-Sitemap: https://mybhavan.com/sitemap.xml

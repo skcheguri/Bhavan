@@ -260,6 +260,14 @@ export default function TenantProfile() {
     <div className="min-h-screen bg-offwhite pb-16">
       <div className="max-w-6xl mx-auto px-4 md:px-8">
 
+        {softBlockModalOpen && (
+          <SoftBlockModal
+            open={softBlockModalOpen}
+            tenantId={user.id}
+            tenantName={user.name}
+            onClose={() => setSoftBlockModalOpen(false)}
+          />
+        )}
         {showDeleteAccount && <DeleteAccountModal onClose={() => setShowDeleteAccount(false)} />}
         {showPhoneVerify && user.phone && (
           <PhoneVerifyModal
@@ -352,7 +360,7 @@ export default function TenantProfile() {
                   <i className="ri-money-rupee-circle-line text-base text-red-500" />
                 </div>
                 <p className="text-sm font-bold text-charcoal">Pay Rent</p>
-                <p className="text-xs text-charcoal/60 mt-0.5">{daysUntilRentDue <= 3 ? `${daysUntilRentDue}d left` : 'Rent Payment'}</p>
+                <p className="text-xs text-charcoal/60 mt-0.5">{activeAgreement && daysUntilRentDue <= 3 ? `${daysUntilRentDue}d left` : 'Rent Payment'}</p>
               </button>
             </div>
           </div>
@@ -694,7 +702,7 @@ export default function TenantProfile() {
                   </div>
                   <p className="text-xs text-amber-700 leading-relaxed">
                     Your lease expires{' '}
-                    <strong>{new Date(`${activeAgreement.leaseEndDate}T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>.
+                    <strong>{activeAgreement.leaseEndDate ? new Date(`${activeAgreement.leaseEndDate}T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : 'Not set'}</strong>.
                     Contact your landlord at least 2 months before to discuss renewal terms.
                   </p>
                   <div className="mt-3 text-xs font-semibold text-amber-700 flex items-center gap-1 group-hover:text-amber-800 whitespace-nowrap">
@@ -926,7 +934,7 @@ export default function TenantProfile() {
               </div>
             </div>
             <div className="p-5 space-y-5">
-              {(() => {
+              {activeAgreement.leaseEndDate && (() => {
                 const { daysLeft, monthsLeft, renewByLabel } = leaseCountdown(activeAgreement.leaseEndDate, activeAgreement.noticePeriodDays);
                 return (
                   <div className="grid grid-cols-3 gap-3">

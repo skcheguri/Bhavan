@@ -55,6 +55,7 @@ function timeAgo(isoDate: string) {
 
 export default function RequestsTab() {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const { requests, loading, error, updateStatus, refresh } = useOwnerMaintenanceRequests(user?.id);
   const vendorList = useVendors({ ownerId: user?.id });
   const [filter, setFilter] = useState<FilterStatus>('all');
@@ -63,8 +64,9 @@ export default function RequestsTab() {
 
   const handleStatusChange = async (id: string, status: 'acknowledged' | 'in_progress' | 'resolved') => {
     setUpdatingId(id);
-    await updateStatus(id, status);
+    const { error: updateError } = await updateStatus(id, status);
     setUpdatingId(null);
+    if (updateError) addToast(updateError, 'error');
   };
 
   const filtered = requests

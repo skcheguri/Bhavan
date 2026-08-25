@@ -635,6 +635,11 @@ function SocietyHome({
   const pendingCount = memberList.members.filter((m) => m.status === 'pending').length;
 
   const ticketList = useTickets(society.id);
+  // TODO: this filters over the PAGINATED loaded page (PAGE=20), so a society
+  // with >20 tickets can undercount the open ones. useTickets exposes a
+  // `total`, but that is the unfiltered row count (every status), so it can't
+  // stand in for "open" without over-counting resolved tickets. A dedicated
+  // server-side count of non-resolved tickets is needed for an exact badge.
   const openTickets = ticketList.tickets.filter((t) => t.status !== 'resolved').length;
   const noticeList = useAnnouncements(society.id);
   const collectionList = useCollections(society.id);
@@ -646,6 +651,11 @@ function SocietyHome({
   // is_closed, not closed_at: a poll shut by its deadline is never
   // stamped, so counting closed_at would keep nagging members to vote in
   // a poll that has already finished.
+  // TODO: like openTickets, this filters over the PAGINATED loaded page
+  // (PAGE=20), so >20 polls can undercount the unanswered ones. usePolls
+  // exposes a `total`, but it is the unfiltered row count (open + closed,
+  // voted or not), so it can't stand in for "unanswered" without over-
+  // counting. A dedicated server-side count of open unvoted polls is needed.
   const pollsToAnswer = pollList.polls.filter((p) => !p.is_closed && !p.has_voted).length;
 
   const tabs: SocietyTab[] = isAdmin

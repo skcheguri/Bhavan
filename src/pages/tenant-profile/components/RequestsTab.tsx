@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMaintenanceRequests, useCreateMaintenanceRequest } from '@/hooks/useMaintenanceRequests';
 import { useTenantRentalAgreements } from '@/hooks/useRentalAgreements';
 
@@ -191,10 +191,16 @@ export default function RequestsTab({ tenantId }: Props) {
     resolved: maintRequests.filter((r) => r.status === 'resolved').length,
   };
 
-  // Auto-select first on load
-  if (maintRequests.length > 0 && !selectedMaintId) {
-    setSelectedMaintId(maintRequests[0].id);
-  }
+  // Auto-select the first visible request once the list loads (or when the
+  // current selection is filtered out of view) -- picking from the
+  // displayed/filtered order, not the unfiltered list. Kept in an effect so
+  // it never calls setState during render.
+  useEffect(() => {
+    if (maintFiltered.length === 0) return;
+    if (!selectedMaintId || !maintFiltered.some((r) => r.id === selectedMaintId)) {
+      setSelectedMaintId(maintFiltered[0].id);
+    }
+  }, [maintFiltered, selectedMaintId]);
 
   return (
     <div className="space-y-5">

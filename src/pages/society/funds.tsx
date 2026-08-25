@@ -500,7 +500,7 @@ function CollectionCard({
                         ? 'not found'
                         : rupees(r.amount_rupees ?? 0)}
                   </span>
-                  {isAdmin && r.status === 'confirmed' && (
+                  {(isAdmin || r.user_id === userId) && r.status === 'confirmed' && (
                     <button
                       onClick={() => void openReceipt(r)}
                       className="text-gray-300 hover:text-charcoal flex-shrink-0"
