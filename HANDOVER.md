@@ -733,6 +733,111 @@ picker; a new Google user picks a role on `/auth/callback`, which is a
 standalone surface with no navbar/footer), and a **Reset Filters** control
 on Browse Listings.
 
+### 4.7c Handover gap sweep (2026-08-25)
+
+A five-part parallel audit (edge functions, hooks/data layer, pages/
+components, DB/RLS/triggers, lib/auth) of the *existing* code, separate from
+the known blockers above. ~40 findings. All were addressed in a hardening
+pass the same day (migration 149 for DB, edge-function edits, and frontend
+fixes) unless marked **DEFERRED**. Kept here as the audit trail.
+
+**CRITICAL**
+- GS-1 **Self-registration as platform admin.** `handle_new_auth_user()`
+  (001:1190) copied `role` from client `raw_user_meta_data` with no
+  whitelist; `users_role_check` allows `admin` and `is_admin()` is a pure
+  role lookup (no aal2). `signUp({data:{role:'admin'}})` on the anon key
+  granted full data-layer admin. Fixed: trigger whitelists tenant/owner.
+
+**HIGH — security / data integrity**
+- GS-2 **Refund double-refund.** `refund-payment`/`respond-booking`/
+  `cancel-booking` had no atomic status claim and no Razorpay
+  `Idempotency-Key`; concurrent guest-cancel + host-decline both refunded.
+- GS-3 **Owner could DELETE a signed/completed agreement** (`FOR ALL`
+  policy, UPDATE-only guard); nulls linked `rent_payments.agreement_id`.
+- GS-4 **Owner could INSERT `rent_payments` for any tenant** (001:1939 WITH
+  CHECK omitted `tenant_id`) — fabricated "paid" rows in a stranger's ledger.
+- GS-5 **5 maintenance SECURITY DEFINER fns anon-executable** (no REVOKE):
+  expire_lapsed_subscriptions, check_error_rate_and_alert,
+  check_webhook_failures_and_alert, check_cron_health_and_alert,
+  run_maintenance_escalation.
+- GS-6 **Aadhaar OCR badge on a stranger's card** — name-match read the
+  profile name from the request body; now read server-side from `users`.
+
+**HIGH — broken user-facing features**
+- GS-7 **404 page is leftover generator template + dead-end** (`NotFound.tsx`).
+- GS-8 **Owner profile edit can never save** (`owner-profile` handleSave
+  had no call site / no Save button).
+- GS-9 **"List Another Property" republishes the previous listing's photos
+  & landmarks** (success path didn't reset image/nearby/location state).
+- GS-10 **UpgradeModal traps the Android back button on `/subscription`**
+  (`useDismissableLayer` ran before the `!isOpen` guard, always registered).
+- GS-11 **Admin trust-&-safety queues render a failed fetch as "all clear"**
+  (payouts, broker-reports, listing-reports, property-verification, support).
+- GS-12 **Tenant chat unread badges never appear** (`useChatMessages`
+  inserted landlord messages with `read:true`).
+
+**MEDIUM**
+- GS-13 Legal-document dates off by one day for IST 00:00–05:30 generation
+  (timestamps run through the date-only parser).
+- GS-14 Name validation rejects real names (D'Souza, Jean-Pierre, A. Kumar).
+- GS-15 Owner/admin silently demoted to `tenant` on a transient
+  `get_my_profile` failure (runs on every token refresh).
+- GS-16 AutoPay Pause/Cancel buttons fake success (never call the
+  implemented `pauseMandate`/`cancelMandate`).
+- GS-17 Admin can publish an owner's `draft` listing (wrong action for draft).
+- GS-18 Tax-forms understate income (ownership share applied even when
+  "Co-owned" unchecked).
+- GS-19 Reviews list crashes on a rating outside 1–5 (`ratingBadge[0].label`).
+- GS-20 Decline is rate-limited & debited like an approve (InquiriesTab).
+- GS-21 Category tab count badges wrong after selecting a tab.
+- GS-22 Home vacation section shows "none" during load / on error.
+- GS-23 Scan "Send Request" can double-submit.
+- GS-24 BlockedList / UserProfileModal render fetch errors as empty/not-found.
+- GS-25 MFA pages treat a transient `listFactors` error as "not enrolled".
+- GS-26 Society member reject uses `window.prompt` (no-ops when dialogs
+  suppressed).
+- GS-27 Payment failure banner promises "Try Bank Transfer" rails that
+  don't exist.
+- GS-28 Notification-preferences rapid toggle clobbers channels in the DB.
+- GS-29 `useListings` category switch has no stale-response guard (race).
+- GS-30 "Showing saved copy" cached-snapshot labeling never wired;
+  `useSavedListings` drops its `cachedAt` return.
+- GS-31 Cross-society ticket theft — `guard_community_ticket_changes`
+  authorized on the destination society.
+- GS-32 Owner could DELETE their own `confirmed` community contribution
+  (ledger integrity); `reference`/`note` also editable after confirm.
+- GS-33 Duplicate reviews / rating manipulation via `agreement_id = NULL`
+  (partial unique index + policy accepted NULL).
+- GS-34 Webhook claim-before-fulfil could strand an event as `received` on
+  a crash (retries then 200-dup forever).
+- GS-35 Partial dashboard refund marks the whole record refunded + revokes
+  the entitlement (`refund.entity.amount` ignored).
+- GS-36 `record-contact` requires no JWT and enforces no limit (the cap is
+  advisory, client-side only).
+
+**LOW / dead code**
+- GS-37 No UNIQUE on `rent_receipts.rent_payment_id` (duplicate receipts);
+  `blocked_between()` leaks block existence; `expire_lapsed_subscriptions`
+  can flip a free plan to `expired`; booking-rules trigger never asserts
+  `owner_id` against the listing; `seed_first_community_admin` only fires
+  AFTER UPDATE; `poll_closed()` missing `search_path`; `delete_my_account`
+  over-blocks a tenant for the host's unsettled payout. (migration 149)
+- GS-38 Edge functions leak raw DB/Razorpay error strings to the client;
+  `create-booking-order` sweep can delete a paid-but-unpromoted booking.
+- GS-39 Frontend polish: "Remember me" wired to nothing; vacation cards
+  show `₹/mo` not `/night`; `₹NaN` on the society receipt (missing `||0`);
+  interval leaks on unmount (login/signup/aadhaar-verify); missing
+  lease/receipt date-order validation; admin support/verification buttons
+  double-submittable; PayoutAccountCard accepts malformed UPI/IFSC.
+- GS-40 Dead code: `mobileRole`, `aadhaarDone`, `generateImageUrl`,
+  unreachable AutoPay "Paused" branch, dead Free-plan "Downgrade" button,
+  stale `rentDueDay=5` countdown in tenant-profile, `useAdminVerification`
+  dead `aadhaar_last4`, `useAdminListings` `.or()` search-grammar fragility.
+
+*Discarded false positive:* the audit's "skip stamp duty never works" was
+checked against migration 137 and missed 147 — the skip path (the `signed`
+status) works.
+
 ### 4.8 Android build — verified
 
 Builds clean. `assembleDebug` exits 0 (JDK from Android Studio's bundled
