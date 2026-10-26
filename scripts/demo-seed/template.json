@@ -34,7 +34,7 @@
       "deposit": 100000,
       "maintenanceCharge": 2000,
       "furnished": true,
-      "parking": "covered",
+      "parking": "4-wheeler",
       "amenities": ["Lift", "Power Backup", "24x7 Security"],
       "photos": ["https://PLACEHOLDER-owner-will-supply/listing1-a.jpg"],
       "status": "active"
@@ -56,7 +56,7 @@
       "deposit": 20000,
       "maintenanceCharge": 0,
       "furnished": true,
-      "parking": "open",
+      "parking": "both",
       "amenities": ["Private Pool", "Garden"],
       "photos": ["https://PLACEHOLDER-owner-will-supply/farmhouse-a.jpg"],
       "status": "active"

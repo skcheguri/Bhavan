@@ -23,6 +23,22 @@
 -- ============================================================
 SET check_function_bodies = off;
 
+-- ---- Default grants ----
+-- `db reset` drops the public schema, which also drops the schema-scoped
+-- default privileges Supabase configures at project creation (the grants
+-- 001_baseline assumes but never emits). Without them a rebuilt table has NO
+-- grants and the app / seed / this very reset hit "permission denied for
+-- table". Set the default privileges HERE, before any table exists, so every
+-- table/sequence/function created by 001+ auto-grants the broad
+-- anon/authenticated/service_role access the app relies on — and the later
+-- lockdown migrations (116/117/122/123…) then REVOKE their specifics on top,
+-- exactly as on production. (A blanket GRANT at the end would wrongly undo
+-- those revokes.) No-op on the already-provisioned production database.
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES    TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 

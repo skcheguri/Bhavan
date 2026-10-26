@@ -206,8 +206,13 @@ try {
     idByKey.set(o.key, id);
     counts.owners++;
     if (o.verified) {
-      // Service role bypasses the privileged-column guard. Best-effort.
-      const { error } = await sb.from('users').update({ verified_aadhaar: true }).eq('id', id);
+      // verified_aadhaar is guarded by protect_privileged_user_columns():
+      // a direct UPDATE (even as service role) is silently pinned back to
+      // the old value, so the row looks unverified and listing creation is
+      // blocked by migration 136. The sanctioned path is the
+      // service-role-only RPC, which sets the trusted-write flag the guard
+      // checks and stamps the verification columns consistently.
+      const { error } = await sb.rpc('mark_aadhaar_verified', { p_user_id: id, p_last4: '0000' });
       if (error) console.warn(`WARN  could not mark ${o.email} verified: ${error.message}`);
     }
   }
