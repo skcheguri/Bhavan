@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -133,6 +133,8 @@ export type Database = {
           razorpay_invoice_id: string | null
           razorpay_order_id: string | null
           razorpay_payment_id: string | null
+          razorpay_refund_id: string | null
+          refunded_at: string | null
           status: string | null
           subscription_id: string | null
           total_amount: number
@@ -153,6 +155,8 @@ export type Database = {
           razorpay_invoice_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
+          razorpay_refund_id?: string | null
+          refunded_at?: string | null
           status?: string | null
           subscription_id?: string | null
           total_amount: number
@@ -173,6 +177,8 @@ export type Database = {
           razorpay_invoice_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
+          razorpay_refund_id?: string | null
+          refunded_at?: string | null
           status?: string | null
           subscription_id?: string | null
           total_amount?: number
@@ -1498,8 +1504,8 @@ export type Database = {
           created_at: string
           ifsc: string | null
           method: string
-          upi_id: string | null
           updated_at: string
+          upi_id: string | null
           user_id: string
         }
         Insert: {
@@ -1508,8 +1514,8 @@ export type Database = {
           created_at?: string
           ifsc?: string | null
           method: string
-          upi_id?: string | null
           updated_at?: string
+          upi_id?: string | null
           user_id: string
         }
         Update: {
@@ -1518,8 +1524,8 @@ export type Database = {
           created_at?: string
           ifsc?: string | null
           method?: string
-          upi_id?: string | null
           updated_at?: string
+          upi_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -1962,6 +1968,8 @@ export type Database = {
           plan: string | null
           razorpay_customer_id: string | null
           razorpay_subscription_id: string | null
+          renewal_reminded_for: string | null
+          renewal_reminder_stage: number
           status: string | null
           trial_ends_at: string | null
           updated_at: string | null
@@ -1976,6 +1984,8 @@ export type Database = {
           plan?: string | null
           razorpay_customer_id?: string | null
           razorpay_subscription_id?: string | null
+          renewal_reminded_for?: string | null
+          renewal_reminder_stage?: number
           status?: string | null
           trial_ends_at?: string | null
           updated_at?: string | null
@@ -1990,6 +2000,8 @@ export type Database = {
           plan?: string | null
           razorpay_customer_id?: string | null
           razorpay_subscription_id?: string | null
+          renewal_reminded_for?: string | null
+          renewal_reminder_stage?: number
           status?: string | null
           trial_ends_at?: string | null
           updated_at?: string | null
@@ -2327,8 +2339,10 @@ export type Database = {
           property_unit_id: string | null
           razorpay_order_id: string | null
           razorpay_payment_id: string | null
+          razorpay_refund_id: string | null
           reconciled_at: string | null
           reconciliation_note: string | null
+          refunded_at: string | null
           status: string | null
           tenant_id: string
           transaction_ref: string | null
@@ -2347,8 +2361,10 @@ export type Database = {
           property_unit_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
+          razorpay_refund_id?: string | null
           reconciled_at?: string | null
           reconciliation_note?: string | null
+          refunded_at?: string | null
           status?: string | null
           tenant_id: string
           transaction_ref?: string | null
@@ -2367,8 +2383,10 @@ export type Database = {
           property_unit_id?: string | null
           razorpay_order_id?: string | null
           razorpay_payment_id?: string | null
+          razorpay_refund_id?: string | null
           reconciled_at?: string | null
           reconciliation_note?: string | null
+          refunded_at?: string | null
           status?: string | null
           tenant_id?: string
           transaction_ref?: string | null
@@ -2449,7 +2467,7 @@ export type Database = {
           rent_payment_id: string | null
           sent_at: string | null
           sent_to_tenant: boolean | null
-          signed_by_landlord: boolean | null
+          signed_by_landlord: boolean
           tenant_id: string | null
           tenant_name: string
           tenant_pan: string | null
@@ -2477,7 +2495,7 @@ export type Database = {
           rent_payment_id?: string | null
           sent_at?: string | null
           sent_to_tenant?: boolean | null
-          signed_by_landlord?: boolean | null
+          signed_by_landlord?: boolean
           tenant_id?: string | null
           tenant_name: string
           tenant_pan?: string | null
@@ -2491,7 +2509,6 @@ export type Database = {
           landlord_name?: string
           landlord_pan?: string | null
           landlord_signed_at?: string | null
-          signed_by_landlord?: boolean | null
           listing_id?: string | null
           maintenance_amount?: number | null
           notes?: string | null
@@ -2506,6 +2523,7 @@ export type Database = {
           rent_payment_id?: string | null
           sent_at?: string | null
           sent_to_tenant?: boolean | null
+          signed_by_landlord?: boolean
           tenant_id?: string | null
           tenant_name?: string
           tenant_pan?: string | null
@@ -2562,12 +2580,6 @@ export type Database = {
           admin_processed_by: string | null
           agreement_number: string
           agreement_status: string
-          stamp_duty_requested: boolean
-          landlord_signature_name: string | null
-          landlord_signed_at: string | null
-          stamped_document_path: string | null
-          tenant_signature_name: string | null
-          tenant_signed_at: string | null
           carpet_area: number | null
           clauses: string[] | null
           created_at: string | null
@@ -2578,6 +2590,8 @@ export type Database = {
           landlord_name: string
           landlord_pan: string | null
           landlord_phone: string | null
+          landlord_signature_name: string | null
+          landlord_signed_at: string | null
           lease_end_date: string | null
           lease_start_date: string | null
           listing_id: string | null
@@ -2596,6 +2610,8 @@ export type Database = {
           shared_with_tenant: boolean | null
           signed_by_landlord: boolean | null
           signed_by_tenant: boolean | null
+          stamp_duty_requested: boolean
+          stamped_document_path: string | null
           tenant_aadhaar_masked: string | null
           tenant_address: string | null
           tenant_email: string | null
@@ -2603,6 +2619,8 @@ export type Database = {
           tenant_name: string
           tenant_pan: string | null
           tenant_phone: string | null
+          tenant_signature_name: string | null
+          tenant_signed_at: string | null
           unit_id: string | null
           witness1_address: string | null
           witness1_name: string | null
@@ -2614,12 +2632,6 @@ export type Database = {
           admin_processed_by?: string | null
           agreement_number: string
           agreement_status?: string
-          stamp_duty_requested?: boolean
-          landlord_signature_name?: string | null
-          landlord_signed_at?: string | null
-          stamped_document_path?: string | null
-          tenant_signature_name?: string | null
-          tenant_signed_at?: string | null
           carpet_area?: number | null
           clauses?: string[] | null
           created_at?: string | null
@@ -2630,6 +2642,8 @@ export type Database = {
           landlord_name: string
           landlord_pan?: string | null
           landlord_phone?: string | null
+          landlord_signature_name?: string | null
+          landlord_signed_at?: string | null
           lease_end_date?: string | null
           lease_start_date?: string | null
           listing_id?: string | null
@@ -2648,6 +2662,8 @@ export type Database = {
           shared_with_tenant?: boolean | null
           signed_by_landlord?: boolean | null
           signed_by_tenant?: boolean | null
+          stamp_duty_requested?: boolean
+          stamped_document_path?: string | null
           tenant_aadhaar_masked?: string | null
           tenant_address?: string | null
           tenant_email?: string | null
@@ -2655,6 +2671,8 @@ export type Database = {
           tenant_name: string
           tenant_pan?: string | null
           tenant_phone?: string | null
+          tenant_signature_name?: string | null
+          tenant_signed_at?: string | null
           unit_id?: string | null
           witness1_address?: string | null
           witness1_name?: string | null
@@ -2666,12 +2684,6 @@ export type Database = {
           admin_processed_by?: string | null
           agreement_number?: string
           agreement_status?: string
-          stamp_duty_requested?: boolean
-          landlord_signature_name?: string | null
-          landlord_signed_at?: string | null
-          stamped_document_path?: string | null
-          tenant_signature_name?: string | null
-          tenant_signed_at?: string | null
           carpet_area?: number | null
           clauses?: string[] | null
           created_at?: string | null
@@ -2682,6 +2694,8 @@ export type Database = {
           landlord_name?: string
           landlord_pan?: string | null
           landlord_phone?: string | null
+          landlord_signature_name?: string | null
+          landlord_signed_at?: string | null
           lease_end_date?: string | null
           lease_start_date?: string | null
           listing_id?: string | null
@@ -2700,6 +2714,8 @@ export type Database = {
           shared_with_tenant?: boolean | null
           signed_by_landlord?: boolean | null
           signed_by_tenant?: boolean | null
+          stamp_duty_requested?: boolean
+          stamped_document_path?: string | null
           tenant_aadhaar_masked?: string | null
           tenant_address?: string | null
           tenant_email?: string | null
@@ -2707,6 +2723,8 @@ export type Database = {
           tenant_name?: string
           tenant_pan?: string | null
           tenant_phone?: string | null
+          tenant_signature_name?: string | null
+          tenant_signed_at?: string | null
           unit_id?: string | null
           witness1_address?: string | null
           witness1_name?: string | null
@@ -2714,6 +2732,20 @@ export type Database = {
           witness2_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rental_agreements_admin_processed_by_fkey"
+            columns: ["admin_processed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_agreements_admin_processed_by_fkey"
+            columns: ["admin_processed_by"]
+            isOneToOne: false
+            referencedRelation: "users_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rental_agreements_listing_id_fkey"
             columns: ["listing_id"]
@@ -3561,30 +3593,6 @@ export type Database = {
       }
     }
     Functions: {
-      admin_mark_payout_paid: {
-        Args: { p_booking: string; p_reference?: string }
-        Returns: undefined
-      }
-      admin_withhold_payout: {
-        Args: { p_booking: string }
-        Returns: undefined
-      }
-      admin_stamp_rental_agreement: {
-        Args: { p_agreement_id: string; p_document_path: string }
-        Returns: undefined
-      }
-      sign_rental_agreement: {
-        Args: { p_agreement_id: string; p_signer_name: string }
-        Returns: undefined
-      }
-      share_rental_agreement: {
-        Args: { p_agreement_id: string }
-        Returns: undefined
-      }
-      set_connection_tenant: {
-        Args: { p_request_id: string; p_confirmed: boolean }
-        Returns: undefined
-      }
       admin_get_user: {
         Args: { target_id: string }
         Returns: {
@@ -3619,6 +3627,14 @@ export type Database = {
           verified_phone: boolean
         }[]
       }
+      admin_mark_payout_paid: {
+        Args: { p_booking: string; p_reference?: string }
+        Returns: undefined
+      }
+      admin_stamp_rental_agreement: {
+        Args: { p_agreement_id: string; p_document_path: string }
+        Returns: undefined
+      }
       admin_user_stats: {
         Args: never
         Returns: {
@@ -3629,6 +3645,7 @@ export type Database = {
           total_users: number
         }[]
       }
+      admin_withhold_payout: { Args: { p_booking: string }; Returns: undefined }
       blocked_between: { Args: { p_a: string; p_b: string }; Returns: boolean }
       cast_poll_vote: {
         Args: { p_option_ids: string[]; p_poll: string }
@@ -3646,6 +3663,7 @@ export type Database = {
       }
       check_cron_health_and_alert: { Args: never; Returns: undefined }
       check_error_rate_and_alert: { Args: never; Returns: string }
+      check_webhook_failures_and_alert: { Args: never; Returns: undefined }
       collection_community: { Args: { p_collection: string }; Returns: string }
       community_is_open: { Args: { p_community: string }; Returns: boolean }
       community_is_paid: { Args: { p_community: string }; Returns: boolean }
@@ -3808,11 +3826,11 @@ export type Database = {
       get_public_profile: {
         Args: { p_user_id: string }
         Returns: {
-          avatar_url: string | null
-          created_at: string | null
+          avatar_url: string
+          created_at: string
           id: string
-          name: string | null
-          verified_aadhaar: boolean | null
+          name: string
+          verified_aadhaar: boolean
         }[]
       }
       get_society_deletion_summary: {
@@ -3860,7 +3878,7 @@ export type Database = {
       is_community_member: { Args: { p_community: string }; Returns: boolean }
       is_verified_owner: { Args: { p_user?: string }; Returns: boolean }
       mark_aadhaar_verified: {
-        Args: { p_user_id: string; p_last4: string }
+        Args: { p_last4: string; p_user_id: string }
         Returns: undefined
       }
       notify_agreement_shared: {
@@ -3897,6 +3915,7 @@ export type Database = {
         Returns: boolean
       }
       purge_unconfirmed_accounts: { Args: never; Returns: number }
+      recompute_soft_block: { Args: { p_tenant: string }; Returns: undefined }
       register_push_token: {
         Args: { p_device_name?: string; p_token: string }
         Returns: undefined
@@ -3904,11 +3923,28 @@ export type Database = {
       run_maintenance_escalation: { Args: never; Returns: number }
       run_society_renewal_reminders: { Args: never; Returns: number }
       set_aadhaar_verification_status: {
-        Args: { p_user_id: string; p_status: string }
+        Args: { p_status: string; p_user_id: string }
+        Returns: undefined
+      }
+      set_connection_tenant: {
+        Args: { p_confirmed: boolean; p_request_id: string }
+        Returns: undefined
+      }
+      share_rental_agreement: {
+        Args: { p_agreement_id: string }
+        Returns: undefined
+      }
+      sign_rental_agreement: {
+        Args: { p_agreement_id: string; p_signer_name: string }
         Returns: undefined
       }
       ticket_community: { Args: { p_ticket: string }; Returns: string }
       unregister_push_tokens: { Args: { p_token?: string }; Returns: undefined }
+      uuid_generate_v4: { Args: never; Returns: string }
+      vacation_booking_payout_due: {
+        Args: { vb: Database["public"]["Tables"]["vacation_bookings"]["Row"] }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
@@ -3927,12 +3963,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3956,11 +3992,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3981,11 +4017,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4006,11 +4042,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4023,11 +4059,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
