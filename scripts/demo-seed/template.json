@@ -1,0 +1,100 @@
+{
+  "_meta": {
+    "label": "DEMO",
+    "note": "Staging-only demo data. The import script refuses to run against production. Replace every value below with sample data the owner supplies; keep the shape. Names must be real names, never email addresses. Every listing needs photos and exactly one billing unit (/mo OR /night).",
+    "defaultCity": "Hyderabad",
+    "defaultState": "Telangana"
+  },
+
+  "owners": [
+    { "key": "owner1", "name": "Demo Owner One", "email": "owner1@demo.bhavan.invalid", "phone": "", "verified": true },
+    { "key": "owner2", "name": "Demo Owner Two", "email": "owner2@demo.bhavan.invalid", "phone": "", "verified": false }
+  ],
+
+  "tenants": [
+    { "key": "tenant1", "name": "Demo Tenant One", "email": "tenant1@demo.bhavan.invalid", "phone": "" },
+    { "key": "tenant2", "name": "Demo Tenant Two", "email": "tenant2@demo.bhavan.invalid", "phone": "" }
+  ],
+
+  "listings": [
+    {
+      "ownerKey": "owner1",
+      "title": "DEMO · 2 BHK in Green Meadows",
+      "description": "Sample listing. Replace with owner-supplied copy.",
+      "city": "Hyderabad",
+      "locality": "Gachibowli",
+      "state": "Telangana",
+      "category": "residential",
+      "propertyType": "apartment",
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "areaSqft": 1100,
+      "rent": 28000,
+      "billingUnit": "/mo",
+      "deposit": 100000,
+      "maintenanceCharge": 2000,
+      "furnished": true,
+      "parking": "covered",
+      "amenities": ["Lift", "Power Backup", "24x7 Security"],
+      "photos": ["https://PLACEHOLDER-owner-will-supply/listing1-a.jpg"],
+      "status": "active"
+    },
+    {
+      "ownerKey": "owner2",
+      "title": "DEMO · Farmhouse weekend stay",
+      "description": "Sample vacation listing. Replace with owner-supplied copy.",
+      "city": "Hyderabad",
+      "locality": "Shamirpet",
+      "state": "Telangana",
+      "category": "vacation",
+      "propertyType": "farmhouse",
+      "bedrooms": 3,
+      "bathrooms": 3,
+      "areaSqft": 4000,
+      "rent": 12000,
+      "billingUnit": "/night",
+      "deposit": 20000,
+      "maintenanceCharge": 0,
+      "furnished": true,
+      "parking": "open",
+      "amenities": ["Private Pool", "Garden"],
+      "photos": ["https://PLACEHOLDER-owner-will-supply/farmhouse-a.jpg"],
+      "status": "active"
+    }
+  ],
+
+  "societies": [
+    {
+      "adminKey": "owner1",
+      "name": "DEMO Green Meadows Residents",
+      "kind": "apartment",
+      "city": "Hyderabad",
+      "state": "Telangana",
+      "address": "Gachibowli, Hyderabad",
+      "members": [
+        { "userKey": "tenant1", "unitNumbers": ["A-101"] },
+        { "userKey": "owner2", "unitNumbers": ["B-204"] }
+      ],
+      "announcements": [
+        { "authorKey": "owner1", "title": "Water supply maintenance", "body": "Water will be off 10am-12pm on Saturday.", "pinned": true }
+      ],
+      "tickets": [
+        { "raisedByKey": "tenant1", "category": "lift", "title": "Lift making noise", "description": "Block A lift rattles between floors.", "priority": "medium", "status": "open" }
+      ],
+      "collections": [
+        {
+          "createdByKey": "owner1",
+          "title": "Diwali decoration fund",
+          "purpose": "Common-area lighting and decoration for Diwali.",
+          "mode": "per_flat",
+          "perFlatRupees": 500,
+          "upiId": "demo@upi",
+          "payeeName": "DEMO Treasurer",
+          "contributions": [
+            { "userKey": "tenant1", "amountRupees": 500, "status": "confirmed", "reference": "UPI-DEMO-001" }
+          ]
+        }
+      ]
+    }
+  ]
+}
