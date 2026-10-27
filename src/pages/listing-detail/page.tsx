@@ -96,7 +96,9 @@ export default function ListingDetail() {
   const { requests: tenantRequests, refresh: refreshTenantRequests } = useTenantConnectionRequests(user?.id);
   const { visits: tenantVisits, refresh: refreshTenantVisits } = useTenantPropertyVisits(user?.id);
   const { create: createPropertyVisit } = useCreatePropertyVisit();
-  const { listings: allListings } = useListings();
+  // A modest pool to pick "similar" from (same property type), without the
+  // old full-table scan.
+  const { listings: allListings } = useListings(undefined, { pageSize: 50 });
   const [softBlockModalOpen, setSoftBlockModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   // Vacation booking state

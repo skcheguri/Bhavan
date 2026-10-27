@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
-import { useListings, type ListingCategory } from '@/hooks/useListings';
+import { useListings, useListingCounts, type ListingCategory, type ListingAttributeFilters } from '@/hooks/useListings';
 import { useToast } from '@/hooks/useToast';
 import { geocodeAddress } from '@/lib/geocode';
 import { haversineDistanceKm, matchesSearchTerms, type Coordinates } from '@/lib/geo';
@@ -35,6 +35,27 @@ const DEFAULT_FILTERS: SearchFilters = {
   verifiedOnly: 'all',
 };
 
+// Translate a price-range dropdown choice into a server-side min/max, using
+// the same thresholds the page filtered on client-side before Part D. Rents
+// are whole rupees, so a strict "< 15000" becomes a max of 14999.
+function priceBucketToRange(priceRange: string, isVacation: boolean): { priceMin: number | null; priceMax: number | null } {
+  if (isVacation) {
+    switch (priceRange) {
+      case 'under1000': return { priceMin: null, priceMax: 2999 };
+      case '1000-1500': return { priceMin: 3000, priceMax: 6000 };
+      case 'over2500': return { priceMin: 6001, priceMax: null };
+      default: return { priceMin: null, priceMax: null };
+    }
+  }
+  switch (priceRange) {
+    case 'under1000': return { priceMin: null, priceMax: 14999 };
+    case '1000-1500': return { priceMin: 15000, priceMax: 30000 };
+    case '1500-2500': return { priceMin: 30001, priceMax: 50000 };
+    case 'over2500': return { priceMin: 50001, priceMax: null };
+    default: return { priceMin: null, priceMax: null };
+  }
+}
+
 export default function Listings() {
   const [searchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState<ListingCategory | 'all'>('all');
@@ -60,22 +81,50 @@ export default function Listings() {
   // it ate roughly half the viewport on a phone while scrolling results.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const { searchQuery, propertyType, priceRange, bedrooms, furnished, parking, maxGuests, verifiedOnly } = applied;
+  // Only the text query is still read client-side; every other filter is
+  // applied in the database query (see attributeFilters below).
+  const { searchQuery } = applied;
 
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addToast } = useToast();
-  const { listings: dbListings, loading: dbLoading } = useListings(
-    activeCategory === 'all' ? undefined : activeCategory
-  );
-  // A second, always-unscoped fetch feeds the category-tab count badges.
-  // The scoped `dbListings` above only holds the active category, so
-  // counting tab totals off it made "All"/other tabs show wrong (or zero)
-  // numbers once a category was selected. This is additive -- useListings'
-  // public API is untouched.
-  const { listings: allListingsForCounts } = useListings();
-  const categoryCount = (key: ListingCategory | 'all') =>
-    allListingsForCounts.filter((l) => key === 'all' || (l.category ?? 'residential') === key).length;
+
+  const isVacation = activeCategory === 'vacation';
+
+  // A text query or a near-me origin means the result set is matched
+  // client-side (free-text terms / haversine radius), so we fetch every
+  // candidate at once rather than a single page -- otherwise a match on
+  // "page 2" would never surface. Plain browsing pages the DB 20 at a time.
+  const searching = applied.searchQuery.trim() !== '' || !!searchOrigin;
+
+  // Everything the database can filter on moves server-side (Part D): the
+  // old code pulled the entire active table and filtered in the browser.
+  const { priceMin, priceMax } = priceBucketToRange(applied.priceRange, isVacation);
+  const attributeFilters: ListingAttributeFilters = {
+    category: activeCategory,
+    propertyType: applied.propertyType,
+    priceMin,
+    priceMax,
+    bedrooms: isVacation ? 'all' : applied.bedrooms,
+    furnished: isVacation ? 'all' : applied.furnished,
+    parking: isVacation ? 'all' : applied.parking,
+    maxGuests: isVacation ? applied.maxGuests : 'all',
+    verifiedOnly: applied.verifiedOnly === 'verified',
+  };
+
+  const {
+    listings: dbListings,
+    loading: dbLoading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    total,
+  } = useListings(attributeFilters, searching ? { fetchAll: true } : {});
+
+  // Category tab totals come from a grouped count RPC, not a second
+  // full-table fetch of every active listing.
+  const counts = useListingCounts();
+  const categoryCount = (key: ListingCategory | 'all') => counts[key] ?? 0;
   const isAadhaarVerified = user?.verified ?? false;
 
   const applySearch = (e?: React.FormEvent) => {
@@ -143,8 +192,6 @@ export default function Listings() {
     }
   }, [searchParams]);
 
-  const isVacation = activeCategory === 'vacation';
-
   // Counted off `applied`, not `draft`, and only over the fields this
   // category actually renders -- collapsed, this badge is the only thing
   // telling you the results are filtered, so it has to match both what's
@@ -209,67 +256,29 @@ export default function Listings() {
         : null,
   }));
 
-  const filteredListings = listingsWithDistance.filter((listing) => {
-    const matchesCategory = activeCategory === 'all' || listing.category === activeCategory;
-
-    const hasTextQuery = searchQuery.trim() !== '';
-    const matchesText = !hasTextQuery || matchesSearchTerms(searchQuery, `${listing.title} ${listing.location}`);
-    const withinRadius = listing.distanceKm !== null && listing.distanceKm <= NEARBY_RADIUS_KM;
-    // With text typed: a literal match OR a nearby listing (covers "Suchitra"
-    // finding a Kompally listing a few km away). With no text: only the
-    // radius filter applies when a "near me"-style origin is active.
-    const matchesSearch = hasTextQuery ? matchesText || withinRadius : !searchOrigin || withinRadius;
-
-    const matchesType = propertyType === 'all' || listing.property_type === propertyType;
-
-    const matchesPrice = isVacation
-      ? priceRange === 'all' ||
-        (priceRange === 'under1000' && listing.price < 3000) ||
-        (priceRange === '1000-1500' && listing.price >= 3000 && listing.price <= 6000) ||
-        (priceRange === 'over2500' && listing.price > 6000)
-      : priceRange === 'all' ||
-        (priceRange === 'under1000' && listing.price < 15000) ||
-        (priceRange === '1000-1500' && listing.price >= 15000 && listing.price <= 30000) ||
-        (priceRange === '1500-2500' && listing.price > 30000 && listing.price <= 50000) ||
-        (priceRange === 'over2500' && listing.price > 50000);
-
-    const matchesBedrooms =
-      bedrooms === 'all' ||
-      (bedrooms === '0' && listing.bedrooms === 0) ||
-      (bedrooms === '1' && listing.bedrooms === 1) ||
-      (bedrooms === '2' && listing.bedrooms === 2) ||
-      (bedrooms === '3+' && listing.bedrooms >= 3);
-
-    const matchesFurnished =
-      furnished === 'all' ||
-      (furnished === 'yes' && listing.furnished === true) ||
-      (furnished === 'no' && listing.furnished === false);
-
-    const matchesParking =
-      parking === 'all' ||
-      (parking === '2-wheeler' && (listing.parking === '2-wheeler' || listing.parking === 'both')) ||
-      (parking === '4-wheeler' && (listing.parking === '4-wheeler' || listing.parking === 'both')) ||
-      (parking === 'both' && listing.parking === 'both');
-
-    const matchesGuests =
-      !isVacation ||
-      maxGuests === 'all' ||
-      (listing.max_guests &&
-        ((maxGuests === '2' && listing.max_guests <= 2) ||
-         (maxGuests === '4' && listing.max_guests <= 4) ||
-         (maxGuests === '6' && listing.max_guests <= 6) ||
-         (maxGuests === '8+' && listing.max_guests >= 8)));
-
-    const matchesVerified = verifiedOnly === 'all' || listing.verified;
-
-    return matchesCategory && matchesSearch && matchesType && matchesPrice && matchesBedrooms && matchesFurnished && matchesParking && matchesGuests && matchesVerified;
-  }).sort((a, b) => {
-    // Stable no-op when there's no active origin (both sides null).
-    if (a.distanceKm === null && b.distanceKm === null) return 0;
-    if (a.distanceKm === null) return 1;
-    if (b.distanceKm === null) return -1;
-    return a.distanceKm - b.distanceKm;
-  });
+  // Server-side filtering (category, type, price, beds, furnishing, parking,
+  // guests, verification) already shaped `dbListings`. Only the two
+  // client-only refinements remain -- free-text term matching and the
+  // near-me radius -- and they run only when a search is active. In plain
+  // browse mode the paged server result is shown as-is, newest first.
+  const filteredListings = searching
+    ? listingsWithDistance
+        .filter((listing) => {
+          const hasTextQuery = searchQuery.trim() !== '';
+          const matchesText = !hasTextQuery || matchesSearchTerms(searchQuery, `${listing.title} ${listing.location}`);
+          const withinRadius = listing.distanceKm !== null && listing.distanceKm <= NEARBY_RADIUS_KM;
+          // Text typed: a literal match OR a nearby listing (covers
+          // "Suchitra" finding a Kompally listing a few km away). No text but
+          // a near-me origin active: only the radius applies.
+          return hasTextQuery ? matchesText || withinRadius : !searchOrigin || withinRadius;
+        })
+        .sort((a, b) => {
+          if (a.distanceKm === null && b.distanceKm === null) return 0;
+          if (a.distanceKm === null) return 1;
+          if (b.distanceKm === null) return -1;
+          return a.distanceKm - b.distanceKm;
+        })
+    : listingsWithDistance;
 
   return (
     <div className="min-h-screen bg-offwhite">
@@ -572,7 +581,9 @@ export default function Listings() {
         <div className="w-full px-4 md:px-8 lg:px-12">
           <div className="max-w-6xl mx-auto">
             <p className="text-sm text-charcoal/50 mb-6">
-              {filteredListings.length} {filteredListings.length === 1 ? 'property' : 'properties'} found
+              {searching
+                ? `${filteredListings.length} ${filteredListings.length === 1 ? 'property' : 'properties'} found`
+                : `Showing ${filteredListings.length} of ${total} ${total === 1 ? 'property' : 'properties'}`}
             </p>
 
             {dbLoading ? (
@@ -589,6 +600,7 @@ export default function Listings() {
                 <p className="text-charcoal/50 mt-1">Try adjusting your filters</p>
               </div>
             ) : (
+              <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
                 {filteredListings.map((listing) => (
                   <div
@@ -640,6 +652,22 @@ export default function Listings() {
                   </div>
                 ))}
               </div>
+              {/* Paginated browse (page size 20). Hidden during a text /
+                  near-me search, which fetches every match at once. */}
+              {!searching && hasMore && (
+                <div className="mt-10 text-center">
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold border border-black/10 text-charcoal/80 bg-white hover:bg-lightgray transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    <i className={loadingMore ? 'ri-loader-4-line animate-spin' : 'ri-add-line'} />
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>

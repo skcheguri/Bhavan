@@ -6,10 +6,11 @@ import SmartImage from '@/components/feature/SmartImage';
 export default function Home() {
   const { user } = useAuth();
   const isTenant = user?.role === 'tenant';
-  const { listings: dbListings, loading: listingsLoading } = useListings();
-
-  const featuredListings = dbListings.filter((l) => l.category === 'residential').slice(0, 3);
-  const featuredVacation = dbListings.filter((l) => l.category === 'vacation').slice(0, 3);
+  // Two small scoped fetches (3 each) instead of pulling the whole active
+  // table and slicing in the browser (Part D).
+  const { listings: featuredListings, loading: loadingResidential } = useListings({ category: 'residential' }, { pageSize: 3 });
+  const { listings: featuredVacation, loading: loadingVacation } = useListings({ category: 'vacation' }, { pageSize: 3 });
+  const listingsLoading = loadingResidential || loadingVacation;
 
   return (
     <div className="min-h-screen bg-offwhite">

@@ -3690,6 +3690,13 @@ export type Database = {
         }[]
       }
       generate_join_code: { Args: never; Returns: string }
+      get_active_listing_counts: {
+        Args: never
+        Returns: {
+          category: string
+          count: number
+        }[]
+      }
       get_collection_status: {
         Args: { p_collection: string }
         Returns: {
