@@ -3,9 +3,12 @@ import {
   isValidName,
   isValidEmail,
   isValidIndianPhone,
+  isValidInternationalPhone,
+  isValidPhone,
   isValidRawIndianMobile,
   hasFakeDigitPattern,
   formatIndianPhoneInput,
+  formatPhoneInput,
   isValidAadhaarFormat,
   isValidAadhaarChecksum,
   isValidAadhaar,
@@ -117,6 +120,55 @@ describe("formatIndianPhoneInput", () => {
 
   it("returns an empty string for empty input", () => {
     expect(formatIndianPhoneInput("")).toBe("");
+  });
+});
+
+describe("isValidInternationalPhone (NRI owners)", () => {
+  it("accepts a well-formed international number", () => {
+    expect(isValidInternationalPhone("+1 415 555 0199")).toBe(true);
+    expect(isValidInternationalPhone("+44 7700 900123")).toBe(true);
+    expect(isValidInternationalPhone("+971 50 987 2614")).toBe(true);
+  });
+
+  it("rejects a number without a country-code prefix", () => {
+    expect(isValidInternationalPhone("415 555 0199")).toBe(false);
+  });
+
+  it("rejects too few or too many digits", () => {
+    expect(isValidInternationalPhone("+1 234")).toBe(false); // 4 digits
+    expect(isValidInternationalPhone("+1 2345678901234567")).toBe(false); // >15
+  });
+
+  it("rejects obviously fake patterns", () => {
+    expect(isValidInternationalPhone("+1 111 111 1111")).toBe(false);
+    expect(isValidInternationalPhone("+1 123 456 7890")).toBe(false);
+  });
+});
+
+describe("isValidPhone (India or international)", () => {
+  it("accepts a valid Indian mobile", () => {
+    expect(isValidPhone("+91 98234 51670")).toBe(true);
+  });
+  it("accepts a valid international number", () => {
+    expect(isValidPhone("+44 7700 900123")).toBe(true);
+  });
+  it("rejects nonsense", () => {
+    expect(isValidPhone("hello")).toBe(false);
+    expect(isValidPhone("+1 111 111 1111")).toBe(false);
+  });
+});
+
+describe("formatPhoneInput", () => {
+  it("keeps India numbers in the familiar +91 grouping", () => {
+    expect(formatPhoneInput("9876543210")).toBe("+91 98765 43210");
+    expect(formatPhoneInput("+919876543210")).toBe("+91 98765 43210");
+  });
+  it("preserves an international number the user types", () => {
+    expect(formatPhoneInput("+1 415 555 0199")).toBe("+1 415 555 0199");
+    expect(formatPhoneInput("+44 7700 900123")).toBe("+44 7700 900123");
+  });
+  it("strips characters a phone number can't contain", () => {
+    expect(formatPhoneInput("+1 (415) 555-0199")).toBe("+1 415 5550199");
   });
 });
 

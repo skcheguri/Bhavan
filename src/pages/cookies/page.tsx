@@ -21,12 +21,6 @@ const essentialStorage: StorageRow[] = [
     duration: 'A few seconds, cleared right after sign-in completes',
   },
   {
-    name: 'i18nextLng',
-    type: 'localStorage',
-    purpose: 'Remembers your selected display language.',
-    duration: 'Until you change it or clear browser storage',
-  },
-  {
     name: 'bhavan_viewed_listings',
     type: 'sessionStorage',
     purpose: 'Tracks which listings you have already viewed in this session, so a page refresh or repeat visit does not inflate a listing’s public view count.',

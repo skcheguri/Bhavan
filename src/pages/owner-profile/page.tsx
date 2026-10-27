@@ -37,8 +37,8 @@ import AvatarPicker from '@/components/feature/AvatarPicker';
 import {
   isValidName,
   isValidEmail,
-  isValidIndianPhone,
-  formatIndianPhoneInput,
+  isValidPhone,
+  formatPhoneInput,
   OCCUPATION_OPTIONS,
   MONTH_OPTIONS,
   daysInMonth,
@@ -166,8 +166,10 @@ export default function OwnerProfile() {
     } else {
       setEmailError('');
     }
-    if (formPhone && !isValidIndianPhone(formPhone)) {
-      setPhoneError('Enter a valid 10-digit Indian mobile number.');
+    if (formPhone && !isValidPhone(formPhone)) {
+      // Owners may be NRIs abroad, so a non-+91 international number is valid
+      // too (e.g. +1 415 555 0199). Phone stays optional either way.
+      setPhoneError('Enter a valid phone number, e.g. +91 98765 43210 or +1 415 555 0199.');
       hasError = true;
     } else {
       setPhoneError('');
@@ -604,8 +606,8 @@ export default function OwnerProfile() {
                       <input
                         type="tel"
                         value={formPhone}
-                        onChange={(e) => setFormPhone(formatIndianPhoneInput(e.target.value))}
-                        placeholder="+91 98765 43210"
+                        onChange={(e) => setFormPhone(formatPhoneInput(e.target.value))}
+                        placeholder="+91 98765 43210 or +1 415 555 0199"
                         className={`w-full px-4 py-3 bg-offwhite rounded-xl text-sm focus:outline-none focus:ring-2 ${phoneError ? 'ring-2 ring-red-300' : 'focus:ring-amber-300'}`}
                       />
                       {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
