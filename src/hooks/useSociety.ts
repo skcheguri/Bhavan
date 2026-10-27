@@ -95,6 +95,49 @@ function client() {
   return getSupabase();
 }
 
+export interface SocietyBadgeCounts {
+  openTickets: number;
+  pollsToAnswer: number;
+  pendingMembers: number;
+  openCollections: number;
+}
+
+// Tab badge counts computed server-side over the WHOLE society (Part D),
+// not the paginated page or the 500-capped member directory held in memory
+// -- those undercount once a society has more than a page of activity.
+// `refresh` lets the screen re-pull them after an action that changes a
+// count (resolving a ticket, casting a vote, approving a join request).
+export function useSocietyBadgeCounts(
+  communityId: string | undefined,
+): SocietyBadgeCounts & { refresh: () => void } {
+  const [counts, setCounts] = useState<SocietyBadgeCounts>({
+    openTickets: 0,
+    pollsToAnswer: 0,
+    pendingMembers: 0,
+    openCollections: 0,
+  });
+
+  const refresh = useCallback(async () => {
+    const supabase = client();
+    if (!supabase || !communityId) return;
+    const { data, error } = await supabase.rpc('get_society_badge_counts', { p_community: communityId });
+    if (error || !data || !data[0]) return;
+    const r = data[0];
+    setCounts({
+      openTickets: Number(r.open_tickets),
+      pollsToAnswer: Number(r.polls_to_answer),
+      pendingMembers: Number(r.pending_members),
+      openCollections: Number(r.open_collections),
+    });
+  }, [communityId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { ...counts, refresh };
+}
+
 /**
  * Everything the current user needs to render the society page: their
  * membership, the society itself, and whether they are even eligible to

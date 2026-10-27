@@ -3796,6 +3796,23 @@ export type Database = {
           vendor_would_use_again: boolean
         }[]
       }
+      get_last_messages_by_request: {
+        Args: { p_request_ids: string[] }
+        Returns: {
+          created_at: string | null
+          id: string
+          read: boolean | null
+          request_id: string
+          sender: string
+          text: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "chat_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_my_profile: {
         Args: never
         Returns: {
@@ -3840,6 +3857,15 @@ export type Database = {
           verified_aadhaar: boolean
         }[]
       }
+      get_society_badge_counts: {
+        Args: { p_community: string }
+        Returns: {
+          open_collections: number
+          open_tickets: number
+          pending_members: number
+          polls_to_answer: number
+        }[]
+      }
       get_society_deletion_summary: {
         Args: { p_community: string }
         Returns: {
@@ -3864,6 +3890,13 @@ export type Database = {
           created_at: string
           id: string
           ticket_id: string
+        }[]
+      }
+      get_unread_counts_by_request: {
+        Args: { p_from_sender: string; p_request_ids: string[] }
+        Returns: {
+          count: number
+          request_id: string
         }[]
       }
       has_admin_role: { Args: { uid?: string }; Returns: boolean }
