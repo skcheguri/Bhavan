@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { useListings } from '@/hooks/useListings';
 import { useAuth } from '@/hooks/useAuth';
+import SmartImage from '@/components/feature/SmartImage';
 
 export default function Home() {
   const { user } = useAuth();
@@ -15,11 +16,7 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative h-[620px] md:h-[720px] flex items-center">
         <div className="absolute inset-0">
-          <img
-            src="/placeholders/photo.svg"
-            alt="Modern apartment interior"
-            className="w-full h-full object-cover"
-          />
+          <div className="w-full h-full bg-gradient-to-br from-brand via-brand-dark to-charcoal" />
           <div className="absolute inset-0 bg-gradient-to-r from-charcoal/85 via-charcoal/45 to-transparent" />
         </div>
 
@@ -144,7 +141,7 @@ export default function Home() {
                       data-product-shop
                     >
                       <div className="relative aspect-[4/3] overflow-hidden">
-                        <img
+                        <SmartImage
                           src={images[0]}
                           alt={listing.title}
                           className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
@@ -265,9 +262,10 @@ export default function Home() {
                       data-product-shop
                     >
                       <div className="relative h-52 overflow-hidden">
-                        <img
+                        <SmartImage
                           src={images[0]}
                           alt={listing.title}
+                          icon="ri-sun-line"
                           className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-charcoal/50 to-transparent" />
@@ -392,11 +390,13 @@ export default function Home() {
                 </Link>
               </div>
               <div className="relative">
-                <img
-                  src="/placeholders/photo.svg"
-                  alt="Rent management dashboard"
-                  className="rounded-3xl w-full"
-                />
+                <div
+                  role="img"
+                  aria-label="Rent management dashboard preview"
+                  className="rounded-3xl w-full aspect-[4/3] bg-gradient-to-br from-brand/15 to-sage/15 border border-black/5 flex items-center justify-center"
+                >
+                  <i className="ri-file-list-3-line text-brand text-6xl" aria-hidden="true" />
+                </div>
               </div>
             </div>
           </div>
@@ -409,11 +409,7 @@ export default function Home() {
         <div className="w-full px-5 md:px-10 lg:px-16">
           <div className="max-w-6xl mx-auto">
             <div className="rounded-[2rem] overflow-hidden relative">
-              <img
-                src="/placeholders/photo.svg"
-                alt="List your property"
-                className="w-full h-[320px] md:h-[380px] object-cover object-top"
-              />
+              <div className="w-full h-[320px] md:h-[380px] bg-gradient-to-br from-brand-dark via-brand to-sage-dark" />
               <div className="absolute inset-0 bg-gradient-to-r from-charcoal/85 via-charcoal/55 to-charcoal/10" />
               <div className="absolute inset-0 flex flex-col md:flex-row items-center justify-between px-8 md:px-14 py-10 gap-8">
                 <div className="text-white max-w-lg">
@@ -453,11 +449,7 @@ export default function Home() {
       {/* CTA Section */}
       <section className="relative py-20 md:py-32">
         <div className="absolute inset-0">
-          <img
-            src="/placeholders/photo.svg"
-            alt="Happy renter"
-            className="w-full h-full object-cover"
-          />
+          <div className="w-full h-full bg-gradient-to-br from-brand via-brand-dark to-charcoal" />
           <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/50 to-charcoal/70" />
         </div>
 

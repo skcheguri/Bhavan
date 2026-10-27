@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/useToast';
 import { geocodeAddress } from '@/lib/geocode';
 import { haversineDistanceKm, matchesSearchTerms, type Coordinates } from '@/lib/geo';
 import { getCurrentPosition, describePositionFailure } from '@/lib/currentPosition';
+import SmartImage from '@/components/feature/SmartImage';
 
 // How far a "nearby" text search (e.g. "Suchitra, Hyderabad") or a
 // current-location search reaches before a listing is excluded, in km.
@@ -599,7 +600,7 @@ export default function Listings() {
                     data-product-shop
                   >
                     <div className="relative aspect-[3/2] overflow-hidden">
-                      <img
+                      <SmartImage
                         src={listing.images[0]}
                         alt={listing.title}
                         className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"

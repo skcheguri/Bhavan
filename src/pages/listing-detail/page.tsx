@@ -15,6 +15,7 @@ import { isValidIndianPhone, formatIndianPhoneInput } from '@/lib/validation';
 import VacationCalendar from './components/VacationCalendar';
 import SoftBlockModal from './components/SoftBlockModal';
 import ReportListingModal from './components/ReportListingModal';
+import SmartImage from '@/components/feature/SmartImage';
 
 function formatListedDate(iso: string) {
   const d = new Date(iso);
@@ -216,7 +217,11 @@ export default function ListingDetail() {
   }
 
   const isVacation = listing.category === 'vacation';
-  const allImages = listing.images.length > 0 ? listing.images : ['/placeholders/photo.svg'];
+  // Only genuine photos drive the gallery. A missing set (or our own
+  // /placeholders/* stand-in) renders a clean empty state instead of a
+  // fake "1 / 1" gallery around a placeholder glyph (C1).
+  const allImages = listing.images.filter((img) => img && !img.includes('/placeholders/'));
+  const hasImages = allImages.length > 0;
   const amenities = listing.amenities ?? [];
   const nearby = listing.nearby ?? [];
 
@@ -639,59 +644,74 @@ export default function ListingDetail() {
 
             {/* Image Gallery */}
             <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
-              <div className="relative aspect-[16/9] overflow-hidden">
-                <img
-                  src={allImages[activeImage]}
-                  alt={listing.title}
-                  onClick={() => setLightboxOpen(true)}
-                  className="w-full h-full object-cover object-top transition-opacity duration-300 cursor-zoom-in"
-                />
-                <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white text-xs px-2.5 py-1 rounded-full pointer-events-none">
-                  <i className="ri-zoom-in-line" /> Tap to view
-                </div>
-                {listing.verified && (
-                  <span className="absolute top-4 left-4 flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-green-500 text-white">
-                    <i className="ri-shield-check-fill text-sm" /> Verified
+              {hasImages ? (
+                <>
+                  <div className="relative aspect-[16/9] overflow-hidden">
+                    <SmartImage
+                      src={allImages[activeImage]}
+                      alt={listing.title}
+                      eager
+                      onClick={() => setLightboxOpen(true)}
+                      className="w-full h-full object-cover object-top transition-opacity duration-300 cursor-zoom-in"
+                    />
+                    <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white text-xs px-2.5 py-1 rounded-full pointer-events-none">
+                      <i className="ri-zoom-in-line" /> Tap to view
+                    </div>
+                    {listing.verified && (
+                      <span className="absolute top-4 left-4 flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-green-500 text-white">
+                        <i className="ri-shield-check-fill text-sm" /> Verified
+                      </span>
+                    )}
+                    <span className="absolute top-4 right-4 bg-white/90 text-charcoal text-xs font-semibold px-3 py-1 rounded-full capitalize">
+                      {listing.property_type}
+                    </span>
+                    {/* Nav arrows */}
+                    {allImages.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => setActiveImage((prev) => (prev - 1 + allImages.length) % allImages.length)}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white transition-colors cursor-pointer"
+                        >
+                          <i className="ri-arrow-left-s-line text-charcoal text-lg" />
+                        </button>
+                        <button
+                          onClick={() => setActiveImage((prev) => (prev + 1) % allImages.length)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white transition-colors cursor-pointer"
+                        >
+                          <i className="ri-arrow-right-s-line text-charcoal text-lg" />
+                        </button>
+                      </>
+                    )}
+                    <div className="absolute bottom-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
+                      {activeImage + 1} / {allImages.length}
+                    </div>
+                  </div>
+                  {/* Thumbnails */}
+                  {allImages.length > 1 && (
+                    <div className="flex gap-2 p-3 overflow-x-auto">
+                      {allImages.map((img, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setActiveImage(idx)}
+                          className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition cursor-pointer ${
+                            activeImage === idx ? 'border-brand' : 'border-transparent opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <SmartImage src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover object-top" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="relative aspect-[16/9] bg-gradient-to-br from-lightgray to-offwhite flex flex-col items-center justify-center gap-2">
+                  <i className="ri-image-line text-charcoal/20 text-5xl" aria-hidden="true" />
+                  <p className="text-sm text-charcoal/40">No photos provided yet</p>
+                  <span className="absolute top-4 right-4 bg-white/90 text-charcoal text-xs font-semibold px-3 py-1 rounded-full capitalize">
+                    {listing.property_type}
                   </span>
-                )}
-                <span className="absolute top-4 right-4 bg-white/90 text-charcoal text-xs font-semibold px-3 py-1 rounded-full capitalize">
-                  {listing.property_type}
-                </span>
-                {/* Nav arrows */}
-                {allImages.length > 1 && (
-                  <>
-                    <button
-                      onClick={() => setActiveImage((prev) => (prev - 1 + allImages.length) % allImages.length)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white transition-colors cursor-pointer"
-                    >
-                      <i className="ri-arrow-left-s-line text-charcoal text-lg" />
-                    </button>
-                    <button
-                      onClick={() => setActiveImage((prev) => (prev + 1) % allImages.length)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 hover:bg-white transition-colors cursor-pointer"
-                    >
-                      <i className="ri-arrow-right-s-line text-charcoal text-lg" />
-                    </button>
-                  </>
-                )}
-                <div className="absolute bottom-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-                  {activeImage + 1} / {allImages.length}
                 </div>
-              </div>
-              {/* Thumbnails */}
-              <div className="flex gap-2 p-3 overflow-x-auto">
-                {allImages.map((img, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setActiveImage(idx)}
-                    className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition cursor-pointer ${
-                      activeImage === idx ? 'border-brand' : 'border-transparent opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover object-top" />
-                  </button>
-                ))}
-              </div>
+              )}
             </div>
 
             {/* Title & Key Info */}
@@ -840,7 +860,15 @@ export default function ListingDetail() {
               </div>
             </div>
 
-            {/* Map placeholder */}
+            {/* Location.
+                A keyless Google Maps embed (`output=embed`) is refused by
+                Google's X-Frame-Options and renders a "can't load Google
+                Maps" error panel in the iframe -- never ship that (C2).
+                With no Maps JS API key configured, link out to Maps instead:
+                it works everywhere, including the native WebView where it
+                hands off to the Maps app. Prefer the geocoded lat/lng (lands
+                on the actual property) over the free-text locality, which
+                often resolves to the wrong place in another state. */}
             <div className="bg-white rounded-2xl border border-black/5 p-6 sm:p-7">
               <h2 className="text-[15px] font-semibold text-charcoal mb-4 flex items-center gap-2">
                 <div className="w-6 h-6 flex items-center justify-center">
@@ -848,29 +876,26 @@ export default function ListingDetail() {
                 </div>
                 Location
               </h2>
-              <div className="w-full h-56 rounded-xl overflow-hidden bg-offwhite flex items-center justify-center border border-black/5">
-                <iframe
-                  title="Property Location"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  loading="lazy"
-                  allowFullScreen
-                  src={
-                    // Prefer the geocoded coordinates the listing already
-                    // has -- a lat/lng pin lands on the actual property,
-                    // whereas the free-text locality often resolves to the
-                    // wrong "Kompally" in another state. Fall back to the
-                    // text only when coordinates were never captured.
-                    listing.latitude != null && listing.longitude != null
-                      ? `https://maps.google.com/maps?q=${listing.latitude},${listing.longitude}&z=15&output=embed`
-                      : `https://maps.google.com/maps?q=${encodeURIComponent(listing.location)}&output=embed`
-                  }
-                />
+              <div className="flex items-start gap-3 rounded-xl border border-black/5 bg-offwhite p-4">
+                <div className="w-9 h-9 flex items-center justify-center rounded-full bg-brand/10 flex-shrink-0">
+                  <i className="ri-map-pin-2-line text-brand" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-charcoal">{listing.location}</p>
+                  <a
+                    href={
+                      listing.latitude != null && listing.longitude != null
+                        ? `https://www.google.com/maps/search/?api=1&query=${listing.latitude},${listing.longitude}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(listing.location)}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-dark transition-colors"
+                  >
+                    <i className="ri-external-link-line" /> Open in Google Maps
+                  </a>
+                </div>
               </div>
-              <p className="text-xs text-charcoal/40 mt-2 flex items-center gap-1">
-                <i className="ri-map-pin-line text-sm" /> {listing.location}
-              </p>
             </div>
 
             {/* Schedule a Visit (residential/commercial only) OR Booking Widget (vacation) */}
@@ -1051,8 +1076,8 @@ export default function ListingDetail() {
                       className="group block rounded-xl overflow-hidden border border-black/5 hover:border-brand/30 transition"
                     >
                       <div className="relative h-32 overflow-hidden">
-                        <img
-                          src={sim.images && sim.images.length > 0 ? sim.images[0] : '/placeholders/photo.svg'}
+                        <SmartImage
+                          src={sim.images && sim.images.length > 0 ? sim.images[0] : null}
                           alt={sim.title}
                           className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
                         />
@@ -1370,7 +1395,7 @@ export default function ListingDetail() {
         listingId={listing.id}
         reporterId={user?.id ?? ''}
       />
-      {lightboxOpen && (
+      {lightboxOpen && hasImages && (
         <div
           className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center"
           onClick={() => setLightboxOpen(false)}
@@ -1408,11 +1433,12 @@ export default function ListingDetail() {
             </>
           )}
 
-          <img
+          <SmartImage
             src={allImages[activeImage]}
             alt={listing.title}
+            eager
             onClick={(e) => e.stopPropagation()}
-            className="max-w-[92vw] max-h-[85vh] object-contain"
+            className="max-w-[92vw] max-h-[85vh] w-auto h-auto object-contain"
           />
 
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/10 text-white text-xs px-3 py-1 rounded-full">
