@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     // should require a deliberate role change first, not a click here.
     const { data: targetProfile } = await serviceClient
       .from("users")
-      .select("role")
+      .select("role, suspended")
       .eq("id", targetUserId)
       .maybeSingle();
 
@@ -92,6 +92,25 @@ Deno.serve(async (req) => {
       .eq("id", targetUserId);
 
     if (updateError) return json({ error: updateError.message }, 500);
+
+    // Audit trail. This path is service-role (no JWT in SQL), so the
+    // database audit trigger can't attribute it -- record it explicitly with
+    // the acting admin's id. Best-effort: the suspension already succeeded,
+    // so a logging failure must not fail the request.
+    const { error: auditError } = await serviceClient.from("audit_logs").insert({
+      user_id: callerData.user.id,
+      action: "block",
+      table_name: "users",
+      record_id: targetUserId,
+      before: { suspended: targetProfile?.suspended ?? null },
+      after: {
+        suspended: suspend,
+        suspended_reason: suspend ? (reason ?? null) : null,
+      },
+      ip_address: req.headers.get("x-forwarded-for") ?? null,
+      user_agent: req.headers.get("user-agent") ?? null,
+    });
+    if (auditError) console.error("admin-suspend-user audit log failed:", auditError.message);
 
     return json({ success: true });
   } catch (err) {
