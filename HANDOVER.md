@@ -567,9 +567,14 @@ doc once resolved; they live in git history and migrations 141–150.)
 
 Genuinely still open, small:
 
-- **`audit_logs` is dormant** — the table exists and nothing writes to it.
-  Wire it to admin actions or drop it; a security table everyone assumes is
-  populated is worse than none.
+- ~~`audit_logs` is dormant.~~ Done: migration 154 adds an `is_admin()`-gated
+  `audit_admin_write` trigger on the admin-moderated tables (broker_reports,
+  listing_reports, contact_inquiries, communities, properties, listings,
+  vacation_bookings, rental_agreements), which also captures the admin-only
+  RPCs since they run under the admin's JWT; the service-role admin edge
+  functions (admin-suspend-user, refund-payment) write their own rows. A
+  regression suite (`supabase/tests/rls_audit_logs.sql`) covers it. Still
+  admin-read-only (unchanged read policy).
 - **Pro entitlements are mostly client-side.** The purchase is server-
   verified and the free-tier one-vacation-listing cap is enforced via
   `has_pro()` (migration 126), but the ~13 advertised Pro features are gated
