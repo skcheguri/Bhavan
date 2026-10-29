@@ -4,6 +4,7 @@ import Home from "../pages/home/page";
 import Login from "../pages/login/page";
 import Signup from "../pages/signup/page";
 import RequireAdmin from "../components/feature/RequireAdmin";
+import RequireRole from "../components/feature/RequireRole";
 
 // Everything below is lazy-loaded per route -- Home/Login/Signup stay
 // eager since they're the most common entry points and lazy-loading them
@@ -136,11 +137,11 @@ const routes: RouteObject[] = [
   },
   {
     path: "/tenant-profile",
-    element: <TenantProfile />,
+    element: <RequireRole role="tenant"><TenantProfile /></RequireRole>,
   },
   {
     path: "/owner-profile",
-    element: <OwnerProfile />,
+    element: <RequireRole role="owner"><OwnerProfile /></RequireRole>,
   },
   {
     path: "/scan/:id",
