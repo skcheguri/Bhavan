@@ -411,11 +411,15 @@ export default function ScanLanding() {
             />
             <div className="flex-1">
               <p className="text-sm font-bold text-charcoal">{listing.landlord_name}</p>
-              <p className="text-xs text-charcoal/60">Property Owner · Aadhaar Verified</p>
+              <p className="text-xs text-charcoal/60">
+                Property Owner{listing.owner_verified_aadhaar ? ' · Aadhaar Verified' : ''}
+              </p>
             </div>
-            <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
-              <i className="ri-shield-check-fill text-sm" /> Verified
-            </div>
+            {listing.owner_verified_aadhaar && (
+              <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                <i className="ri-shield-check-fill text-sm" /> Verified
+              </div>
+            )}
           </div>
           <div className="mt-3 p-3 bg-offwhite rounded-xl">
             <p className="text-xs text-charcoal/60 leading-relaxed">

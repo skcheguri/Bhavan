@@ -27,6 +27,7 @@ export interface Listing {
   furnished: boolean;
   parking: string;
   verified: boolean;
+  owner_verified_aadhaar: boolean;
   amenities?: string[];
   created_at: string;
   owner_id: string;
@@ -127,6 +128,10 @@ export function useListingDetail(id: string | undefined): {
         furnished: Boolean(db.furnished ?? false),
         parking: String(db.parking ?? 'none'),
         verified: Boolean(db.verified ?? false),
+        // Real owner-identity signal, finally threaded through: the join
+        // already fetched it, the UI just never used it, so the "Aadhaar
+        // Verified" badges rendered unconditionally. Now they map from data.
+        owner_verified_aadhaar: Boolean(owner.verified_aadhaar ?? false),
         amenities: Array.isArray(db.amenities) ? (db.amenities as string[]) : [],
         owner_id: String(db.owner_id ?? ''),
         created_at: String(db.created_at ?? ''),
