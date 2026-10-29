@@ -121,20 +121,24 @@ Genuinely working and verified against a live database:
 
 ## 4. NOT production ready
 
-### 4.1 No staging environment — fix this first
+### 4.1 Staging environment — stood up; E2E repoint still pending
 
-There is **one** Supabase project and it is production. Every migration
-in this repo was applied to it directly, and the E2E suite points at it.
+A separate **staging** Supabase project now exists (`bhavan_data_core_stg`,
+ref `xfrxnzwrmhyxtynamlhe`; production is `bhavan_data_core_prod`,
+`edythmogblkmsjfcbatc`). The migrations were **proven to rebuild from scratch**
+on the fresh staging project per the [STAGING.md](STAGING.md) runbook —
+`001_baseline.sql` is a real baseline generated from live system catalogs, so
+the rebuild works. The RLS regression CI job is wired to staging via the
+`STAGING_DB_URL` secret.
 
-This is the single biggest structural risk you inherit. Before doing
-anything else, create a second Supabase project, apply
-`supabase/migrations/` to it, and repoint CI and E2E at it. The
-migrations are designed to rebuild from scratch, so this should work —
-`001_baseline.sql` is a real baseline generated from live system
-catalogs, not a hand-written guess.
-
-Until that exists, CI runs only the tests that need no backend (the
-public-pages / no-auth subset; the rest skip cleanly without seeded creds).
+Still outstanding: the **E2E suite is not yet repointed at staging** — it
+falls back to the public project values until `E2E_SUPABASE_URL` /
+`E2E_SUPABASE_ANON_KEY` (and fixture-account secrets) are set, so until then
+CI still runs only the no-backend subset for E2E (the rest skip cleanly). Do
+not point E2E at production. Note too that migrations rebuild the *schema*
+only — auth settings, storage buckets, edge-function secrets, cron jobs and
+`pg_net` config are set by hand per project, so expect some config drift
+between staging and production.
 
 ### 4.2 Mobile: scaffolded, never built or run
 
@@ -526,18 +530,20 @@ Until Route is approved, Stage 1 is the operating procedure — nothing
 blocks bookings, but plan the launch messaging around "payouts within N
 days" that an admin can actually honor manually.
 
-### 4.4 Auth configuration is wrong in production
+### 4.4 Auth configuration — production Site URL corrected
 
-Supabase **Site URL** is still `http://localhost:3000`, and the Vercel URL
-is not in the Redirect URLs allow-list. Supabase silently falls back to
-Site URL when a `redirectTo` isn't allow-listed, so password resets and
-Google OAuth currently bounce real users to localhost. Application code is
-correct (`window.location.origin` throughout) — this is dashboard config.
+This was the live production bug: Supabase **Site URL** was
+`http://localhost:3000`, so password resets and Google OAuth bounced real
+users to localhost (Supabase silently falls back to Site URL when a
+`redirectTo` isn't allow-listed). **Fixed this session** — Site URL is now the
+production Vercel URL and the production `/**` plus `http://localhost:3000/**`
+redirect URLs were added. Application code was always correct
+(`window.location.origin` throughout); this was dashboard config.
 
-Fix: Authentication → URL Configuration → Site URL = production URL;
-Redirect URLs = production `/**` plus `http://localhost:3000/**`, and the
-native OAuth deep link `com.bhavan.app://auth/callback` (required for native
-Google sign-in — see ANDROID_RELEASE.md).
+Still verify before native launch: the Redirect URLs list must also include
+the native OAuth deep link `com.bhavan.app://auth/callback` (required for
+native Google sign-in — see ANDROID_RELEASE.md). Confirm it is present on
+both the production and staging projects.
 
 ### 4.5 Accessibility
 
@@ -571,16 +577,18 @@ Genuinely still open, small:
 - **No cross-tenancy review rate limit** — one review per tenancy is enforced
   (unique index, migration 107), but nothing caps how many *different*-tenancy
   reviews one user posts. Minor.
-- ~18 KB of unused Font Awesome; dead i18n scaffolding.
+- ~~Unused Font Awesome (~18 KB) and dead i18n scaffolding.~~ Done: Font Awesome
+  is gone (only Remix Icon is loaded in `index.html`), and the i18n dependency
+  and scaffolding were removed.
 
 ### 4.7 Known residuals — small, documented, not blockers
 
 Real but low-severity; each is a conscious "later," not an unknown.
 
-- **Society badge counts undercount past page 1.** `openTickets` /
-  `pollsToAnswer` (`society/page.tsx`) count over the paginated (20) loaded
-  list; the hook's `total` is unfiltered so it can't just be substituted. An
-  accurate badge needs a server-side *filtered* count RPC — `// TODO` in code.
+- ~~Society badge counts undercount past page 1.~~ Done: `get_society_badge_counts`
+  (migration 153) returns server-side counts over the *unpaginated* set, consumed
+  by `useSocietyBadgeCounts`; `society/page.tsx` no longer counts over the loaded
+  20-row page.
 - **No dedicated society-push toggle.** Society notices/polls/collections are
   typed `platform`/`maintenance`/`payment`, so they follow those toggles. A
   separate switch needs a new `community` notification type, retyping those
@@ -588,15 +596,16 @@ Real but low-severity; each is a conscious "later," not an unknown.
 - **Consumer route role-guards.** `/tenant-profile`, `/owner-profile`, etc. are
   reachable by either role (self-gated by `if (!user)`, own-user-id scoped,
   RLS-backed — no cross-user leak); a role redirect would be polish.
-- **Chat previews over-fetch.** `getLastMessagesByRequest` pulls full thread
-  histories to render one preview line each; a `DISTINCT ON` RPC is the clean
-  fix, held back to avoid a migration cycle for a Low perf item. (Login also
-  makes 2–3 redundant `get_my_profile` calls — same reason.)
-- **Listing-detail badges render unconditionally.** The "Verified Owner" /
-  "Aadhaar Verified" badges and the green "Active" dot aren't mapped from data
-  (`useListingDetail` fetches `verified_aadhaar` but never uses it). Accurate
-  in practice today — migration 136 means every listing owner is verified —
-  and there's no real presence signal to back the dot.
+- ~~Chat previews over-fetch.~~ Done: `getLastMessagesByRequest` /
+  `getUnreadCountsByRequest` now call `DISTINCT ON` RPCs (`get_last_messages_by_request`
+  / `get_unread_counts_by_request`, migration 152) instead of pulling full thread
+  histories. (Login still makes 2–3 redundant `get_my_profile` calls — same
+  Low-perf bucket, still open.)
+- ~~Listing-detail badges render unconditionally.~~ Done: `useListingDetail`
+  now maps `owner.verified_aadhaar` into `owner_verified_aadhaar`, and the
+  listing-detail and scan-landing owner badges render from it (neutral
+  "Property Owner" when unverified). The fake green "Active" presence dot —
+  which had no signal behind it — was removed.
 - **By design, not bugs.** A confirmed vacation booking counts as one inquiry
   (its `connection_requests` row genuinely carries the host↔guest chat); and
   there is no "end tenancy" action — a completed open-ended agreement stays
@@ -682,8 +691,12 @@ Each of these was a real bug, not a hypothetical:
 
 ## 8. Suggested order of work
 
-1. Stand up a staging Supabase project; repoint CI and E2E (§4.1)
-2. Fix Supabase Site URL / Redirect URLs — this affects real users today (§4.4)
+1. Staging Supabase project is stood up and the RLS CI job runs against it
+   (§4.1); the one piece left is repointing **E2E** at staging
+   (`E2E_SUPABASE_URL`/keys + fixture accounts)
+2. ~~Fix Supabase Site URL / Redirect URLs~~ — done (§4.4); before native
+   launch, just confirm the `com.bhavan.app://auth/callback` deep link is in
+   the Redirect URLs
 3. Razorpay: confirm live keys, set the **real** `RAZORPAY_WEBHOOK_SECRET`
    (the current one is a placeholder) and add the dashboard webhook
    subscribed to `payment.captured` + `payment.failed` + `refund.processed`
