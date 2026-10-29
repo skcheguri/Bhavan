@@ -168,6 +168,22 @@ Deno.serve(async (req) => {
       return json({ error: "Something went wrong." }, 500);
     }
 
+    // Audit trail. Service-role path (no JWT in SQL), so the database audit
+    // trigger can't attribute it -- record it explicitly with the acting
+    // admin's id. Best-effort: the refund already settled at Razorpay, so a
+    // logging failure must not fail the request.
+    const { error: auditError } = await serviceClient.from("audit_logs").insert({
+      user_id: userData.user.id,
+      action: "payment",
+      table_name: table,
+      record_id: id,
+      before: { status: "paid" },
+      after: { status: "refunded", razorpay_refund_id: refund.refundId, kind, reason },
+      ip_address: req.headers.get("x-forwarded-for") ?? null,
+      user_agent: req.headers.get("user-agent") ?? null,
+    });
+    if (auditError) console.error("refund-payment audit log failed:", auditError.message);
+
     // A refunded Pro/society purchase loses the entitlement it bought.
     let notifyUser = row.owner_id as string | null;
     if (kind === "pro") {

@@ -550,9 +550,15 @@ export default function ListingDetail() {
               <img src={listing.landlord_avatar} alt={listing.landlord_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
               <div>
                 <p className="text-[15px] font-semibold text-charcoal">{listing.landlord_name}</p>
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <i className="ri-shield-check-fill text-sm" /> Aadhaar Verified Owner
-                </p>
+                {listing.owner_verified_aadhaar ? (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <i className="ri-shield-check-fill text-sm" /> Aadhaar Verified Owner
+                  </p>
+                ) : (
+                  <p className="text-xs text-charcoal/50 flex items-center gap-1">
+                    <i className="ri-user-line text-sm" /> Property Owner
+                  </p>
+                )}
               </div>
             </div>
             <div className="space-y-4">
@@ -1011,11 +1017,11 @@ export default function ListingDetail() {
                       <img src={listing.landlord_avatar} alt={listing.landlord_name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-charcoal">{listing.landlord_name}</p>
-                        <p className="text-xs text-green-600 flex items-center gap-1"><i className="ri-shield-check-fill text-sm" /> Verified Owner</p>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-green-600 font-semibold flex-shrink-0">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                        Active
+                        {listing.owner_verified_aadhaar ? (
+                          <p className="text-xs text-green-600 flex items-center gap-1"><i className="ri-shield-check-fill text-sm" /> Aadhaar Verified</p>
+                        ) : (
+                          <p className="text-xs text-charcoal/50 flex items-center gap-1"><i className="ri-user-line text-sm" /> Property Owner</p>
+                        )}
                       </div>
                     </div>
 
@@ -1169,12 +1175,18 @@ export default function ListingDetail() {
                 <img src={listing.landlord_avatar} alt={listing.landlord_name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[15px] font-semibold text-charcoal truncate">{listing.landlord_name}</p>
-                  <p className="text-xs text-green-600 flex items-center gap-1">
-                    <i className="ri-shield-check-fill text-sm" /> Aadhaar Verified
-                  </p>
+                  {listing.owner_verified_aadhaar ? (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <i className="ri-shield-check-fill text-sm" /> Aadhaar Verified
+                    </p>
+                  ) : (
+                    <p className="text-xs text-charcoal/50 flex items-center gap-1">
+                      <i className="ri-user-line text-sm" /> Property Owner
+                    </p>
+                  )}
                 </div>
-                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-green-50 flex-shrink-0">
-                  <i className="ri-user-star-line text-sm text-green-600" />
+                <div className={`w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 ${listing.owner_verified_aadhaar ? 'bg-green-50' : 'bg-lightgray'}`}>
+                  <i className={`ri-user-star-line text-sm ${listing.owner_verified_aadhaar ? 'text-green-600' : 'text-charcoal/40'}`} />
                 </div>
               </div>
 

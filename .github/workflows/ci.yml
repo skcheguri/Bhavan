@@ -32,6 +32,29 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Server-side RLS/trigger security regression suite (supabase/tests/).
+  # A policy change is a security change, so it must not stay manual-only.
+  # Runs only when STAGING_DB_URL is set (Settings -> Secrets and variables
+  # -> Actions) -- it must point at the STAGING database, never production,
+  # since the suites execute as every role. Without the secret (and on forks,
+  # which cannot read secrets) the job skips cleanly instead of failing a PR
+  # it cannot run. Each suite is wrapped in BEGIN/ROLLBACK and leaves no data.
+  rls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run RLS regression suites against staging
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "STAGING_DB_URL not set -- skipping the RLS regression suite."
+            echo "Add it as a repo secret, pointing at the STAGING database, to enable."
+            exit 0
+          fi
+          bash supabase/tests/run-rls-tests.sh
+
   # Playwright, against a dev server this job starts itself.
   #
   # With nothing configured at all this runs 7 tests and skips 25: static

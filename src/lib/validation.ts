@@ -77,6 +77,38 @@ export function formatIndianPhoneInput(raw: string): string {
   return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }
 
+// An international number (for NRI owners abroad, whose contact number is
+// not a +91 mobile). E.164-ish: a leading +, a 1-3 digit country code and
+// up to 14 more digits, spaces allowed as grouping. ITU caps E.164 at 15
+// digits total; we require at least 8 so a stray "+1" doesn't pass.
+export function isValidInternationalPhone(phone: string): boolean {
+  const trimmed = phone.trim();
+  if (!/^\+\d[\d\s]+$/.test(trimmed)) return false;
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 8 || digits.length > 15) return false;
+  return !hasFakeDigitPattern(digits);
+}
+
+// Accepts either a valid Indian mobile or a valid international number.
+// Use this wherever the person may be abroad (an NRI owner's contact
+// phone), not the India-only isValidIndianPhone.
+export function isValidPhone(phone: string): boolean {
+  return isValidIndianPhone(phone) || isValidInternationalPhone(phone);
+}
+
+// Formatter for a field that may hold an India or an international number.
+// A non-+91 country code is kept as the user types it (we can't know every
+// country's grouping, so we just tidy the + / digits / spaces); a bare
+// number or an explicit +91 gets the familiar "+91 XXXXX XXXXX" grouping.
+export function formatPhoneInput(raw: string): string {
+  const trimmed = raw.replace(/^\s+/, '');
+  if (trimmed.startsWith('+') && !trimmed.startsWith('+91')) {
+    const rest = trimmed.slice(1).replace(/[^\d\s]/g, '').replace(/\s{2,}/g, ' ');
+    return ('+' + rest).slice(0, 20);
+  }
+  return formatIndianPhoneInput(trimmed);
+}
+
 // Verhoeff checksum tables -- the actual algorithm UIDAI uses for the
 // Aadhaar number's trailing check digit. Catches typos/fabricated numbers
 // client-side before we spend a real OTP request on them; the Edge Function
