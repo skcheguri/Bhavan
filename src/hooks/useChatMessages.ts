@@ -155,18 +155,18 @@ export async function getUnreadCountsByRequest(
   const supabase = getSupabase();
   if (!supabase || requestIds.length === 0) return {};
 
-  const { data, error } = await supabase
-    .from('chat_messages')
-    .select('request_id')
-    .in('request_id', requestIds)
-    .eq('sender', fromSender)
-    .eq('read', false);
+  // Counted in the database (GROUP BY) rather than downloading one row per
+  // unread message and tallying in the browser (Part D).
+  const { data, error } = await supabase.rpc('get_unread_counts_by_request', {
+    p_request_ids: requestIds,
+    p_from_sender: fromSender,
+  });
 
   if (error || !data) return {};
 
   const counts: Record<string, number> = {};
-  for (const row of data as { request_id: string }[]) {
-    counts[row.request_id] = (counts[row.request_id] ?? 0) + 1;
+  for (const row of data as { request_id: string; count: number }[]) {
+    counts[row.request_id] = Number(row.count);
   }
   return counts;
 }
@@ -177,19 +177,18 @@ export async function getLastMessagesByRequest(
   const supabase = getSupabase();
   if (!supabase || requestIds.length === 0) return {};
 
-  const { data, error } = await supabase
-    .from('chat_messages')
-    .select('*')
-    .in('request_id', requestIds)
-    .order('created_at', { ascending: false });
+  // One row per conversation via a DISTINCT ON RPC, instead of pulling
+  // every message in every thread and keeping the first per request in the
+  // browser (Part D).
+  const { data, error } = await supabase.rpc('get_last_messages_by_request', {
+    p_request_ids: requestIds,
+  });
 
   if (error || !data) return {};
 
   const lastByRequest: Record<string, ChatMessageFromDB> = {};
   for (const row of data as ChatMessageFromDB[]) {
-    if (!lastByRequest[row.request_id]) {
-      lastByRequest[row.request_id] = row;
-    }
+    lastByRequest[row.request_id] = row;
   }
   return lastByRequest;
 }

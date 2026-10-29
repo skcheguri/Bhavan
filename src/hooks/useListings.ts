@@ -51,17 +51,67 @@ interface UseListingsReturn {
   cachedAt?: Date | null;
 }
 
-export function useListings(category?: string): UseListingsReturn {
+// Default listings page size (Part D). The old code ordered but never
+// bounded the query, so every browse pulled the entire active table.
+export const LISTINGS_PAGE_SIZE = 20;
+// Upper bound for "fetch everything matching" mode (text or near-me search,
+// where paging would hide a match). Generous for the pilot; never a full
+// unbounded scan.
+const FETCH_ALL_CAP = 500;
+
+// The attribute filters the database can evaluate directly. Text search and
+// the near-me radius stay client-side (free-text matching and haversine over
+// geocoded coordinates), so they are deliberately NOT here.
+export interface ListingAttributeFilters {
+  category?: string;       // undefined / 'all' => no category filter
+  propertyType?: string;   // 'all' => none
+  priceMin?: number | null;
+  priceMax?: number | null;
+  bedrooms?: string;       // 'all' | '0' | '1' | '2' | '3+'
+  furnished?: string;      // 'all' | 'yes' | 'no'
+  parking?: string;        // 'all' | '2-wheeler' | '4-wheeler' | 'both'
+  maxGuests?: string;      // 'all' | '2' | '4' | '6' | '8+'
+  verifiedOnly?: boolean;
+}
+
+interface UseListingsOptions {
+  pageSize?: number;
+  /** Fetch all matching rows at once (capped) instead of paging. Used when
+   *  a text or near-me search is active so client-side matching sees every
+   *  candidate, not just the first page. */
+  fetchAll?: boolean;
+}
+
+interface UsePaginatedListingsReturn extends UseListingsReturn {
+  /** Total rows matching the server-side filters, across all pages. */
+  total: number;
+  loadingMore: boolean;
+  hasMore: boolean;
+  loadMore: () => void;
+}
+
+export function useListings(
+  filters: ListingAttributeFilters = {},
+  options: UseListingsOptions = {},
+): UsePaginatedListingsReturn {
+  const pageSize = options.pageSize ?? LISTINGS_PAGE_SIZE;
+  const fetchAll = options.fetchAll ?? false;
+  // Destructured so the fetch callback depends on stable primitives, not a
+  // fresh filters object identity every render.
+  const { category, propertyType, priceMin, priceMax, bedrooms, furnished, parking, maxGuests, verifiedOnly } = filters;
+
   const [listings, setListings] = useState<ListingFromDB[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Sequence tag: switching category tabs quickly races two fetches, and
-  // without this the slower response can land last and show the wrong
-  // category. Only the newest request is allowed to write state. Mirrors
-  // useAdminUsers.ts.
+  const pageRef = useRef(0);
+  // Sequence tag: switching filters/tabs quickly races two fetches, and
+  // without this the slower response can land last and show the wrong set.
+  // Only the newest request is allowed to write state.
   const requestIdRef = useRef(0);
 
-  const fetchListings = useCallback(async () => {
+  const fetchPage = useCallback(async (page: number, append: boolean) => {
     if (!isSupabaseConnected()) {
       setLoading(false);
       return;
@@ -73,37 +123,110 @@ export function useListings(category?: string): UseListingsReturn {
     }
 
     const reqId = ++requestIdRef.current;
-    setLoading(true);
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setError(null);
 
     let query = supabase
       .from('listings')
-      .select('*, owner:users_public!listings_owner_id_fkey(name, avatar_url, verified_aadhaar)')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
+      .select('*, owner:users_public!listings_owner_id_fkey(name, avatar_url, verified_aadhaar)', { count: 'exact' })
+      .eq('status', 'active');
 
-    if (category && category !== 'all') {
-      query = query.eq('category', category);
-    }
+    if (category && category !== 'all') query = query.eq('category', category);
+    if (propertyType && propertyType !== 'all') query = query.eq('property_type', propertyType);
+    if (priceMin != null) query = query.gte('price', priceMin);
+    if (priceMax != null) query = query.lte('price', priceMax);
+    if (bedrooms === '0') query = query.eq('bedrooms', 0);
+    else if (bedrooms === '1') query = query.eq('bedrooms', 1);
+    else if (bedrooms === '2') query = query.eq('bedrooms', 2);
+    else if (bedrooms === '3+') query = query.gte('bedrooms', 3);
+    if (furnished === 'yes') query = query.eq('furnished', true);
+    else if (furnished === 'no') query = query.eq('furnished', false);
+    if (parking === '2-wheeler') query = query.in('parking', ['2-wheeler', 'both']);
+    else if (parking === '4-wheeler') query = query.in('parking', ['4-wheeler', 'both']);
+    else if (parking === 'both') query = query.eq('parking', 'both');
+    if (maxGuests === '2') query = query.lte('max_guests', 2);
+    else if (maxGuests === '4') query = query.lte('max_guests', 4);
+    else if (maxGuests === '6') query = query.lte('max_guests', 6);
+    else if (maxGuests === '8+') query = query.gte('max_guests', 8);
+    if (verifiedOnly) query = query.eq('verified', true);
 
-    const { data, error: dbError } = await query;
+    // `id` is a deterministic tiebreaker: listings created in the same bulk
+    // insert can share a created_at to the second, and without a stable
+    // secondary sort the range() window shifts between page fetches, so a
+    // row can appear on two pages (duplicate React keys) or be skipped.
+    query = query.order('created_at', { ascending: false }).order('id', { ascending: false });
+    query = fetchAll
+      ? query.limit(FETCH_ALL_CAP)
+      : query.range(page * pageSize, page * pageSize + pageSize - 1);
+
+    const { data, error: dbError, count } = await query;
 
     if (reqId !== requestIdRef.current) return;
 
     if (dbError) {
       setError(dbError.message);
-      setListings([]);
+      if (!append) setListings([]);
     } else {
-      setListings(toListings(data ?? []));
+      const rows = toListings(data ?? []);
+      setListings((prev) => (append ? [...prev, ...rows] : rows));
+      if (typeof count === 'number') setTotal(count);
     }
-    setLoading(false);
-  }, [category]);
+    if (append) setLoadingMore(false);
+    else setLoading(false);
+  }, [category, propertyType, priceMin, priceMax, bedrooms, furnished, parking, maxGuests, verifiedOnly, pageSize, fetchAll]);
 
   useEffect(() => {
-    fetchListings();
-  }, [fetchListings]);
+    pageRef.current = 0;
+    fetchPage(0, false);
+  }, [fetchPage]);
 
-  return { listings, loading, error, refresh: fetchListings };
+  const loadMore = useCallback(() => {
+    if (fetchAll || loading || loadingMore) return;
+    pageRef.current += 1;
+    fetchPage(pageRef.current, true);
+  }, [fetchAll, loading, loadingMore, fetchPage]);
+
+  const refresh = useCallback(() => {
+    pageRef.current = 0;
+    fetchPage(0, false);
+  }, [fetchPage]);
+
+  const hasMore = !fetchAll && listings.length < total;
+
+  return { listings, total, loading, loadingMore, error, hasMore, loadMore, refresh };
+}
+
+// Category tab totals come from a single grouped count RPC instead of a
+// second full-table fetch of every active listing (Part D: the page used to
+// pull the entire table twice -- once scoped, once unscoped -- just to number
+// the tabs).
+export function useListingCounts(): Record<string, number> {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!isSupabaseConnected()) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+    let active = true;
+    supabase.rpc('get_active_listing_counts').then(({ data, error: rpcError }) => {
+      if (!active || rpcError || !data) return;
+      const map: Record<string, number> = {};
+      let all = 0;
+      for (const row of data) {
+        const n = Number(row.count);
+        map[row.category] = n;
+        all += n;
+      }
+      map.all = all;
+      setCounts(map);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return counts;
 }
 
 export function useOwnerListings(ownerId: string | undefined): UseListingsReturn {
