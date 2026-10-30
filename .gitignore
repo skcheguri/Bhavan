@@ -61,3 +61,6 @@ assets/
 
 # Smoke test artifacts
 .smoke/
+
+# Test-data cleanup backups (may contain personal data)
+backups/
