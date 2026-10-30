@@ -1,6 +1,7 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
 import { useCallback, useEffect, useState } from 'react';
 import { getSupabase, functionErrorMessage } from '@/lib/supabase';
+import { rentUnitLabel } from '@/lib/listingPricing';
 import { useBrokerReport } from '@/hooks/useBrokerReport';
 import { useSubjectReviews } from '@/hooks/useReviews';
 import { useToast } from '@/hooks/useToast';
@@ -92,6 +93,7 @@ interface OwnerListingRow {
   status: string;
   verified: boolean;
   price: number;
+  category: string | null;
 }
 
 const reasonLabels: Record<string, string> = {
@@ -126,7 +128,7 @@ function useOwnerListings(ownerId: string | undefined) {
     setLoading(true);
     const { data, error: dbError } = await supabase
       .from('listings')
-      .select('id, title, status, verified, price')
+      .select('id, title, status, verified, price, category')
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false });
     // Don't let an RLS/network failure render as "no listings posted".
@@ -288,7 +290,7 @@ export default function AdminUserDetailModal({ user, onClose, onSuspend, onReact
                     <div key={l.id} className="flex items-center justify-between gap-3 border border-black/5 rounded-xl p-3">
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-charcoal truncate">{l.title}</p>
-                        <p className="text-[10px] text-charcoal/40 mt-0.5">₹{l.price.toLocaleString('en-IN')}/mo{l.verified ? ' · Verified' : ''}</p>
+                        <p className="text-[10px] text-charcoal/40 mt-0.5">₹{l.price.toLocaleString('en-IN')}{rentUnitLabel(l.category)}{l.verified ? ' · Verified' : ''}</p>
                       </div>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${listingStatusBadge[l.status] ?? 'bg-lightgray text-charcoal/60'}`}>
                         {l.status}

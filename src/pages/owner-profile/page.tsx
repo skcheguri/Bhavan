@@ -28,6 +28,7 @@ import SocietyIssuesCard from './components/SocietyIssuesCard';
 import InquiriesTab from './components/InquiriesTab';
 import ChatTab from './components/ChatTab';
 import { useOwnerListings, type ListingFromDB } from '@/hooks/useListings';
+import { rentUnitLabel } from '@/lib/listingPricing';
 import { useProperties } from '@/hooks/useProperties';
 import { useSociety } from '@/hooks/useSociety';
 import { isLandlord as computeIsLandlord } from '@/lib/occupancy';
@@ -839,7 +840,7 @@ export default function OwnerProfile() {
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-sm font-bold text-charcoal leading-snug">{listing.title}</h3>
-                      <p className="text-sm font-bold text-amber-600 whitespace-nowrap">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-normal text-charcoal/40">/mo</span></p>
+                      <p className="text-sm font-bold text-amber-600 whitespace-nowrap">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-normal text-charcoal/40">{rentUnitLabel(listing.category)}</span></p>
                     </div>
                     <p className="text-xs text-charcoal/60 flex items-center gap-1 mt-1">
                       <i className="ri-map-pin-line text-sm" /> {listing.location}
