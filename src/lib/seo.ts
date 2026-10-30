@@ -125,7 +125,7 @@ const ROUTE_META: [string, RouteMeta][] = [
 
 export function applyRouteSeo(pathname: string) {
   if (pathname === '/') {
-    applySeo({ title: SITE_NAME, description: DEFAULT_DESCRIPTION });
+    applySeo({ title: 'Broker-free rentals across India', description: DEFAULT_DESCRIPTION });
     return;
   }
   const match = ROUTE_META.find(([prefix]) => pathname === prefix || pathname.startsWith(prefix));

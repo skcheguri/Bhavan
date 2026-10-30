@@ -598,7 +598,7 @@ export default function InquiriesTab({ onOpenChat }: InquiriesTabProps) {
           </div>
           <h3 className="text-base font-bold text-charcoal mb-2">No requests here</h3>
           <p className="text-sm text-charcoal/60">
-            {filter === 'pending' ? 'You\'re all caught up! No pending requests.' : `No ${filter} requests yet.`}
+            {filter === 'pending' ? 'You\'re all caught up! No pending requests.' : `No ${filter === 'all' ? '' : filter + ' '}requests yet.`}
           </p>
         </div>
       )}
