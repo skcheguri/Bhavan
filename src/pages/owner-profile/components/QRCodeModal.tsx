@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { Capacitor } from '@capacitor/core';
 import { shareImage } from '@/lib/shareImage';
 import { viewDocument } from '@/lib/viewDocument';
+import { rentUnitLabel } from '@/lib/listingPricing';
 
 interface Listing {
   id: string;
@@ -11,6 +12,7 @@ interface Listing {
   location: string | null;
   price: number;
   images: string[];
+  category?: string | null;
 }
 
 interface QRCodeModalProps {
@@ -108,7 +110,7 @@ export default function QRCodeModal({ listing, onClose }: QRCodeModalProps) {
     // Price
     ctx.fillStyle = '#f59e0b';
     ctx.font = 'bold 16px sans-serif';
-    ctx.fillText(`₹${listing.price.toLocaleString('en-IN')}/mo`, width / 2, 182);
+    ctx.fillText(`₹${listing.price.toLocaleString('en-IN')}${rentUnitLabel(listing.category)}`, width / 2, 182);
 
     // QR code area background
     ctx.fillStyle = '#f9f9f7';

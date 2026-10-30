@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useListingDetail } from '@/hooks/useListingDetail';
 import { applySeo } from '@/lib/seo';
+import { rentUnitLabel } from '@/lib/listingPricing';
 import { useSaveListing } from '@/hooks/useSaveListing';
 import { useListings } from '@/hooks/useListings';
 import { useCreateConnectionRequest, useTenantConnectionRequests } from '@/hooks/useConnectionRequests';
@@ -37,7 +38,7 @@ export default function ListingDetail() {
   useEffect(() => {
     if (!listing) return;
     applySeo({
-      title: `${listing.title} — ₹${listing.price.toLocaleString('en-IN')}${listing.category === 'vacation' ? '/night' : '/mo'} in ${listing.location}`,
+      title: `${listing.title} — ₹${listing.price.toLocaleString('en-IN')}${rentUnitLabel(listing.category)} in ${listing.location}`,
       description:
         (listing.description || `${listing.title}, available for rent in ${listing.location}.`).slice(0, 160) +
         ' Broker-free on Bhavan.',
@@ -1096,7 +1097,7 @@ export default function ListingDetail() {
                         )}
                       </div>
                       <div className="p-3">
-                        <p className="text-xs font-bold text-brand">₹{sim.price.toLocaleString('en-IN')}{sim.category === 'vacation' ? '/night' : '/mo'}</p>
+                        <p className="text-xs font-bold text-brand">₹{sim.price.toLocaleString('en-IN')}{rentUnitLabel(sim.category)}</p>
                         <p className="text-xs font-semibold text-charcoal mt-0.5 line-clamp-1">{sim.title}</p>
                         <p className="text-[10px] text-charcoal/40 flex items-center gap-0.5 mt-0.5">
                           <i className="ri-map-pin-line text-[10px]" /> {sim.location}

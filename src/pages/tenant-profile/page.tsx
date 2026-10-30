@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useSavedListings } from '@/hooks/useListings';
+import { rentUnitLabel } from '@/lib/listingPricing';
 import NotificationBell from '@/pages/owner-profile/components/NotificationBell';
 import PhoneVerifyModal from '@/components/feature/PhoneVerifyModal';
 import DeleteAccountModal from '@/components/feature/DeleteAccountModal';
@@ -765,7 +766,7 @@ export default function TenantProfile() {
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-sm font-bold text-charcoal leading-snug">{listing.title}</h3>
-                      <p className="text-sm font-bold text-brand whitespace-nowrap">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-normal text-charcoal/40">/mo</span></p>
+                      <p className="text-sm font-bold text-brand whitespace-nowrap">₹{listing.price.toLocaleString('en-IN')}<span className="text-xs font-normal text-charcoal/40">{rentUnitLabel(listing.category)}</span></p>
                     </div>
                     <p className="text-xs text-charcoal/60 flex items-center gap-1 mt-1">
                       <i className="ri-map-pin-line text-sm" /> {listing.location ?? listing.city ?? 'Unknown'}

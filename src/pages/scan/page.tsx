@@ -3,6 +3,7 @@ import { todayLocalISO } from '@/lib/localDate';
 import { useParams, Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useListingDetail } from '@/hooks/useListingDetail';
+import { rentUnitWord } from '@/lib/listingPricing';
 import { recordScan, recordConversion } from '@/hooks/useQrAnalytics';
 import { useCreateConnectionRequest, useTenantConnectionRequests } from '@/hooks/useConnectionRequests';
 import { useContactRateLimit, getContactLimitStatus } from '@/hooks/useContactRateLimit';
@@ -353,7 +354,7 @@ export default function ScanLanding() {
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-lg font-bold text-amber-600">₹{listing.price.toLocaleString('en-IN')}</p>
-                <p className="text-xs text-charcoal/40">per month</p>
+                <p className="text-xs text-charcoal/40">{rentUnitWord(listing.category)}</p>
               </div>
             </div>
 
