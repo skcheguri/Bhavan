@@ -1,4 +1,5 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -31,6 +32,7 @@ interface UserProfileModalProps {
 
 export default function UserProfileModal({ userId, roleLabel, reviewRole = 'renter_on_owner', canReview, onClose }: UserProfileModalProps) {
   useDismissableLayer(onClose);
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const { user: currentUser } = useAuth();
   const { addToast } = useToast();
   const [profile, setProfile] = useState<BasicProfile | null>(null);
@@ -94,7 +96,7 @@ export default function UserProfileModal({ userId, roleLabel, reviewRole = 'rent
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="User profile" className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-black/5 flex items-start justify-between">
           {loadingProfile ? (
             <p className="text-sm text-charcoal/40">Loading profile…</p>

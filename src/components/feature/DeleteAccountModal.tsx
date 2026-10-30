@@ -1,4 +1,5 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +13,7 @@ const CONFIRM_TEXT = 'DELETE';
 
 export default function DeleteAccountModal({ onClose }: Props) {
   useDismissableLayer(onClose);
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const { deleteMyAccount } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -36,7 +38,7 @@ export default function DeleteAccountModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Delete account" className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="p-5 border-b border-black/5 flex items-center justify-between">
           <h3 className="text-sm font-bold text-charcoal">Delete your account?</h3>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-lightgray transition-colors cursor-pointer">

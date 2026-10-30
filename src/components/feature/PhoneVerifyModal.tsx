@@ -1,4 +1,5 @@
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -10,6 +11,7 @@ interface Props {
 
 export default function PhoneVerifyModal({ phone, onClose, onVerified }: Props) {
   useDismissableLayer(onClose);
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const { sendPhoneVerificationOtp, confirmPhoneVerificationOtp } = useAuth();
   const [step, setStep] = useState<'send' | 'code'>('send');
   const [code, setCode] = useState('');
@@ -46,7 +48,7 @@ export default function PhoneVerifyModal({ phone, onClose, onVerified }: Props) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Verify phone number" className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
         <div className="p-5 border-b border-black/5 flex items-center justify-between">
           <h3 className="text-sm font-bold text-charcoal">Verify phone number</h3>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-lightgray transition-colors cursor-pointer">
@@ -73,7 +75,9 @@ export default function PhoneVerifyModal({ phone, onClose, onVerified }: Props) 
               <p className="text-sm text-charcoal/70">
                 Enter the code sent to <span className="font-semibold text-charcoal">{phone}</span>.
               </p>
+              <label htmlFor="phone-otp-code" className="sr-only">Verification code</label>
               <input
+                id="phone-otp-code"
                 type="text"
                 inputMode="numeric"
                 maxLength={8}
