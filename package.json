@@ -74,7 +74,8 @@
     "cap:sync": "npm run build && npx cap sync",
     "android:open": "npm run cap:sync && npx cap open android",
     "ios:open": "npm run cap:sync && npx cap open ios",
-    "seed:demo": "node scripts/demo-seed/seed.mjs"
+    "seed:demo": "node scripts/demo-seed/seed.mjs",
+    "cleanup:test-data": "node scripts/data-cleanup/purge-test-data.mjs"
   },
   "type": "module",
   "version": "0.1.0"
