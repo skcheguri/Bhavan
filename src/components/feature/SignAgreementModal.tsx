@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useDismissableLayer } from '@/hooks/useDismissableLayer';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface SignAgreementModalProps {
   agreementNumber: string;
@@ -16,6 +17,7 @@ interface SignAgreementModalProps {
 // step; this records intent, the name signed, and the timestamp.
 export default function SignAgreementModal({ agreementNumber, defaultName, party, busy, onSign, onClose }: SignAgreementModalProps) {
   useDismissableLayer(onClose);
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const [name, setName] = useState(defaultName ?? '');
   const [consent, setConsent] = useState(false);
 
@@ -23,15 +25,16 @@ export default function SignAgreementModal({ agreementNumber, defaultName, party
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Sign rental agreement" className="bg-white rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 border-b border-black/5">
           <h2 className="text-lg font-bold text-charcoal">Sign agreement</h2>
           <p className="text-xs text-charcoal/60 mt-0.5">{agreementNumber}</p>
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-charcoal mb-1.5">Full name ({party})</label>
+            <label htmlFor="sign-agreement-name" className="block text-sm font-medium text-charcoal mb-1.5">Full name ({party})</label>
             <input
+              id="sign-agreement-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
