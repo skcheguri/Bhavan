@@ -859,7 +859,7 @@ export default function TenantProfile() {
                 Notifications
               </h2>
               <p className="text-sm text-charcoal/60 mb-4">
-                Choose how you receive each type of notification. If push fails, SMS and email fallbacks activate automatically.
+                Choose how you receive each type of notification. For now notifications are push-only; SMS and email are coming soon.
               </p>
               <ChannelPreferences />
             </div>
