@@ -55,17 +55,6 @@ export interface CreatePaymentInput {
   transaction_ref: string;
 }
 
-export interface CreateMandateInput {
-  tenant_id: string;
-  owner_id: string;
-  property_id: string;
-  upi_id: string;
-  bank_account: string;
-  mandate_amount: number;
-  start_date: string;
-  end_date: string;
-}
-
 export interface RentPaymentState {
   payments: RentPayment[];
   mandates: UPIMandate[];
@@ -89,7 +78,6 @@ export interface UseRentPaymentReturn extends RentPaymentState {
   getMandateForTenant: (tenantId: string) => UPIMandate | null;
   createPayment: (input: CreatePaymentInput) => Promise<{ data: RentPayment | null; error: string | null }>;
   reconcilePayment: (paymentId: string, note: string) => Promise<{ error: string | null }>;
-  createMandate: (input: CreateMandateInput) => Promise<{ data: UPIMandate | null; error: string | null }>;
   pauseMandate: (mandateId: string) => Promise<{ error: string | null }>;
   cancelMandate: (mandateId: string) => Promise<{ error: string | null }>;
   refresh: () => Promise<void>;
@@ -346,30 +334,10 @@ export function useRentPayment(): UseRentPaymentReturn {
     [payments, supabase]
   );
 
-  const createMandate = useCallback(
-    async (input: CreateMandateInput): Promise<{ data: UPIMandate | null; error: string | null }> => {
-      const newMandate: UPIMandate = {
-        id: `mand-${Date.now()}`,
-        ...input,
-        frequency: 'monthly',
-        status: 'active',
-        razorpay_token: `token_${Date.now()}`,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      if (supabase && isValidUUID(input.tenant_id) && isValidUUID(input.owner_id) && isValidUUID(input.property_id)) {
-        const { data, error: supaErr } = await supabase.from('upi_mandates').insert(newMandate).select().single();
-        if (supaErr) return { data: null, error: supaErr.message };
-        broadcastRentRefresh();
-        return { data: data as UPIMandate, error: null };
-      }
-
-      setMandates((prev) => [...prev, newMandate]);
-      return { data: newMandate, error: null };
-    },
-    [supabase]
-  );
+  // Mandates are never created from the client: UPI AutoPay has no real
+  // Razorpay e-mandate yet, and upi_mandates is read-only to client roles
+  // (migration 155). A real mandate will be created server-side by an edge
+  // function once Razorpay confirms the e-mandate.
 
   const pauseMandate = useCallback(
     async (mandateId: string): Promise<{ error: string | null }> => {
@@ -433,7 +401,6 @@ export function useRentPayment(): UseRentPaymentReturn {
     getMandateForTenant,
     createPayment,
     reconcilePayment,
-    createMandate,
     pauseMandate,
     cancelMandate,
     refresh,
