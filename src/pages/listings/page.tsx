@@ -190,6 +190,18 @@ export default function Listings() {
     if (cat === 'vacation' || cat === 'residential' || cat === 'commercial') {
       setActiveCategory(cat as ListingCategory);
     }
+    // A ?q= from elsewhere (e.g. the homepage hero search box) seeds and
+    // applies this page's own search bar -- no second search engine. The
+    // nearby-by-distance geocode runs just like a typed search.
+    const q = searchParams.get('q')?.trim();
+    if (q) {
+      setDraft((d) => ({ ...d, searchQuery: q }));
+      setApplied((a) => ({ ...a, searchQuery: q }));
+      geocodeAddress(`${q}, India`).then((coords) => {
+        setSearchOrigin(coords);
+        setSearchOriginLabel(coords ? q : null);
+      });
+    }
   }, [searchParams]);
 
   // Counted off `applied`, not `draft`, and only over the fields this

@@ -1065,18 +1065,27 @@ export function Maintenance({
               )}
 
               {isAdmin && (
-                <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-gray-100">
-                  {ALL_STATUSES.filter((s) => s.value !== t.status).map((s) => (
-                    <button
-                      key={s.value}
-                      onClick={() => void changeStatus(t, s.value)}
-                      disabled={busyId === t.id}
-                      className="px-3 py-1.5 border border-gray-200 text-charcoal rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-lightgray"
-                    >
-                      Mark {s.label}
-                    </button>
-                  ))}
-                </div>
+                t.status === 'resolved' ? (
+                  // Resolved is terminal: no status-change buttons on a
+                  // resolved ticket. Reopening would need a deliberate flow.
+                  <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-gray-100 text-xs font-semibold text-green-600">
+                    <i className="ri-checkbox-circle-line" />
+                    Resolved
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-gray-100">
+                    {ALL_STATUSES.filter((s) => s.value !== t.status).map((s) => (
+                      <button
+                        key={s.value}
+                        onClick={() => void changeStatus(t, s.value)}
+                        disabled={busyId === t.id}
+                        className="px-3 py-1.5 border border-gray-200 text-charcoal rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-lightgray"
+                      >
+                        Mark {s.label}
+                      </button>
+                    ))}
+                  </div>
+                )
               )}
 
               <TicketThread

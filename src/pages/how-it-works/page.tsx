@@ -343,7 +343,7 @@ export default function HowItWorks() {
             <div className="mt-10 bg-offwhite rounded-3xl border border-black/5 p-8 flex flex-col md:flex-row items-center justify-between gap-6">
               <div>
                 <h3 className="text-lg font-bold text-charcoal">Ready to find your next home?</h3>
-                <p className="text-sm text-charcoal/60 mt-1">Browse thousands of verified listings across India — no broker fees.</p>
+                <p className="text-sm text-charcoal/60 mt-1">Browse verified listings across India — no broker fees.</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
                 <Link

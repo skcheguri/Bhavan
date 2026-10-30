@@ -1,4 +1,5 @@
-import { Link } from 'react-router';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { useListings } from '@/hooks/useListings';
 import { useAuth } from '@/hooks/useAuth';
 import SmartImage from '@/components/feature/SmartImage';
@@ -6,6 +7,16 @@ import SmartImage from '@/components/feature/SmartImage';
 export default function Home() {
   const { user } = useAuth();
   const isTenant = user?.role === 'tenant';
+  const navigate = useNavigate();
+  const [heroQuery, setHeroQuery] = useState('');
+
+  // Reuse the listings search: hand the typed text to /listings via ?q=,
+  // which seeds and applies its existing search bar (no second search engine).
+  const submitHeroSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = heroQuery.trim();
+    navigate(q ? `/listings?q=${encodeURIComponent(q)}` : '/listings');
+  };
   // Two small scoped fetches (3 each) instead of pulling the whole active
   // table and slicing in the browser (Part D).
   const { listings: featuredListings, loading: loadingResidential } = useListings({ category: 'residential' }, { pageSize: 3 });
@@ -32,12 +43,32 @@ export default function Home() {
             <p className="mt-6 text-base md:text-lg text-white/80 max-w-lg leading-relaxed">
               Connect with verified landlords across India, manage your rent seamlessly, and join a supportive renter community.
             </p>
-            <div className="mt-9 flex flex-col sm:flex-row gap-3">
-              <Link
-                to="/listings"
+            <form onSubmit={submitHeroSearch} className="mt-9 flex flex-col sm:flex-row gap-3 max-w-lg" role="search">
+              <label htmlFor="hero-search" className="sr-only">Search listings by city or locality</label>
+              <div className="relative flex-1">
+                <i className="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" aria-hidden="true" />
+                <input
+                  id="hero-search"
+                  type="search"
+                  value={heroQuery}
+                  onChange={(e) => setHeroQuery(e.target.value)}
+                  placeholder="Search by city or locality"
+                  className="w-full pl-11 pr-4 py-4 rounded-full bg-white text-charcoal placeholder-charcoal/40 focus:outline-none focus:ring-2 focus:ring-brand"
+                />
+              </div>
+              <button
+                type="submit"
                 className="bg-brand text-white font-semibold px-8 py-4 rounded-full hover:bg-brand-dark transition-colors text-center whitespace-nowrap"
               >
-                Browse listings
+                Search
+              </button>
+            </form>
+            <div className="mt-4 flex flex-col sm:flex-row gap-3">
+              <Link
+                to="/listings"
+                className="bg-white/10 text-white font-semibold px-8 py-4 rounded-full hover:bg-white/20 border border-white/20 transition-colors text-center whitespace-nowrap"
+              >
+                Browse all listings
               </Link>
               <Link
                 to="/signup"
@@ -133,6 +164,7 @@ export default function Home() {
                   const area = listing.area_sqft ?? 0;
                   const propertyType = listing.property_type ?? 'apartment';
                   const verified = listing.verified ?? false;
+                  const ownerVerified = listing.owner?.verified_aadhaar ?? false;
 
                   return (
                     <Link
@@ -166,7 +198,7 @@ export default function Home() {
                         <div className="mt-3 flex items-center gap-4 text-sm text-charcoal/60">
                           <span className="flex items-center gap-1.5">
                             <i className="ri-hotel-bed-line text-sm" />
-                            {bedrooms} {bedrooms === 1 ? 'bed' : 'beds'}
+                            {bedrooms === 0 ? 'Studio' : `${bedrooms} ${bedrooms === 1 ? 'bed' : 'beds'}`}
                           </span>
                           <span className="flex items-center gap-1.5">
                             <i className="ri-drop-line text-sm" />
@@ -185,7 +217,7 @@ export default function Home() {
                           />
                           <div>
                             <p className="text-sm font-medium text-charcoal">{landlordName}</p>
-                            <p className="text-xs text-charcoal/50">Verified landlord</p>
+                            <p className="text-xs text-charcoal/50">{ownerVerified ? 'Verified landlord' : 'Property owner'}</p>
                           </div>
                         </div>
                       </div>
@@ -253,6 +285,7 @@ export default function Home() {
                   const location = listing.location ?? listing.city ?? 'Unknown';
                   const propertyType = listing.property_type ?? 'villa';
                   const verified = listing.verified ?? false;
+                  const ownerVerified = listing.owner?.verified_aadhaar ?? false;
                   const amenities = listing.amenities ?? [];
 
                   return (
@@ -310,7 +343,7 @@ export default function Home() {
                           />
                           <div>
                             <p className="text-sm font-medium text-charcoal">{landlordName}</p>
-                            <p className="text-xs text-charcoal/50">Verified owner</p>
+                            <p className="text-xs text-charcoal/50">{ownerVerified ? 'Verified owner' : 'Property owner'}</p>
                           </div>
                         </div>
                       </div>
@@ -421,7 +454,7 @@ export default function Home() {
                     Have a property<br />to rent out?
                   </h2>
                   <p className="mt-3 text-white/80 text-sm md:text-base leading-relaxed">
-                    List your property for free and connect with thousands of verified tenants across India. Only verified property owners can list — no subletting allowed.
+                    List your property for free and connect with verified tenants across India. Only verified property owners can list — no subletting allowed.
                   </p>
                   <div className="mt-6 flex flex-wrap gap-4">
                     {['No broker fees', 'Verified tenants', 'Free listing'].map((tag) => (
@@ -459,7 +492,7 @@ export default function Home() {
             Start your rental journey today
           </h2>
           <p className="mt-4 text-lg text-white/80 max-w-xl mx-auto">
-            Create your free account and access thousands of verified rental listings in minutes
+            Create your free account and browse verified rental listings in minutes
           </p>
           <Link
             to="/signup"

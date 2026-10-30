@@ -42,7 +42,7 @@ function SlimFooter() {
   return (
     <footer className="border-t border-black/5 bg-white">
       <div className="w-full px-4 md:px-8 lg:px-12 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <p className="text-xs text-charcoal/40">&copy; 2025 Bhavan</p>
+        <p className="text-xs text-charcoal/40">&copy; {new Date().getFullYear()} Bhavan</p>
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           {LEGAL_LINKS.map((l) => (
             <Link
@@ -161,7 +161,7 @@ export default function Footer() {
           </div>
 
           <div className="flex flex-col items-center md:items-end gap-3">
-            <p className="text-sm text-white/50">&copy; 2025 Bhavan. All rights reserved.</p>
+            <p className="text-sm text-white/50">&copy; {new Date().getFullYear()} Bhavan. All rights reserved.</p>
             {SOCIAL_ACCOUNTS.length > 0 && (
               <div className="flex items-center gap-4">
                 {SOCIAL_ACCOUNTS.map((account) => (
